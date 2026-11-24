@@ -444,6 +444,10 @@
   font-size: 11.5px;
 }
 
+.commit-web {
+  color: var(--text-2);
+}
+
 .commit-copy:hover {
   background: var(--selected);
 }

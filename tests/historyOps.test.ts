@@ -61,5 +61,7 @@ describe('HistoryOps', () => {
     await git(repo, 'commit', '-q', '-m', 'feat: b');
     const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
     expect(await ops.commit(repo, oid.slice(0, 7))).toMatchObject({ ok: true, commit: { oid, subject: 'feat: b', files: [{ path: 'b.txt' }] } });
+    // Uzak repo yok: GitHub bağlantısı da yok.
+    expect(await ops.commit(repo, oid)).toMatchObject({ ok: true, webUrl: null });
   });
 });

@@ -92,4 +92,5 @@ export interface CommitDetail extends CommitSummary {
   removed: number;
 }
 
-export type CommitResult = { ok: true; commit: CommitDetail } | { ok: false; error: string };
+/** `webUrl`: commit push edildiyse GitHub sayfası; yoksa null (okunmadıysa alan yok). */
+export type CommitResult = { ok: true; commit: CommitDetail; webUrl?: string | null } | { ok: false; error: string };

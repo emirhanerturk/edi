@@ -33,7 +33,7 @@ const detail = (over: Partial<CommitDetail> = {}): CommitDetail => ({
 });
 
 function renderPane(result: CommitResult | null, over: Partial<CommitPaneProps> = {}) {
-  const props: CommitPaneProps = { repoName: 'quizei-app-next-quiz', branch: 'main', result, now, tokens: new Map(), onCopy: vi.fn(), ...over };
+  const props: CommitPaneProps = { repoName: 'quizei-app-next-quiz', branch: 'main', result, now, tokens: new Map(), onCopy: vi.fn(), onOpenUrl: vi.fn(), ...over };
   render(<CommitPane {...props} />);
   return props;
 }
@@ -62,6 +62,18 @@ describe('CommitPane', () => {
     fireEvent.click(within(meta).getByRole('button', { name: /Copy hash/ }));
     expect(onCopy).toHaveBeenCalledTimes(1);
     expect(within(meta).getByRole('button', { name: /Copy hash/ }).textContent).toContain('3ed0fc5');
+  });
+
+  it("push edilmiş commit'te GitHub bağlantısı vardır ve tarayıcıda açar; yoksa düğme de yoktur", () => {
+    const url = `https://github.com/quizei/app/commit/${'3ed0fc5'.padEnd(40, 'a')}`;
+    const { onOpenUrl } = renderPane({ ok: true, commit: detail(), webUrl: url });
+    const link = within(screen.getByTestId('commit-meta')).getByRole('button', { name: 'Open on GitHub' });
+    expect(link.title).toBe(url);
+    fireEvent.click(link);
+    expect(onOpenUrl).toHaveBeenCalledWith(url);
+    cleanup();
+    renderPane({ ok: true, commit: detail(), webUrl: null });
+    expect(screen.queryByRole('button', { name: 'Open on GitHub' })).toBeNull();
   });
 
   it('yazarın adı yoksa e-postası gösterilir', () => {

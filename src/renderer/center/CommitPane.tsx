@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { ChevronDown, ChevronRight, CopyIcon } from '../components/icons';
+import { ChevronDown, ChevronRight, CopyIcon, ExternalIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -37,10 +37,12 @@ export interface CommitPaneProps {
   /** Dosya yolu → sözdizimi renkleri. */
   tokens: Map<string, DiffTokens>;
   onCopy(): void;
+  /** Commit'in GitHub sayfasını tarayıcıda açar. */
+  onOpenUrl(url: string): void;
 }
 
 /** Bir commit: başlık, gövde, bilgiler ve değişen her dosyanın diff'i alt alta. */
-export function CommitPane({ repoName, branch, result, now, tokens, onCopy }: CommitPaneProps) {
+export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl }: CommitPaneProps) {
   if (result === null) return <div className="center-view" data-testid="center-view" data-kind="commit" />;
   if (!result.ok) {
     return (
@@ -82,6 +84,12 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy }: Co
           <span className="mono">
             <span className="add">+{commit.added}</span> <span className="del">−{commit.removed}</span>
           </span>
+          {result.webUrl && (
+            <button className="commit-copy commit-web" aria-label="Open on GitHub" title={result.webUrl} onClick={() => onOpenUrl(result.webUrl!)}>
+              <span>GitHub</span>
+              <ExternalIcon size={12} />
+            </button>
+          )}
           <button className="commit-copy" aria-label={`Copy hash ${commit.short}`} title="Copy hash" onClick={onCopy}>
             <span className="mono">{commit.short}</span>
             <CopyIcon size={12} />
