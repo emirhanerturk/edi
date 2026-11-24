@@ -1,4 +1,5 @@
 // Yalnız tür: sayfa da (Node'a erişimi olmadan) bu dosyayı kullanır.
+import type { ParsedDiff } from './diffParse.js';
 
 export interface FileChange {
   path: string;
@@ -64,3 +65,21 @@ export type LogResult =
       userEmail: string | null;
     }
   | { ok: false; error: string };
+
+export interface CommitFile {
+  path: string;
+  /** Yeniden adlandırma ya da kopyada eski yol. */
+  origPath: string | null;
+  letter: 'A' | 'M' | 'D' | 'R' | 'C' | 'T';
+  diff: ParsedDiff;
+}
+
+export interface CommitDetail extends CommitSummary {
+  /** Konu satırından sonraki metin, sonundaki boşluklar atılmış. */
+  body: string;
+  files: CommitFile[];
+  added: number;
+  removed: number;
+}
+
+export type CommitResult = { ok: true; commit: CommitDetail } | { ok: false; error: string };
