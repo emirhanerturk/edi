@@ -75,6 +75,8 @@ export interface CommitFile {
 }
 
 export interface CommitDetail extends CommitSummary {
+  /** Diff sınırı aştı: dosyaların satırları yok, yalnız eklenen/silinen sayıları var. */
+  tooLarge: boolean;
   /** Konu satırından sonraki metin, sonundaki boşluklar atılmış. */
   body: string;
   files: CommitFile[];

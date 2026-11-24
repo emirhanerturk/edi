@@ -13,6 +13,12 @@ export const PAGE = 50;
  */
 export const PINNED = ['-c', 'log.showSignature=false', '-c', 'color.ui=false', '-c', 'core.quotePath=false'];
 
+/**
+ * History okumaları için ortam: partial clone'da (`--filter=blob:none`) eksik içerik için git'in
+ * kendiliğinden uzak repoya gitmesi kapalıdır. Görüntülemek ağa çıkmaz, `.git`'e yazmaz.
+ */
+export const NO_LAZY_FETCH = { GIT_NO_LAZY_FETCH: '1' };
+
 const US = '\x1f';
 /** Alanlar birim ayracıyla, kayıtlar (`-z` ile) NUL ile ayrılır: konu satırında ikisi de bulunamaz. */
 export const SUMMARY_FORMAT = ['%H', '%h', '%P', '%an', '%ae', '%ct', '%D', '%s'].join('%x1f');
@@ -66,19 +72,19 @@ async function upstreamOf(repo: string): Promise<string | null> {
  */
 async function unpushedOf(repo: string, upstream: string | null, limit: number): Promise<string[]> {
   if (upstream !== null) {
-    const result = await runGit(repo, ['rev-list', `--max-count=${limit}`, 'HEAD', '--not', '@{u}', '--']);
+    const result = await runGit(repo, ['rev-list', `--max-count=${limit}`, 'HEAD', '--not', '@{u}', '--'], { env: NO_LAZY_FETCH });
     return result.ok ? lines(result.stdout) : [];
   }
   const remotes = await runGit(repo, ['remote']);
   if (!remotes.ok || lines(remotes.stdout).length === 0) return [];
-  const result = await runGit(repo, ['rev-list', `--max-count=${limit}`, 'HEAD', '--not', '--remotes', '--']);
+  const result = await runGit(repo, ['rev-list', `--max-count=${limit}`, 'HEAD', '--not', '--remotes', '--'], { env: NO_LAZY_FETCH });
   return result.ok ? lines(result.stdout) : [];
 }
 
 /** HEAD'den geriye en çok `count` commit. Commit'i olmayan repoda boş liste döner. */
 export async function readLog(repo: string, count: number): Promise<LogResult> {
   const [head, email] = await Promise.all([
-    runGit(repo, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], { okCodes: [0, 1] }),
+    runGit(repo, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], { okCodes: [0, 1], env: NO_LAZY_FETCH }),
     runGit(repo, ['config', '--get', 'user.email'], { okCodes: [0, 1] }),
   ]);
   if (!head.ok) return { ok: false, error: head.error };
@@ -87,7 +93,7 @@ export async function readLog(repo: string, count: number): Promise<LogResult> {
 
   const limit = count + 1;
   const [log, upstream] = await Promise.all([
-    runGit(repo, [...PINNED, 'log', '-z', '--no-color', '--decorate=short', '--abbrev=7', `--format=${SUMMARY_FORMAT}`, `--max-count=${limit}`, 'HEAD', '--']),
+    runGit(repo, [...PINNED, 'log', '-z', '--no-color', '--decorate=short', '--abbrev=7', `--format=${SUMMARY_FORMAT}`, `--max-count=${limit}`, 'HEAD', '--'], { env: NO_LAZY_FETCH }),
     upstreamOf(repo),
   ]);
   if (!log.ok) return { ok: false, error: log.error };

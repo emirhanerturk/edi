@@ -1,13 +1,16 @@
 // Tek bir commit'in bilgilerini, değişen dosyalarını ve diff'lerini okur. Yalnız okur.
 import { parseDiff } from './diffParse.js';
-import { runGit } from './exec.js';
-import { PINNED, SUMMARY_FORMAT, parseSummary } from './log.js';
+import { OUTPUT_TOO_LARGE, runGit } from './exec.js';
+import { NO_LAZY_FETCH, PINNED, SUMMARY_FORMAT, parseSummary } from './log.js';
 import type { CommitDetail, CommitFile, CommitResult } from './types.js';
 
 export type { CommitDetail, CommitFile, CommitResult };
 
 const HUNK = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const UNREADABLE = 'Could not read this commit';
+export const PARTIAL_CLONE = "This commit's file contents are not downloaded (partial clone)";
+/** Commit'in patch'i bundan büyükse okunmaz: ayrıştırma ana süreçte çalışır, sonuç sayfaya kopyalanır. */
+export const MAX_COMMIT_PATCH = 8 * 1_048_576;
 
 /**
  * Çok dosyalı bir patch'i `diff --git` bölümlerine ayırır. Hunk içindeki satırlar sayılır;
@@ -82,16 +85,63 @@ function parseNameStatus(out: string): NameStatus[] | null {
 /** Kullanıcı ayarlarından bağımsız diff: dış araç, textconv, renk ve submodule biçimi sabit. */
 const DIFF = ['--root', '-M', '--diff-merges=first-parent', '--no-color', '--no-ext-diff', '--no-textconv', '--submodule=short'];
 
-/** `oid` önceden doğrulanmış, tam bir commit kimliği olmalı. */
-export async function readCommit(repo: string, oid: string): Promise<CommitResult> {
+const failure = (error: string): CommitResult => ({ ok: false, error: /lazy fetch|promisor remote/i.test(error) ? PARTIAL_CLONE : error });
+
+/**
+ * Name-status kayıtlarını patch bölümleriyle eşler. Türü değişen dosya (bağ ↔ dosya) listede tek
+ * `T` kaydıdır ama patch'te iki bölümdür: silme ve oluşturma; ikisi tek diff olarak okunur.
+ */
+function zipFiles(list: NameStatus[], chunks: string[]): CommitFile[] | null {
+  const files: CommitFile[] = [];
+  let next = 0;
+  for (const file of list) {
+    let text = chunks[next++];
+    if (text === undefined) return null;
+    const second = chunks[next];
+    if (file.letter === 'T' && /^deleted file mode /m.test(text) && second !== undefined && /^new file mode /m.test(second)) {
+      text += second;
+      next++;
+    }
+    files.push({ ...file, diff: parseDiff(text) });
+  }
+  return next === chunks.length ? files : null;
+}
+
+/** `--numstat -z`: "eklenen\tsilinen\tyol\0" ya da yeniden adlandırmada "e\ts\t\0eski\0yeni\0"; ikili dosyada "-". */
+function parseNumstat(out: string): Map<string, { added: number; removed: number; binary: boolean }> {
+  const counts = new Map<string, { added: number; removed: number; binary: boolean }>();
+  const fields = out.split('\0');
+  for (let i = 0; i < fields.length; i++) {
+    const match = /^\n?(-|\d+)\t(-|\d+)\t(.*)$/s.exec(fields[i] ?? '');
+    if (!match) continue;
+    let path = match[3]!;
+    if (path === '') {
+      path = fields[i + 2] ?? '';
+      i += 2;
+    }
+    const binary = match[1] === '-';
+    const prev = counts.get(path) ?? { added: 0, removed: 0, binary: false };
+    counts.set(path, {
+      added: prev.added + (binary ? 0 : Number(match[1])),
+      removed: prev.removed + (binary ? 0 : Number(match[2])),
+      binary: prev.binary || binary,
+    });
+  }
+  return counts;
+}
+
+/** `oid` önceden doğrulanmış, tam bir commit kimliği olmalı. `maxPatch` karakteri aşan patch okunmaz. */
+export async function readCommit(repo: string, oid: string, maxPatch = MAX_COMMIT_PATCH): Promise<CommitResult> {
+  const env = NO_LAZY_FETCH;
   const [meta, names, patch] = await Promise.all([
-    runGit(repo, [...PINNED, 'show', '-s', '--no-color', '--decorate=short', '--abbrev=7', `--format=${SUMMARY_FORMAT}%x1f%b`, oid, '--']),
-    runGit(repo, [...PINNED, 'show', '--format=', '--name-status', '-z', ...DIFF, oid, '--']),
-    runGit(repo, [...PINNED, 'show', '--format=', '-p', ...DIFF, oid, '--']),
+    runGit(repo, [...PINNED, 'show', '-s', '--no-color', '--decorate=short', '--abbrev=7', `--format=${SUMMARY_FORMAT}%x1f%b`, oid, '--'], { env }),
+    runGit(repo, [...PINNED, 'show', '--format=', '--name-status', '-z', ...DIFF, oid, '--'], { env }),
+    runGit(repo, [...PINNED, 'show', '--format=', '-p', ...DIFF, oid, '--'], { env, maxOutput: maxPatch }),
   ]);
-  if (!meta.ok) return { ok: false, error: meta.error };
-  if (!names.ok) return { ok: false, error: names.error };
-  if (!patch.ok) return { ok: false, error: patch.error };
+  if (!meta.ok) return failure(meta.error);
+  if (!names.ok) return failure(names.error);
+  const tooLarge = !patch.ok && patch.error === OUTPUT_TOO_LARGE;
+  if (!patch.ok && !tooLarge) return failure(patch.error);
 
   const fields = meta.stdout.split('\x1f');
   const summary = parseSummary(fields.slice(0, 8));
@@ -99,14 +149,28 @@ export async function readCommit(repo: string, oid: string): Promise<CommitResul
   const body = fields.slice(8).join('\x1f').trimEnd();
 
   const list = parseNameStatus(names.stdout);
-  const chunks = splitPatch(patch.stdout);
-  if (!list || list.length !== chunks.length) return { ok: false, error: UNREADABLE };
+  if (!list) return { ok: false, error: UNREADABLE };
 
-  const files: CommitFile[] = list.map((file, index) => ({ ...file, diff: parseDiff(chunks[index]!) }));
+  let files: CommitFile[] | null;
+  if (tooLarge) {
+    // Satırlar yerine yalnız sayılar.
+    const numstat = await runGit(repo, [...PINNED, 'show', '--format=', '--numstat', '-z', ...DIFF, oid, '--'], { env });
+    if (!numstat.ok) return failure(numstat.error);
+    const counts = parseNumstat(numstat.stdout);
+    files = list.map((file) => {
+      const count = counts.get(file.path) ?? { added: 0, removed: 0, binary: false };
+      return { ...file, diff: { hunks: [], added: count.added, removed: count.removed, binary: count.binary } };
+    });
+  } else {
+    files = zipFiles(list, splitPatch(patch.stdout));
+    if (!files) return { ok: false, error: UNREADABLE };
+  }
+
   const commit: CommitDetail = {
     ...summary,
     body,
     files,
+    tooLarge,
     added: files.reduce((sum, file) => sum + file.diff.added, 0),
     removed: files.reduce((sum, file) => sum + file.diff.removed, 0),
   };
