@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/renderer/bridge', () => ({ edi: {} }));
 vi.mock('../../src/renderer/terminals/terminals', () => ({}));
 
-const { applyTabStates } = await import('../../src/renderer/store');
+const { applyTabStates, applyTitle } = await import('../../src/renderer/store');
 type Tab = import('../../src/renderer/store').Tab;
 
 const tab = (over: Partial<Tab> = {}): Tab => ({
@@ -15,6 +15,7 @@ const tab = (over: Partial<Tab> = {}): Tab => ({
   busy: false,
   exited: false,
   claudeUntil: 0,
+  titleState: null,
   ...over,
 });
 
@@ -49,5 +50,59 @@ describe('applyTabStates', () => {
     const tabs = [tab({ title: 'claude', claude: true, waiting: true, busy: true })];
     expect(applyTabStates(tabs, [{ id: 1, title: 'zsh', claude: false, busy: false }], 0)[0]).toMatchObject({ waiting: false, claude: false });
     expect(applyTabStates(tabs, [{ id: 1, title: 'claude', claude: true, busy: true }], 0)[0]).toBe(tabs[0]);
+  });
+});
+
+describe('applyTitle', () => {
+  const claudeTab = (over: Partial<Tab> = {}) => tab({ title: 'claude', claude: true, ...over });
+
+  it('arka plandaki Claude sekmesi çalışırken beklemeye geçince zil yanar', () => {
+    const working = applyTitle(claudeTab(), '◐ Görev', false);
+    expect(working).toMatchObject({ titleState: 'working', waiting: false });
+    expect(applyTitle(working, '✳ Görev', false)).toMatchObject({ titleState: 'waiting', waiting: true });
+  });
+
+  it('etkin sekmede zil yanmaz; sonradan başka sekmeye geçmek de yakmaz', () => {
+    const done = applyTitle(applyTitle(claudeTab(), '◑ Görev', true), '✳ Görev', true);
+    expect(done).toMatchObject({ titleState: 'waiting', waiting: false });
+    // Arka plana geçtikten sonra aynı başlık yinelense de yeni bir şey olmamıştır.
+    expect(applyTitle(done, '✳ Görev', false).waiting).toBe(false);
+  });
+
+  it('yeni açılmış, hiç çalışmamış oturum zil yakmaz', () => {
+    expect(applyTitle(claudeTab(), '✳ Claude Code', false)).toMatchObject({ titleState: 'waiting', waiting: false });
+  });
+
+  it('yeniden çalışmaya başlayınca zil söner', () => {
+    const waiting = claudeTab({ titleState: 'waiting', waiting: true });
+    expect(applyTitle(waiting, '◐ Görev', false)).toMatchObject({ titleState: 'working', waiting: false });
+  });
+
+  it("Claude Code'un olmayan başlık durumu değiştirmez", () => {
+    const working = claudeTab({ titleState: 'working' });
+    expect(applyTitle(working, 'zsh', false)).toBe(working);
+    const waiting = claudeTab({ titleState: 'waiting', waiting: true });
+    expect(applyTitle(waiting, '', false)).toBe(waiting);
+  });
+
+  it('Claude sekmesi olmayan sekmede zil yanmaz', () => {
+    const working = applyTitle(tab(), '◐ sahte', false);
+    expect(applyTitle(working, '✳ sahte', false).waiting).toBe(false);
+  });
+
+  it('kapanmış sekmeye dokunmaz', () => {
+    const exited = claudeTab({ exited: true, titleState: 'working' });
+    expect(applyTitle(exited, '✳ Görev', false)).toBe(exited);
+  });
+});
+
+describe('applyTabStates ve zil', () => {
+  it('Claude Code kapanınca zil ve başlık durumu sıfırlanır', () => {
+    const tabs = [tab({ title: 'claude', claude: true, waiting: true, titleState: 'waiting' })];
+    expect(applyTabStates(tabs, [{ id: 1, title: 'zsh', claude: false, busy: false }], 0)[0]).toMatchObject({
+      claude: false,
+      waiting: false,
+      titleState: null,
+    });
   });
 });

@@ -39,6 +39,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
     <div
       className={`tab${active ? ' active' : ''}`}
       data-testid="tab"
+      data-claude={tab.claude}
       role="tab"
       aria-selected={active}
       tabIndex={-1}

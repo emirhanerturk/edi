@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises';
+import { access, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { launch, makeRepo, tmpDir } from './helpers.js';
@@ -110,6 +110,31 @@ test('sekme önde çalışan komutun adını alır ve kapatılırken sorar', asy
     page.once('dialog', (dialog) => void dialog.accept());
     await page.keyboard.press('Meta+w');
     await expect(tab).toHaveCount(0);
+  } finally {
+    await app.close();
+  }
+});
+
+test('arka plandaki Claude sekmesi beklemeye geçince zil görünür, sekmeye dönünce kaybolur', async () => {
+  const dir = await tmpDir();
+  // Adı "claude" olan zararsız bir süreç (dash'e sembolik bağ): başlığı önce "çalışıyor", sonra "bekliyor" yapar.
+  const bin = await tmpDir('edi-e2e-bin-');
+  await symlink('/bin/dash', join(bin, 'claude'));
+  await writeFile(join(bin, 'run.sh'), "printf '\\033]0;◐ Task\\007'\nsleep 6\nprintf '\\033]0;✳ Task\\007'\nsleep 30\n");
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    const tabs = page.getByTestId('tab');
+    await expect(tabs).toHaveCount(1);
+    await page.locator('.term-host.active').click();
+    await page.keyboard.type(`${join(bin, 'claude')} ${join(bin, 'run.sh')}\n`);
+    await expect(tabs.first()).toHaveAttribute('data-claude', 'true', { timeout: 10_000 });
+
+    await page.keyboard.press('Meta+t');
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.first().getByLabel('Needs input')).toBeVisible({ timeout: 10_000 });
+
+    await tabs.first().click();
+    await expect(page.getByLabel('Needs input')).toHaveCount(0);
   } finally {
     await app.close();
   }

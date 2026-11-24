@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { GitOp, Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
+import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import { edi } from './bridge';
-import { disposeAllTerminals, disposeTerminal, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
+import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
 export interface Tab {
   id: number;
@@ -19,6 +20,8 @@ export interface Tab {
    * bu ana kadar gelen "önde yalnız kabuk var" bilgisi yok sayılır.
    */
   claudeUntil: number;
+  /** Claude Code'un terminal başlığından okunan son durum; başlık henüz gelmediyse null. */
+  titleState: ClaudeTitleState | null;
 }
 
 /** Claude Code'un açılması için tanınan süre. */
@@ -31,10 +34,32 @@ export function applyTabStates(tabs: Tab[], states: TabState[], now: number): Ta
     const state = byId.get(tab.id);
     if (!state || tab.exited) return tab;
     if (!state.claude && now < tab.claudeUntil) return tab;
+    // Claude Code kapandıysa zil de, başlıktan okunan durum da geçersizdir.
     const waiting = state.claude ? tab.waiting : false;
-    if (tab.title === state.title && tab.claude === state.claude && tab.busy === state.busy && tab.waiting === waiting) return tab;
-    return { ...tab, title: state.title, claude: state.claude, busy: state.busy, waiting };
+    const titleState = state.claude ? tab.titleState : null;
+    if (
+      tab.title === state.title &&
+      tab.claude === state.claude &&
+      tab.busy === state.busy &&
+      tab.waiting === waiting &&
+      tab.titleState === titleState
+    ) {
+      return tab;
+    }
+    return { ...tab, title: state.title, claude: state.claude, busy: state.busy, waiting, titleState };
   });
+}
+
+/**
+ * Terminal başlığı değişince sekmeyi günceller. Zil, yalnız kullanıcı bakmazken olan şey için
+ * yanar: arka plandaki bir Claude sekmesi çalışırken beklemeye geçtiğinde. Yeni açılmış boş
+ * oturum ya da kullanıcının önünde biten yanıt zil yakmaz.
+ */
+export function applyTitle(tab: Tab, title: string, active: boolean): Tab {
+  const next = claudeTitleState(title);
+  if (next === null || tab.exited || next === tab.titleState) return tab;
+  const waiting = next === 'waiting' && tab.titleState === 'working' && tab.claude && !active;
+  return { ...tab, titleState: next, waiting };
 }
 
 interface AppStore {
@@ -116,8 +141,12 @@ export const useApp = create<AppStore>((set, get) => ({
       busy: false,
       exited: false,
       claudeUntil: opts.claude ? Date.now() + CLAUDE_START_MS : 0,
+      titleState: null,
     };
     set((state) => ({ tabs: [...state.tabs, tab], activeTab: tab.id }));
+    onTerminalTitle(tab.id, (title) =>
+      set((state) => ({ tabs: state.tabs.map((other) => (other.id === tab.id ? applyTitle(other, title, state.activeTab === tab.id) : other)) })),
+    );
   },
   closeTab(id) {
     const { tabs, activeTab } = get();
