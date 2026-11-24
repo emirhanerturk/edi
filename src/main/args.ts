@@ -3,8 +3,8 @@ import { isAbsolute } from 'node:path';
 const FLAG = '--open=';
 
 /**
- * `edi <klasör>` komutunun verdiği klasör: `--open=<mutlak yol>`. Tek parçadır, çünkü Chromium
- * ikinci kopyanın argümanlarını yeniden sıralayabilir. Betik yolu her zaman mutlak verir.
+ * The folder passed by the `edi <folder>` command: `--open=<absolute path>`. It is a single argument because Chromium
+ * may reorder the second instance's arguments. The script always passes an absolute path.
  */
 export function folderArg(argv: string[]): string | undefined {
   const dir = argv.find((arg) => arg.startsWith(FLAG))?.slice(FLAG.length);

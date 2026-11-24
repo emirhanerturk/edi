@@ -5,14 +5,14 @@ import { getStatus } from '../git/status.js';
 import { assignSessions } from '../sessions.js';
 import type { RepoView, WorkspaceView } from '../shared/api.js';
 
-/** Remote listesinin kaç durum yoklamasında bir yeniden okunacağı. */
+/** How many status polls between rereads of the remote list. */
 const REMOTES_EVERY = 15;
 
 export type OpenWorkspaceResult = { ok: true; repoCount: number } | { ok: false; error: string };
 
 /**
- * Açık klasör ve içindeki repoların canlı durumu. Durumu belirli aralıkla yoklar; dosya izleme yok
- * (yüz binlerce dosyalı `node_modules` klasörlerinde pahalı ve kırılgan).
+ * Live state of the open folder and its repos. Polls the status at a fixed interval; no file watching
+ * (expensive and fragile in `node_modules` folders with hundreds of thousands of files).
  */
 export class Workspace {
   private dir: string | null = null;
@@ -21,9 +21,9 @@ export class Workspace {
   private sessionCwds: string[] = [];
   private refreshedAt = 0;
   private timer: NodeJS.Timeout | null = null;
-  /** O an durumu okunan repolar: yavaş bir repo, üst üste binen yoklamalar biriktirmez. */
+  /** Repos whose status is being read right now: a slow repo doesn't pile up overlapping polls. */
   private readonly inFlight = new Map<string, Promise<boolean>>();
-  /** Klasör değişince artar; eski klasörden geç gelen sonuçlar yok sayılır. */
+  /** Incremented when the folder changes; late results from the old folder are ignored. */
   private generation = 0;
   private readonly onChange: (view: WorkspaceView) => void;
   private readonly statusMs: number;
@@ -53,7 +53,7 @@ export class Workspace {
     return { ok: true, repoCount: this.repos.length };
   }
 
-  /** Klasörü yeniden tarar: yeni repolar eklenir, kaybolanlar düşer, kalanların durumu korunur. */
+  /** Rescans the folder: new repos are added, vanished ones dropped, and the rest keep their state. */
   async rescan(): Promise<void> {
     if (this.dir === null) return;
     const generation = this.generation;
@@ -69,12 +69,12 @@ export class Workspace {
     return { dir: this.dir, repos: this.repos, rootSessions: this.rootSessions, refreshedAt: this.refreshedAt };
   }
 
-  /** Yalnız keşfedilmiş bir reponun tam yolu eşleşir: sayfadan gelen yol bununla doğrulanır. */
+  /** Only the exact path of a discovered repo matches: paths from the page are validated with this. */
   repo(path: string): RepoView | null {
     return this.repos.find((repo) => repo.path === path) ?? null;
   }
 
-  /** Durumu şimdi yeniden okur. Süren bir okuma varsa onu bekler: o, bu çağrıdan önceki hâli görmüş olabilir. */
+  /** Rereads the status now. Waits for any read in progress first: it may have seen the state from before this call. */
   async refresh(path: string): Promise<void> {
     await this.inFlight.get(path);
     if (await this.refreshOne(path)) this.emit();
@@ -86,7 +86,7 @@ export class Workspace {
     this.emit();
   }
 
-  /** Terminalde açık Claude Code oturumlarının çalışma dizinleri. */
+  /** Working directories of the Claude Code sessions open in a terminal. */
   setSessionCwds(cwds: string[]): void {
     this.sessionCwds = cwds;
     const before = JSON.stringify([this.rootSessions, this.repos.map((repo) => repo.claude)]);
@@ -125,7 +125,7 @@ export class Workspace {
     });
   }
 
-  /** Remote listesi nadiren değişir: açılışta, yeniden taramada ve ara sıra okunur. */
+  /** The remote list rarely changes: it is read on open, on rescan and now and then. */
   private async refreshRemotes(): Promise<void> {
     const generation = this.generation;
     const results = await Promise.all(
@@ -142,7 +142,7 @@ export class Workspace {
 
   private async refreshAll(): Promise<void> {
     const generation = this.generation;
-    // Terminalden eklenen bir remote yaklaşık yarım dakikada fark edilir.
+    // A remote added from the terminal is noticed within about half a minute.
     if (++this.rounds % REMOTES_EVERY === 0) void this.refreshRemotes();
     await Promise.all(this.repos.map((repo) => this.refreshOne(repo.path)));
     if (generation !== this.generation) return;
@@ -150,7 +150,7 @@ export class Workspace {
     this.emit();
   }
 
-  /** Durum okunduysa true; klasör bu arada değiştiyse false. Süren okuma varsa onun sonucu paylaşılır. */
+  /** True if the status was read; false if the folder changed in the meantime. A read in progress shares its result. */
   private refreshOne(path: string): Promise<boolean> {
     const running = this.inFlight.get(path);
     if (running) return running;

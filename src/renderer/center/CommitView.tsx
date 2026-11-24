@@ -8,8 +8,8 @@ import { COLLAPSE_LINES, CommitPane } from './CommitPane';
 import { useView } from './useView';
 
 /**
- * Commit'in dosyalarını sırayla renklendirir. Açık başlayan (400 satıra kadar) dosyalar, toplamda
- * `MAX_HIGHLIGHT_CHARS` karaktere kadar renklenir; kalanı ve sonradan açılan büyük dosyalar düz kalır.
+ * Highlights the commit's files in order. Files that start expanded (up to 400 lines) are highlighted
+ * up to `MAX_HIGHLIGHT_CHARS` characters in total; the rest, and large files expanded later, stay plain.
  */
 function useCommitTokens(commit: CommitDetail | null): Map<string, DiffTokens> {
   const [tokens, setTokens] = useState<Map<string, DiffTokens>>(() => new Map());
@@ -39,7 +39,7 @@ function useCommitTokens(commit: CommitDetail | null): Map<string, DiffTokens> {
   return tokens;
 }
 
-/** Commit görünümünün uygulama durumuna bağlı hâli. Commit değişmez: bir kez okunur. */
+/** The commit view bound to app state. A commit doesn't change: it's read once. */
 export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
   const { data } = useView(`${repo.path}\n${oid}`, () => edi.commit(repo.path, oid), 0);
   const tokens = useCommitTokens(data?.ok ? data.commit : null);

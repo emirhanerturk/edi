@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from 'react';
 
-/** Açılır menü durumu: dışarı tıklayınca ve Escape ile kapanır. `ref`, düğmeyi ve menüyü saran öğeye verilir. */
+/** Dropdown state: closes on an outside click and on Escape. Pass `ref` to the element wrapping the button and the menu. */
 export function usePopover<T extends HTMLElement>(): { open: boolean; setOpen(open: boolean): void; ref: RefObject<T | null> } {
   const [open, setOpen] = useState(false);
   const ref = useRef<T>(null);

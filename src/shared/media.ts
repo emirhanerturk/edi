@@ -1,4 +1,4 @@
-// Önizlenebilen görsel ve video türleri; ana süreç ve sayfa birlikte kullanır.
+// Image and video types that can be previewed; shared by the main process and the page.
 
 export type MediaKind = 'image' | 'video';
 
@@ -19,7 +19,7 @@ const TYPES: Record<string, { media: MediaKind; mime: string }> = {
   mov: { media: 'video', mime: 'video/quicktime' },
 };
 
-/** Dosya adının uzantısına göre görsel ya da video; değilse null. */
+/** Image or video based on the file name's extension; null otherwise. */
 export function mediaOf(path: string): { media: MediaKind; mime: string } | null {
   const name = path.slice(path.lastIndexOf('/') + 1);
   const dot = name.lastIndexOf('.');
@@ -29,7 +29,7 @@ export function mediaOf(path: string): { media: MediaKind; mime: string } | null
 
 export const MEDIA_SCHEME = 'edi-media';
 
-/** Sayfanın `<img>`/`<video>` için kullandığı adres. `version` değişince tarayıcı önbelleği atlanır. */
+/** The URL the page uses for `<img>`/`<video>`. Changing `version` bypasses the browser cache. */
 export function mediaUrl(repoPath: string, path: string, version: number): string {
   const query = new URLSearchParams({ repo: repoPath, path, v: String(version) });
   return `${MEDIA_SCHEME}://file/?${query.toString()}`;

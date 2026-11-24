@@ -1,7 +1,7 @@
 /**
- * Claude Code'un terminal başlığından durumu okur. Kural, docs/notes/claude-terminal-title.md
- * kaydından çıkarıldı: çalışırken başlık dönen bir yarım daireyle, kullanıcıyı beklerken
- * (yanıt bitti ya da izin soruyor) yıldızla başlar. Başka her başlık için `null` döner.
+ * Reads Claude Code's state from its terminal title. The rule comes from the notes in
+ * docs/notes/claude-terminal-title.md: while working, the title starts with a spinning half circle;
+ * while waiting for the user (reply finished or asking for permission), with a star. Returns `null` for any other title.
  */
 export type ClaudeTitleState = 'waiting' | 'working';
 

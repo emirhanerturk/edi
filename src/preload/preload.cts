@@ -1,5 +1,5 @@
-// Sayfaya açılan tek kapı. Burada yalnız dar, adı belli işlemler bulunur; sayfa serbest biçimli
-// komut ya da kanal adı gönderemez.
+// The only door into the page. It holds only narrow, named operations; the page can't send
+// free-form commands or channel names.
 import { contextBridge, ipcRenderer } from 'electron';
 import type { EdiApi, EdiEvents } from '../shared/api.js' with { 'resolution-mode': 'import' };
 

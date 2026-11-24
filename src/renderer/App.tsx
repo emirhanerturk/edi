@@ -22,7 +22,7 @@ export function App() {
   useEffect(() => connect(), []);
 
   useEffect(() => {
-    // Yakalama aşamasında dinlenir: kısayol, odak terminalde olsa da terminale gitmeden önce işlenir.
+    // Listened to in the capture phase: the shortcut is handled before it reaches the terminal, even when the terminal has focus.
     const onKey = (event: KeyboardEvent) => {
       if (!event.metaKey || event.ctrlKey || event.altKey) return;
       const { tabs, activeTab, newTab, closeTab, activate } = useApp.getState();
@@ -73,7 +73,7 @@ export function App() {
           <Splitter
             label="Resize the Git panel"
             onStart={() => {
-              // Görünen genişlikten başlanır: pencere daraldıysa kayıtlı değerden küçük olabilir.
+              // Start from the visible width: if the window shrank, it can be smaller than the saved value.
               dragStart.current = body.current?.querySelector('.git')?.getBoundingClientRect().width ?? right;
             }}
             onDrag={(dx) => useApp.getState().resizeRight(dragStart.current - dx, body.current?.clientWidth ?? window.innerWidth)}

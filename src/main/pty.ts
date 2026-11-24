@@ -1,9 +1,9 @@
 import * as pty from 'node-pty';
 
 /**
- * Kabuğa geçen ortam. Bu uygulamanın ve (uygulama bir Claude Code oturumundan başlatıldıysa)
- * o oturumun izleri silinir: sekmede açılan Claude Code kendini iç içe oturum sanmasın.
- * Kullanıcının kendi ayarları (ör. CLAUDE_CONFIG_DIR) olduğu gibi kalır.
+ * The environment passed to the shell. Traces of this app and (if the app was started from a Claude Code session)
+ * of that session are removed, so Claude Code opened in a tab doesn't think it is a nested session.
+ * The user's own settings (e.g. CLAUDE_CONFIG_DIR) are left as they are.
  */
 export function shellEnv(base: NodeJS.ProcessEnv): Record<string, string> {
   const env: Record<string, string> = {};
@@ -20,18 +20,18 @@ export function shellEnv(base: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 export interface PtyInfo {
-  /** Kabuğun süreç kimliği. */
+  /** The shell's process id. */
   pid: number;
-  /** `ttys003` gibi; okunamadıysa boş. */
+  /** Like `ttys003`; empty if it couldn't be read. */
   tty: string;
-  /** Kabuğun yolu. */
+  /** The shell's path. */
   shell: string;
 }
 
 const clampCols = (cols: number) => (Number.isFinite(cols) ? Math.max(2, Math.floor(cols)) : 80);
 const clampRows = (rows: number) => (Number.isFinite(rows) ? Math.max(1, Math.floor(rows)) : 24);
 
-/** Sekmelerin arkasındaki gerçek terminaller. */
+/** The real terminals behind the tabs. */
 export class PtyManager {
   private readonly ptys = new Map<number, pty.IPty>();
   private nextId = 1;
@@ -45,7 +45,7 @@ export class PtyManager {
     this.onExit = opts.onExit;
   }
 
-  /** Giriş kabuğu açar (`-l`): kullanıcının profili, PATH'i ve takma adları kendi terminalindekiyle aynı olur. */
+  /** Opens a login shell (`-l`): the user's profile, PATH and aliases match those in their own terminal. */
   create(o: { cols: number; rows: number; cwd: string; command?: string }): number {
     const id = this.nextId++;
     const proc = pty.spawn(this.shell, ['-l'], {
@@ -60,12 +60,12 @@ export class PtyManager {
       if (this.ptys.get(id) === proc) this.onData(id, data);
     });
     proc.onExit(() => {
-      // killAll ile kapatılanlar haritadan önceden çıkarılır; onlar için bildirim gitmez.
+      // Those closed by killAll are removed from the map beforehand; no notification goes out for them.
       if (this.ptys.get(id) !== proc) return;
       this.ptys.delete(id);
       this.onExit(id);
     });
-    // Komut kabuğun içinde çalışır: bitince (ör. Claude Code'dan çıkınca) kabuk açık kalır.
+    // The command runs inside the shell: when it ends (e.g. on exiting Claude Code), the shell stays open.
     if (o.command) proc.write(`${o.command}\r`);
     return id;
   }
@@ -74,7 +74,7 @@ export class PtyManager {
     try {
       this.ptys.get(id)?.write(data);
     } catch {
-      // Kapanmakta olan pty.
+      // The pty is closing.
     }
   }
 
@@ -82,7 +82,7 @@ export class PtyManager {
     try {
       this.ptys.get(id)?.resize(clampCols(cols), clampRows(rows));
     } catch {
-      // Kapanmakta olan pty.
+      // The pty is closing.
     }
   }
 
@@ -90,7 +90,7 @@ export class PtyManager {
     try {
       this.ptys.get(id)?.kill();
     } catch {
-      // Zaten bitmiş.
+      // Already finished.
     }
   }
 
@@ -113,7 +113,7 @@ export class PtyManager {
       try {
         proc.kill();
       } catch {
-        // Zaten bitmiş.
+        // Already finished.
       }
     }
   }

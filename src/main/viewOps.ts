@@ -12,15 +12,15 @@ const UNKNOWN_REPO = { ok: false, error: 'Unknown repository' } as const;
 const INVALID_PATH = { ok: false, error: 'Invalid file path' } as const;
 
 /**
- * Bundan büyük diff okunmaz: ayrıştırma ana süreçte (terminal verisini de taşıyan iş parçacığında)
- * çalışır ve görünüm zaten en çok 5.000 satır gösterir.
+ * A diff larger than this isn't read: parsing runs in the main process (on the thread that also carries
+ * terminal data) and the view shows at most 5,000 lines anyway.
  */
 export const MAX_DIFF_BYTES = 2 * 1_048_576;
 export const DIFF_TOO_LARGE = 'This diff is too large to show';
 
 /**
- * Sayfanın orta panel için istediği salt okunur işlemler. Repo yolu keşfedilmiş listeyle,
- * dosya yolu reponun kendi klasörüyle doğrulanır; hiçbiri repoda bir şey değiştirmez.
+ * Read-only operations the page requests for the middle panel. The repo path is validated against the discovered list,
+ * the file path against the repo's own folder; none of them change anything in the repo.
  */
 export class ViewOps {
   constructor(
@@ -32,7 +32,7 @@ export class ViewOps {
     return typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
   }
 
-  /** Dosyanın HEAD'e göre tüm değişikliği. Yol, reponun o anki değişiklik listesinde olmalıdır. */
+  /** The file's full change against HEAD. The path must be in the repo's current list of changes. */
   async diff(repoPath: unknown, filePath: unknown): Promise<DiffView> {
     const repo = this.repo(repoPath);
     if (!repo) return UNKNOWN_REPO;
@@ -59,7 +59,7 @@ export class ViewOps {
     return listFiles(repo.path);
   }
 
-  /** Repo içindeki bir klasörün tek seviyesi (yok sayılan klasörlerin içi için). */
+  /** One level of a folder inside the repo (for the contents of ignored folders). */
   async listDir(repoPath: unknown, dirPath: unknown): Promise<DirList> {
     const repo = this.repo(repoPath);
     if (!repo) return UNKNOWN_REPO;
@@ -67,7 +67,7 @@ export class ViewOps {
     return listDir(repo.path, dirPath);
   }
 
-  /** Dosyayı Zed'de açar; yol verilmezse ya da dosya silinmişse repo klasörünü. */
+  /** Opens the file in Zed; the repo folder if no path is given or the file was deleted. */
   async openInZed(repoPath: unknown, filePath: unknown): Promise<OpResult> {
     const repo = this.repo(repoPath);
     if (!repo) return UNKNOWN_REPO;
@@ -75,7 +75,7 @@ export class ViewOps {
     if (typeof filePath !== 'string') return INVALID_PATH;
     const located = await locateInRepo(repo.path, filePath);
     if (!located.ok) return located.reason === 'outside' ? { ok: false, error: OUTSIDE } : this.open(repo.path);
-    // Bağ çözülmüş hâli değil, kullanıcının gördüğü yol açılır.
+    // Opens the path the user sees, not the one with links resolved.
     return this.open(join(repo.path, filePath));
   }
 }

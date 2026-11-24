@@ -6,5 +6,5 @@ declare global {
   }
 }
 
-/** Ana sürece açılan köprü (preload'da tanımlı). */
+/** Bridge to the main process (defined in preload). */
 export const edi: EdiApi = window.edi;

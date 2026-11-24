@@ -36,29 +36,29 @@ import {
 
 export interface GitPanelProps {
   repos: RepoView[];
-  /** Kullanıcının elle açıp kapattığı repolar (yol → açık mı). */
+  /** Repos the user expanded or collapsed by hand (path → expanded?). */
   expanded: Record<string, boolean>;
   onToggle(repoPath: string, open: boolean): void;
   onOpenTerminal?(repoPath: string): void;
-  /** Yazılmakta olan commit mesajları (yol → metin). */
+  /** Commit messages being written (path → text). */
   drafts?: Record<string, string>;
-  /** Son işlemin hatası (yol → git'in satırı). */
+  /** Error from the last operation (path → git's line). */
   errors?: Record<string, string>;
   onDraft?(repoPath: string, message: string): void;
   onOp?(repoPath: string, op: GitOp): void;
   onDismissError?(repoPath: string): void;
-  /** Dosyayı (çakışan dosyalar için) Zed'de açar. */
+  /** Opens the file in Zed (for conflicted files). */
   onOpenInZed?(repoPath: string, path: string): void;
   loadBranches?(repoPath: string): Promise<BranchList>;
-  /** Dosya satırına tıklandı: tek tık önizleme (`pin` false), çift tık kalıcı sekme. */
+  /** A file row was clicked: a single click previews (`pin` false), a double click opens a permanent tab. */
   onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
-  /** Orta panelde açık olan dosya; satırı seçili görünür. */
+  /** The file open in the center panel; its row shows as selected. */
   selected?: { repoPath: string; path: string } | null;
 }
 
 const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
 
-/** Git sekmesi: tüm repolar alt alta. Sekme başlığı sağ paneldedir. */
+/** Git tab: all repos one below the other. The tab header lives in the right panel. */
 export function GitPanelView(props: GitPanelProps) {
   const { repos } = props;
   return (
@@ -110,8 +110,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
       <div
         className="repo-head toggles"
         onClick={(event) => {
-          // Satırın boş yeri, branch adı ve sayılar da açıp kapatır; düğmeler (ad düğmesi dahil),
-          // menüler ve alanlar kendi işini yapar.
+          // The row's empty space, branch name and counts also expand and collapse it; buttons (including the name button),
+          // menus and fields do their own thing.
           if ((event.target as HTMLElement).closest('button, a, input, textarea, [role="menu"]')) return;
           onToggle(repo.path, !open);
         }}
@@ -228,7 +228,7 @@ function SyncButton({ action, onClick }: { action: SyncAction; onClick(): void }
   );
 }
 
-/** Açık repo başlığındaki pull ve push düğmeleri; bekleyen commit varsa sayısıyla. */
+/** Pull and push buttons in an expanded repo's header; with the count when commits are pending. */
 function SyncIcons(props: { ahead: number; behind: number; hasRemote: boolean; publish: boolean; onPull(): void; onPush(): void }) {
   const { ahead, behind, hasRemote, publish } = props;
   const pushTitle = !hasRemote ? 'No remote' : publish ? 'Publish branch' : ahead > 0 ? `Push ${ahead}` : 'Push';
@@ -266,9 +266,9 @@ interface FileGroupProps {
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
   openInZed(file: FileChange): void;
-  /** Bu repoda, orta panelde açık olan dosyanın yolu. */
+  /** Path of the file open in the center panel, in this repo. */
   selectedPath: string | null;
-  /** Çakışma varken "hepsini stage et / geri al" kapalıdır: ikisi de çakışma kaydını silerdi. */
+  /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
   blocked?: boolean;
 }
 
@@ -322,7 +322,7 @@ interface FileRowProps {
   openInZed(file: FileChange): void;
 }
 
-/** Satıra tıklamak dosyayı orta panelde açar; sağdaki düğme yalnız stage eder ya da geri alır. */
+/** Clicking a row opens the file in the center panel; the button on the right only stages or reverts. */
 function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);

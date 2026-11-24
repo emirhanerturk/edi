@@ -4,24 +4,24 @@ import { type FileChange, type RepoStatus, getStatus, isStaged } from './status.
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 export type DiffResult = { ok: true; text: string } | { ok: false; error: string };
 
-/** git'in boş ağaç nesnesi: henüz commit'i olmayan repoda diff tabanı. */
+/** git's empty tree object: the diff base in a repo with no commits yet. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
-/** Index'i ya da çalışma ağacını değiştiren yerel komutlar (büyük bir ilk `add` uzun sürebilir). */
+/** Local commands that change the index or the working tree (a large initial `add` can take a while). */
 const LOCAL_WRITE_TIMEOUT_MS = 120_000;
 const FETCH_TIMEOUT_MS = 120_000;
 /**
- * Hook çalıştırabilen ya da çalışma ağacını güncelleyen komutlar: pre-commit / pre-push
- * hook'ları test koşabilir, yarıda kesilen bir pull ağacı yarım bırakır. Bu yüzden süre uzun.
+ * Commands that can run hooks or update the working tree: pre-commit / pre-push
+ * hooks may run tests, and an interrupted pull leaves the tree half-updated. Hence the long timeout.
  */
 const SLOW_TIMEOUT_MS = 600_000;
 const CONFLICT_ERROR = 'Conflicted files present; resolve them outside edi';
 
 /**
- * Yolu glob olarak değil harfi harfine eşleştirir. `app/[slug]/page.tsx` gibi yollar
- * pathspec olarak yorumlanırsa başka dosyalarla da eşleşir.
+ * Matches the path literally, not as a glob. Paths like `app/[slug]/page.tsx`
+ * would also match other files if interpreted as a pathspec.
  */
 const literal = (path: string) => `:(literal)${path}`;
-/** Renk, harici diff aracı ve yol kaçışları kapalı: çıktı her ayarda düz ve okunur metin. */
+/** Color, external diff tools and path quoting are off: the output is plain, readable text under any config. */
 const DIFF_ARGS = ['-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff'];
 
 async function act(repo: string, args: string[], message: string, opts?: RunGitOptions): Promise<ActionResult> {
@@ -33,7 +33,7 @@ export function stageFile(repo: string, f: FileChange): Promise<ActionResult> {
   return act(repo, ['add', '-A', '--', literal(f.path)], 'Staged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
-/** Yalnız index'e dokunur; çalışma ağacındaki içerik değişmez. */
+/** Touches only the index; the content in the working tree doesn't change. */
 export function unstageFile(repo: string, f: FileChange): Promise<ActionResult> {
   const paths = f.origPath === null ? [f.path] : [f.path, f.origPath];
   return act(repo, ['reset', '-q', '--', ...paths.map(literal)], 'Unstaged', {
@@ -42,8 +42,8 @@ export function unstageFile(repo: string, f: FileChange): Promise<ActionResult> 
 }
 
 /**
- * Çakışmalı dosya varken reddeder: `git add` çakışmayı "çözüldü" diye işaretler ve
- * çakışma işaretleri commit'e girer. Çakışma çözümü edi'nin kapsamı dışında.
+ * Refuses while there are conflicted files: `git add` marks the conflict as "resolved" and
+ * the conflict markers end up in the commit. Resolving conflicts is outside edi's scope.
  */
 export async function stageAll(repo: string): Promise<ActionResult> {
   const current = await getStatus(repo);
@@ -53,9 +53,9 @@ export async function stageAll(repo: string): Promise<ActionResult> {
 }
 
 /**
- * Yalnız index'e dokunur; çalışma ağacındaki içerik değişmez. Çakışmalı dosya varken reddeder:
- * index'i sıfırlamak çakışma kayıtlarını da siler, dosya sıradan bir değişiklik gibi görünür ve
- * içindeki çakışma işaretleriyle commit edilebilir hâle gelir.
+ * Touches only the index; the content in the working tree doesn't change. Refuses while there are conflicted files:
+ * resetting the index also erases the conflict entries, so the file looks like an ordinary change and
+ * becomes committable with the conflict markers still in it.
  */
 export async function unstageAll(repo: string): Promise<ActionResult> {
   const current = await getStatus(repo);
@@ -65,8 +65,8 @@ export async function unstageAll(repo: string): Promise<ActionResult> {
 }
 
 function resetIndex(repo: string): Promise<ActionResult> {
-  // Yol verilmeden `git reset` yarıda kalmış merge/cherry-pick durumunu (MERGE_HEAD) da siler;
-  // `-- .` ile yalnız index sıfırlanır.
+  // Without a path, `git reset` also clears an in-progress merge/cherry-pick (MERGE_HEAD);
+  // with `-- .` only the index is reset.
   return act(repo, ['reset', '-q', '--', '.'], 'Unstaged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
@@ -75,7 +75,7 @@ export async function commit(repo: string, message: string, opts: { addAll: bool
   if (trimmed === '') return { ok: false, error: 'Commit message is empty' };
   if (!opts.addAll) return act(repo, ['commit', '-m', trimmed], 'Committed', { timeoutMs: SLOW_TIMEOUT_MS });
 
-  // stageAll'ın çakışma denetimiyle aynı; ayrıca index'in baştaki hâli öğrenilir.
+  // Same conflict check as stageAll; it also captures the index's initial state.
   const before = await getStatus(repo);
   if (!before.ok) return { ok: false, error: before.error };
   if (before.status.files.some((f) => f.kind === 'conflicted')) return { ok: false, error: CONFLICT_ERROR };
@@ -84,16 +84,16 @@ export async function commit(repo: string, message: string, opts: { addAll: bool
   const added = await act(repo, ['add', '-A'], 'Staged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
   if (!added.ok) return added;
   const committed = await act(repo, ['commit', '-m', trimmed], 'Committed', { timeoutMs: SLOW_TIMEOUT_MS });
-  // Commit reddedildiyse (hook, boş commit) ve başta hiçbir şey stage'li değilse index eski hâline
-  // döner. Yoksa her şey stage'li kalır; kullanıcı dosyayı düzeltip yeniden denediğinde düzeltme
-  // değil, index'teki eski içerik commit edilirdi.
+  // If the commit was rejected (hook, empty commit) and nothing was staged at the start, the index is
+  // restored. Otherwise everything would stay staged; when the user fixed the file and retried, the old
+  // content in the index would be committed instead of the fix.
   if (!committed.ok && nothingStaged) await resetIndex(repo);
   return committed;
 }
 
 export function push(repo: string, status: RepoStatus): Promise<ActionResult> {
   if (status.detached) return Promise.resolve({ ok: false, error: 'Detached HEAD: cannot push' });
-  // Tam ref adı: aynı adlı bir etiket varsa kısa ad belirsiz kalır.
+  // Full ref name: the short name is ambiguous if a tag with the same name exists.
   const args = status.upstream === null ? ['push', '-u', 'origin', `refs/heads/${status.head}`] : ['push'];
   return act(repo, args, 'Pushed', { timeoutMs: SLOW_TIMEOUT_MS });
 }
@@ -111,7 +111,7 @@ export async function listBranches(
 ): Promise<{ ok: true; branches: string[]; current: string | null } | { ok: false; error: string }> {
   const refs = await runGit(repo, ['for-each-ref', '--format=%(refname:lstrip=2)', 'refs/heads']);
   if (!refs.ok) return { ok: false, error: refs.error };
-  // Detached HEAD'de 1 ile çıkar; bu hata değil, "geçerli branch yok" demek.
+  // Exits with 1 on a detached HEAD; that isn't an error, it means "no current branch".
   const currentRef = await runGit(repo, ['symbolic-ref', '-q', 'HEAD'], { okCodes: [0, 1] });
   if (!currentRef.ok) return { ok: false, error: currentRef.error };
   return {
@@ -121,7 +121,7 @@ export async function listBranches(
   };
 }
 
-/** `-` ile başlayan ad git'e seçenek olarak geçer (`--detach` gibi); boş ad da geçersizdir. */
+/** A name starting with `-` would reach git as an option (like `--detach`); an empty name is invalid too. */
 const invalidBranch = (name: string): ActionResult | null =>
   name.trim() === '' || name.startsWith('-') ? { ok: false, error: 'Invalid branch name' } : null;
 
@@ -142,13 +142,13 @@ export async function createBranch(repo: string, name: string): Promise<ActionRe
 const diffBase = (status: RepoStatus) => (status.unborn ? EMPTY_TREE : 'HEAD');
 
 function untrackedDiff(repo: string, path: string, maxOutput: number) {
-  // --no-index fark bulduğunda 1 ile çıkar.
+  // --no-index exits with 1 when it finds differences.
   return runGit(repo, [...DIFF_ARGS, '--no-index', '--', '/dev/null', path], { okCodes: [0, 1], maxOutput });
 }
 
 /**
- * Dosyanın HEAD'e göre tüm değişikliği (stage'li + stage'siz); yeni dosyada tamamı ekleme olarak.
- * Çıktı `maxOutput` karakteri geçerse `OUTPUT_TOO_LARGE` hatası döner.
+ * The file's full change against HEAD (staged + unstaged); for a new file, all of it as additions.
+ * Returns an `OUTPUT_TOO_LARGE` error if the output exceeds `maxOutput` characters.
  */
 export async function diffFile(repo: string, status: RepoStatus, f: FileChange, maxOutput = Infinity): Promise<DiffResult> {
   const paths = f.origPath === null ? [f.path] : [f.path, f.origPath];

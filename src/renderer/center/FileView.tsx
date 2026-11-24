@@ -6,7 +6,7 @@ import { useApp } from '../store';
 import { FilePane, fileInfo } from './FilePane';
 import { useView, useVersion } from './useView';
 
-/** Son renklendirme; metin değişince yenisi gelene kadar eskisi kalır (`Code` uyuşmayan satırda kullanmaz). */
+/** Last highlighting; when the text changes, the old one stays until the new one arrives (`Code` doesn't use it on a mismatched line). */
 function useFileTokens(text: string | null, path: string): Token[][] | null {
   const [tokens, setTokens] = useState<Token[][] | null>(null);
   useEffect(() => {
@@ -22,7 +22,7 @@ function useFileTokens(text: string | null, path: string): Token[][] | null {
   return tokens;
 }
 
-/** Dosya görünümünün uygulama durumuna bağlı hâli. Reponun her durum yoklamasında yeniden okunur. */
+/** The file view bound to app state. Reread on every status poll of the repo. */
 export function FileView({ repo, path }: { repo: RepoView; path: string }) {
   const refreshedAt = useApp((s) => s.workspace.refreshedAt);
   const version = useVersion(refreshedAt, repo.status);
@@ -30,7 +30,7 @@ export function FileView({ repo, path }: { repo: RepoView; path: string }) {
   const text = data?.ok && data.kind === 'text' ? data.text : null;
   const tokens = useFileTokens(text, path);
   const isNew = repo.status?.files.some((file) => file.path === path && file.kind === 'untracked') ?? false;
-  // Satır saymak için metin bölünür: yalnız veri değişince.
+  // The text is split to count lines: only when the data changes.
   const info = useMemo(() => fileInfo(path, data), [path, data]);
 
   useEffect(() => {

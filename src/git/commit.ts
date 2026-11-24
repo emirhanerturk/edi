@@ -1,4 +1,4 @@
-// Tek bir commit'in bilgilerini, değişen dosyalarını ve diff'lerini okur. Yalnız okur.
+// Reads a single commit's details, changed files and diffs. Read-only.
 import { parseDiff } from './diffParse.js';
 import { OUTPUT_TOO_LARGE, runGit } from './exec.js';
 import { NO_LAZY_FETCH, PINNED, SUMMARY_FORMAT, parseSummary } from './log.js';
@@ -9,12 +9,12 @@ export type { CommitDetail, CommitFile, CommitResult };
 const HUNK = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 const UNREADABLE = 'Could not read this commit';
 export const PARTIAL_CLONE = "This commit's file contents are not downloaded (partial clone)";
-/** Commit'in patch'i bundan büyükse okunmaz: ayrıştırma ana süreçte çalışır, sonuç sayfaya kopyalanır. */
+/** A commit patch larger than this isn't read: parsing runs in the main process and the result is copied to the page. */
 export const MAX_COMMIT_PATCH = 8 * 1_048_576;
 
 /**
- * Çok dosyalı bir patch'i `diff --git` bölümlerine ayırır. Hunk içindeki satırlar sayılır;
- * böylece içeriği "diff --git" ile başlayan bir satır yeni bölüm sanılmaz.
+ * Splits a multi-file patch into `diff --git` sections. Lines inside a hunk are counted,
+ * so a line whose content starts with "diff --git" isn't mistaken for a new section.
  */
 export function splitPatch(text: string): string[] {
   const chunks: string[][] = [];
@@ -39,7 +39,7 @@ export function splitPatch(text: string): string[] {
       chunks.push([line]);
       continue;
     }
-    // İlk bölümden önceki satırlar (boş biçim satırı) atılır.
+    // Lines before the first section (the empty format line) are dropped.
     if (!current) continue;
     current.push(line);
     const match = HUNK.exec(line);
@@ -53,7 +53,7 @@ export function splitPatch(text: string): string[] {
 
 type NameStatus = Pick<CommitFile, 'path' | 'origPath' | 'letter'>;
 
-/** `--name-status -z` çıktısı: "M\0yol\0" ya da "R087\0eski\0yeni\0". */
+/** `--name-status -z` output: "M\0path\0" or "R087\0old\0new\0". */
 function parseNameStatus(out: string): NameStatus[] | null {
   const fields = out.split('\0');
   const files: NameStatus[] = [];
@@ -82,14 +82,14 @@ function parseNameStatus(out: string): NameStatus[] | null {
   return files;
 }
 
-/** Kullanıcı ayarlarından bağımsız diff: dış araç, textconv, renk ve submodule biçimi sabit. */
+/** A diff independent of user config: external tools, textconv, color and submodule format are fixed. */
 const DIFF = ['--root', '-M', '--diff-merges=first-parent', '--no-color', '--no-ext-diff', '--no-textconv', '--submodule=short'];
 
 const failure = (error: string): CommitResult => ({ ok: false, error: /lazy fetch|promisor remote/i.test(error) ? PARTIAL_CLONE : error });
 
 /**
- * Name-status kayıtlarını patch bölümleriyle eşler. Türü değişen dosya (bağ ↔ dosya) listede tek
- * `T` kaydıdır ama patch'te iki bölümdür: silme ve oluşturma; ikisi tek diff olarak okunur.
+ * Pairs name-status entries with patch sections. A file whose type changed (link ↔ file) is a single
+ * `T` entry in the list but two sections in the patch, a deletion and a creation; both are read as one diff.
  */
 function zipFiles(list: NameStatus[], chunks: string[]): CommitFile[] | null {
   const files: CommitFile[] = [];
@@ -107,7 +107,7 @@ function zipFiles(list: NameStatus[], chunks: string[]): CommitFile[] | null {
   return next === chunks.length ? files : null;
 }
 
-/** `--numstat -z`: "eklenen\tsilinen\tyol\0" ya da yeniden adlandırmada "e\ts\t\0eski\0yeni\0"; ikili dosyada "-". */
+/** `--numstat -z`: "added\tremoved\tpath\0", or for a rename "a\tr\t\0old\0new\0"; "-" for a binary file. */
 function parseNumstat(out: string): Map<string, { added: number; removed: number; binary: boolean }> {
   const counts = new Map<string, { added: number; removed: number; binary: boolean }>();
   const fields = out.split('\0');
@@ -130,7 +130,7 @@ function parseNumstat(out: string): Map<string, { added: number; removed: number
   return counts;
 }
 
-/** `oid` önceden doğrulanmış, tam bir commit kimliği olmalı. `maxPatch` karakteri aşan patch okunmaz. */
+/** `oid` must be a full, already validated commit id. A patch over `maxPatch` characters isn't read. */
 export async function readCommit(repo: string, oid: string, maxPatch = MAX_COMMIT_PATCH): Promise<CommitResult> {
   const env = NO_LAZY_FETCH;
   const [meta, names, patch] = await Promise.all([
@@ -153,7 +153,7 @@ export async function readCommit(repo: string, oid: string, maxPatch = MAX_COMMI
 
   let files: CommitFile[] | null;
   if (tooLarge) {
-    // Satırlar yerine yalnız sayılar.
+    // Only counts instead of lines.
     const numstat = await runGit(repo, [...PINNED, 'show', '--format=', '--numstat', '-z', ...DIFF, oid, '--'], { env });
     if (!numstat.ok) return failure(numstat.error);
     const counts = parseNumstat(numstat.stdout);

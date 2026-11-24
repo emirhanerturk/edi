@@ -1,5 +1,5 @@
-// npm, bağımlılıkların kurulum betiklerini çalıştırmaz. Bu betik onların yaptığı iki işi yapar:
-// node-pty'nin yardımcı programını çalıştırılabilir kılar ve Electron'un kendisini indirir.
+// npm does not run the dependencies' install scripts. This script does the two jobs they would do:
+// it makes node-pty's helper program executable and downloads Electron itself.
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';

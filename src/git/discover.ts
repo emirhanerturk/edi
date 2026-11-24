@@ -16,8 +16,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * `dir` bir git reposuysa yalnız onu, değilse bir alt seviyesindeki repoları ada göre sıralı döner.
- * `.git` dizin de olabilir dosya da (worktree, submodule).
+ * Returns just `dir` if it is a git repo; otherwise the repos one level below it, sorted by name.
+ * `.git` can be a directory or a file (worktree, submodule).
  */
 export async function discoverRepos(dir: string): Promise<Repo[]> {
   if (await exists(join(dir, '.git'))) return [{ name: basename(dir), path: dir }];

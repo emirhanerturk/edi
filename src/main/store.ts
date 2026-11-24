@@ -24,7 +24,7 @@ const num = (value: unknown, fallback: number) => (typeof value === 'number' && 
 const oneOf = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
   options.includes(value as T) ? (value as T) : fallback;
 
-/** Dosyadan gelen her alan tek tek doğrulanır: elle bozulmuş ya da eski sürümden kalma dosya uygulamayı düşürmez. */
+/** Every field from the file is validated one by one: a hand-corrupted file or one left by an old version doesn't crash the app. */
 function normalize(raw: unknown): Persisted {
   if (!isRecord(raw)) return DEFAULTS;
   const layout = isRecord(raw.layout) ? raw.layout : {};
@@ -46,13 +46,13 @@ function normalize(raw: unknown): Persisted {
   };
 }
 
-/** Kaydedilebilecek en dar ve en geniş panel. */
+/** The narrowest and widest panel that can be saved. */
 const WIDTH_MIN = 200;
 const WIDTH_MAX = 4000;
 const width = (value: unknown, current: number) =>
   typeof value === 'number' && Number.isFinite(value) && value >= WIDTH_MIN && value <= WIDTH_MAX ? Math.round(value) : current;
 
-/** Sayfadan gelen düzen değişikliğini uygular. Sayfa güvenilir sayılmaz: geçersiz her alan yok sayılır. */
+/** Applies a layout change from the page. The page isn't trusted: every invalid field is ignored. */
 export function mergeLayout(layout: Layout, patch: unknown): Layout {
   if (!isRecord(patch)) return layout;
   return {
@@ -71,7 +71,7 @@ export async function loadState(file: string): Promise<Persisted> {
   }
 }
 
-/** Önce geçici dosyaya yazar, sonra adını değiştirir: yarıda kesilen yazma eski dosyayı bozmaz. */
+/** Writes to a temp file first, then renames it: an interrupted write doesn't corrupt the old file. */
 export async function saveState(file: string, state: Persisted): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;

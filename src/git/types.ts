@@ -1,61 +1,62 @@
-// Yalnız tür: sayfa da (Node'a erişimi olmadan) bu dosyayı kullanır.
+// Types only: the page (which has no Node access) uses this file too.
 import type { ParsedDiff } from './diffParse.js';
 
 export interface FileChange {
   path: string;
-  /** Rename kaydında dosyanın eski yolu. */
+  /** The file's old path in a rename entry. */
   origPath: string | null;
-  /** Index (stage) durumu; değişiklik yoksa '.'. */
+  /** Index (stage) status; '.' if unchanged. */
   x: string;
-  /** Çalışma ağacı durumu; değişiklik yoksa '.'. */
+  /** Working tree status; '.' if unchanged. */
   y: string;
   kind: 'changed' | 'untracked' | 'conflicted';
 }
 
 export interface RepoStatus {
-  /** Branch adı; detached HEAD'de kısa commit hash'i. */
+  /** Branch name; the short commit hash on a detached HEAD. */
   head: string;
-  /** HEAD commit'inin tam oid'i; henüz commit yoksa null. */
+  /** Full oid of the HEAD commit; null if there are no commits yet. */
   headOid: string | null;
   detached: boolean;
-  /** Repoda henüz hiç commit yok. */
+  /** The repo has no commits yet. */
   unborn: boolean;
   upstream: string | null;
-  /** Upstream yoksa ya da silinmişse null. */
+  /** Null if there is no upstream or it was deleted. */
   ahead: number | null;
   behind: number | null;
   files: FileChange[];
 }
 
-/** `ignored`: `.gitignore`'a takılan dosyalar ve klasörler (klasör `/` ile biter, içi yok). */
+/** `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents). */
 export type FileList = { ok: true; files: string[]; ignored: string[] } | { ok: false; error: string };
 
-/** Bir klasörün tek seviyesi; `more`: sınır yüzünden gösterilmeyen kayıt sayısı. */
+/** One entry of a folder listing. */
 export interface DirEntry {
   name: string;
   dir: boolean;
 }
+/** One level of a folder; `more`: the number of entries not shown because of the limit. */
 export type DirList = { ok: true; entries: DirEntry[]; more: number } | { ok: false; error: string };
 
-/** Büyük ve ikili dosyaların içeriği sayfaya gönderilmez; yalnız türü ve boyutu döner. */
+/** The contents of large and binary files aren't sent to the page; only their kind and size are returned. */
 export type FileContent =
   | { ok: true; kind: 'text'; text: string; size: number }
   | { ok: true; kind: 'binary'; size: number }
   | { ok: true; kind: 'tooLarge'; size: number }
-  /** Görsel ya da video: içerik `edi-media://` adresinden okunur; `mtime` önbellek için. */
+  /** Image or video: the content is read from an `edi-media://` URL; `mtime` is for caching. */
   | { ok: true; kind: 'media'; media: 'image' | 'video'; size: number; mtime: number }
   | { ok: false; error: string };
 
-/** Bir commit'in listede gereken bilgileri. */
+/** The commit details the list needs. */
 export interface CommitSummary {
   oid: string;
   short: string;
   subject: string;
   authorName: string;
   authorEmail: string;
-  /** Commit'in (committer) tarihi, epoch ms. */
+  /** The commit (committer) date, epoch ms. */
   date: number;
-  /** Ebeveyn sayısı: 0 kök, 2+ merge. */
+  /** Number of parents: 0 for a root, 2+ for a merge. */
   parents: number;
   tags: string[];
 }
@@ -63,36 +64,36 @@ export interface CommitSummary {
 export type LogResult =
   | {
       ok: true;
-      /** Yeniden eskiye. */
+      /** Newest first. */
       commits: CommitSummary[];
-      /** İstenenden fazlası var: "Load 50 more" işe yarar. */
+      /** There are more than requested: "Load 50 more" is useful. */
       hasMore: boolean;
-      /** Yüklenenler arasında henüz push edilmemiş commit'lerin kimlikleri. */
+      /** Ids of the loaded commits that haven't been pushed yet. */
       unpushed: string[];
-      /** `origin/main` gibi; yoksa ya da silinmişse null. */
+      /** Like `origin/main`; null if there is none or it was deleted. */
       upstream: string | null;
-      /** Reponun `user.email` değeri; ayarlı değilse null. */
+      /** The repo's `user.email` value; null if not set. */
       userEmail: string | null;
     }
   | { ok: false; error: string };
 
 export interface CommitFile {
   path: string;
-  /** Yeniden adlandırma ya da kopyada eski yol. */
+  /** The old path for a rename or copy. */
   origPath: string | null;
   letter: 'A' | 'M' | 'D' | 'R' | 'C' | 'T';
   diff: ParsedDiff;
 }
 
 export interface CommitDetail extends CommitSummary {
-  /** Diff sınırı aştı: dosyaların satırları yok, yalnız eklenen/silinen sayıları var. */
+  /** The diff exceeded the limit: no lines for the files, only added/removed counts. */
   tooLarge: boolean;
-  /** Konu satırından sonraki metin, sonundaki boşluklar atılmış. */
+  /** The text after the subject line, with trailing whitespace trimmed. */
   body: string;
   files: CommitFile[];
   added: number;
   removed: number;
 }
 
-/** `webUrl`: commit push edildiyse GitHub sayfası; yoksa null (okunmadıysa alan yok). */
+/** `webUrl`: the GitHub page if the commit was pushed; null otherwise (the field is absent if it wasn't read). */
 export type CommitResult = { ok: true; commit: CommitDetail; webUrl?: string | null } | { ok: false; error: string };

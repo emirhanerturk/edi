@@ -1,4 +1,4 @@
-/* Sol panel: sekme çubuğu ve terminaller. */
+/* Left panel: tab bar and terminals. */
 .terminals {
   flex: 1;
   min-width: 0;
@@ -24,7 +24,7 @@
   overflow: hidden;
 }
 
-/* Sekmeler alan daralınca birlikte küçülür; başlık kısalır, simgeler küçülmez. */
+/* Tabs shrink together when space gets tight; the title shortens, the icons don't shrink. */
 .tab {
   flex: 0 1 auto;
   min-width: 56px;
@@ -89,7 +89,7 @@
   color: var(--muted);
 }
 
-/* Etkin olmayan sekmede düğmenin yeri ayrılır; sekmenin üzerine gelince görünür ve tıklanır. */
+/* On an inactive tab the button's space is reserved; it shows and becomes clickable on tab hover. */
 .tab-close[data-reveal='hover'] {
   visibility: hidden;
 }
@@ -161,7 +161,7 @@
   color: var(--muted);
 }
 
-/* xterm kaydırma çubuğu: ince ve panelle uyumlu. */
+/* xterm scrollbar: thin and matching the panel. */
 .xterm .xterm-viewport::-webkit-scrollbar {
   width: 10px;
 }

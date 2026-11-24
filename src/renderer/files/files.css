@@ -1,9 +1,9 @@
-/* Sağ panel: Files sekmesi. */
+/* Right panel: Files tab. */
 .files-tree.single {
   padding: 6px 0;
 }
 
-/* Çok repolu görünümde her repo, Git sekmesindeki gibi ayrı bir bölüm. */
+/* In the multi-repo view each repo is a separate section, as in the Git tab. */
 .files-repo {
   border-bottom: 1px solid var(--line-soft);
 }
@@ -54,7 +54,7 @@
   font-weight: 600;
 }
 
-/* .gitignore'a takılanlar soluk. */
+/* Files matched by .gitignore are dimmed. */
 .tree-row.ignored > * {
   opacity: 0.45;
 }

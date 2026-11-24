@@ -6,32 +6,32 @@ import { AppCore } from './ipc.js';
 import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 
-// Testler ve geliştirme, kullanıcının gerçek ayar klasörüne dokunmasın diye ayrı bir klasör verebilir.
-// Paketsiz çalışan geliştirme kopyası da ayrı klasörü kullanır: kurulu edi'nin tek-kopya kilidine
-// takılıp kapanmasın.
+// Tests and development can pass a separate folder so they don't touch the user's real settings folder.
+// The unpackaged development build uses a separate folder too, so it doesn't hit the installed edi's
+// single-instance lock and quit.
 if (process.env.EDI_USER_DATA) app.setPath('userData', process.env.EDI_USER_DATA);
 else if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'edi-dev'));
 
-// Tek kopya: `edi <klasör>` yeni bir kopya başlatır; o kopya kilidi alamaz, klasörü açık olana
-// devreder ve kapanır. Açık pencere o klasöre geçer (çalışan terminal varsa sorulur).
+// Single instance: `edi <folder>` starts a new instance; it can't get the lock, so it hands the folder
+// to the running one and quits. The open window switches to that folder (asking first if a terminal is running).
 const primary = app.requestSingleInstanceLock();
 if (!primary) app.quit();
 
-// Görsel ve video önizlemesinin adresi; video ileri sarabilsin diye akış ve fetch desteğiyle.
-// Uygulama hazır olmadan kaydedilmelidir.
+// The scheme for image and video previews, with stream and fetch support so videos can seek.
+// It must be registered before the app is ready.
 protocol.registerSchemesAsPrivileged([
   { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } },
 ]);
 
 const here = import.meta.dirname;
 const devUrl = process.env.VITE_DEV_SERVER_URL;
-/** Uçtan uca testlerde pencere ekrana gelmez. */
+/** In end-to-end tests the window is never shown. */
 const hidden = process.env.EDI_HIDDEN === '1';
 
 let win: BrowserWindow | null = null;
 let core: AppCore;
 
-/** Kayıtlı konum hâlâ bir ekranın içindeyse kullanılır (ekran çıkarılmış olabilir). */
+/** The saved position is used only if it is still within a display (the display may have been disconnected). */
 function savedBounds(): { x: number; y: number; width: number; height: number } | undefined {
   const saved = core.persisted.window;
   if (!saved) return undefined;
@@ -45,7 +45,7 @@ function savedBounds(): { x: number; y: number; width: number; height: number } 
 
 let quitting: 'no' | 'asking' | 'yes' = 'no';
 
-/** Çıkışın tek yolu: çalışan terminal varsa sorar, son durumu diske yazar, sonra çıkar. */
+/** The only way out: asks if a terminal is running, writes the final state to disk, then quits. */
 async function requestQuit(): Promise<void> {
   if (quitting !== 'no') return;
   quitting = 'asking';
@@ -61,7 +61,7 @@ async function requestQuit(): Promise<void> {
     core.dispose();
     await core.flush();
   } catch {
-    // Soru ya da kayıt başarısız olsa da kullanıcı çıkabilmeli.
+    // The user must be able to quit even if the prompt or the save fails.
   }
   quitting = 'yes';
   app.quit();
@@ -72,7 +72,7 @@ function createWindow(): void {
     width: 1440,
     height: 900,
     ...savedBounds(),
-    // Üç panelin en küçük genişlikleri: 320 + 360 + 300.
+    // Minimum widths of the three panels: 320 + 360 + 300.
     minWidth: 980,
     minHeight: 560,
     show: false,
@@ -85,17 +85,17 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      // Gizli pencerede de (testler) çizim ve zamanlayıcılar normal hızda çalışsın.
+      // Keep painting and timers at normal speed in a hidden window too (tests).
       backgroundThrottling: !hidden,
     },
   });
 
-  // Sayfa yalnız uygulamanın kendisidir: yeni pencere açamaz, başka adrese gidemez.
+  // The page is only the app itself: it can't open new windows or navigate elsewhere.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
 
   if (!hidden) win.once('ready-to-show', () => win?.show());
-  // Pencereyi kapatmak uygulamadan çıkmaktır; çalışan terminal varsa önce sorulur.
+  // Closing the window quits the app; if a terminal is running, it asks first.
   win.on('close', (event) => {
     if (quitting === 'yes') return;
     event.preventDefault();
@@ -109,15 +109,15 @@ function createWindow(): void {
   else void win.loadFile(path.join(here, '../renderer/index.html'));
 }
 
-// Dock'tan açılan paketli uygulama kabuk ayarlarını (PATH) almaz: giriş kabuğunun ortamı bir
-// kez okunur. Açılışı bekletmez; hook'ları çalıştıracak ilk commit'ten çok önce hazır olur.
-// Ortam geldikten sonra açılan terminaller onu da devralır; her sekme yine kendi giriş kabuğunu
-// çalıştırır. Klasörü devredip kapanacak ikinci kopya kabuğu çalıştırmaz.
+// The packaged app launched from the Dock doesn't get the shell settings (PATH): the login shell's
+// environment is read once. It doesn't delay startup; it is ready long before the first commit that runs hooks.
+// Terminals opened after the environment arrives inherit it too; each tab still runs its own login
+// shell. A second instance that will hand over the folder and quit doesn't run the shell.
 if (app.isPackaged && primary) {
   const shell = process.env.SHELL || os.userInfo().shell || '/bin/zsh';
   void readLoginEnv(shell).then((login) => {
     if (!login) return;
-    // process.env'in kendisi güncellenir (yerine düz bir nesne konmaz).
+    // process.env itself is updated (it isn't replaced with a plain object).
     for (const [name, value] of Object.entries(mergeLoginEnv(process.env, login))) {
       if (value !== undefined) process.env[name] = value;
     }
@@ -125,8 +125,8 @@ if (app.isPackaged && primary) {
 }
 
 app.on('second-instance', (_event, argv) => {
-  // Terminal önde kalırsa "Switch folders?" sorusu arkada görünmez kalır: uygulama öne alınır.
-  // Testlerde gizli çalışan pencere görünür yapılmaz.
+  // If the terminal stays in front, the "Switch folders?" prompt stays hidden behind it: bring the app forward.
+  // The window running hidden in tests isn't made visible.
   if (win && !win.isDestroyed() && !hidden) {
     if (win.isMinimized()) win.restore();
     win.show();
@@ -139,7 +139,7 @@ app.on('second-instance', (_event, argv) => {
 
 app.whenReady().then(async () => {
   if (!primary) return;
-  // Varsayılan menüdeki Cmd+W pencereyi, Cmd+R sayfayı (ve terminalleri) kapatır; ikisi de istenmiyor.
+  // In the default menu, Cmd+W closes the window and Cmd+R reloads the page (closing the terminals); neither is wanted.
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       { role: 'appMenu' },
@@ -149,7 +149,7 @@ app.whenReady().then(async () => {
   );
   core = await AppCore.create(path.join(app.getPath('userData'), 'state.json'), () => win);
   core.register();
-  // Klasör pencere açılmadan önce açılır: sayfa ilk durumu istediğinde repolar hazırdır.
+  // The folder is opened before the window: the repos are ready when the page asks for the initial state.
   await core.openInitial(folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
   createWindow();
 });

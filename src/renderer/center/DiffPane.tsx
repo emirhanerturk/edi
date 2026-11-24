@@ -9,24 +9,24 @@ import { type Cell, MAX_DIFF_LINES, type Row, diffRows } from './diffRows';
 export interface DiffPaneProps {
   repoName: string;
   path: string;
-  /** Yüklenene kadar null. */
+  /** Null until loaded. */
   view: DiffView | null;
   mode: 'split' | 'inline';
-  /** Sözdizimi renkleri; henüz gelmediyse ya da dil bilinmiyorsa null. */
+  /** Syntax colors; null if they haven't arrived yet or the language is unknown. */
   tokens: DiffTokens | null;
   onMode(mode: 'split' | 'inline'): void;
   onOpenInZed(): void;
-  /** Dosyanın tamamını (çalışma ağacındaki hâli) dosya görünümünde açar. */
+  /** Opens the whole file (its working tree version) in the file view. */
   onOpenFile(): void;
 }
 
 const NOT_CHANGED = 'File is not in the list of changes';
 const TOO_LARGE = 'This diff is too large to show';
 
-/** Bir dosyanın HEAD'e göre değişikliği: yan yana ya da tek sütun. */
+/** A file's changes against HEAD: side by side or in a single column. */
 export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZed, onOpenFile }: DiffPaneProps) {
   const diff = view?.ok ? view.diff : null;
-  // Çalışma ağacından silinmiş dosyanın açılacak bir hâli yoktur.
+  // A file deleted from the working tree has no version to open.
   const onDisk = view?.ok === true && view.file.y !== 'D' && !(view.file.y === '.' && view.file.x === 'D');
   const showsLines = diff !== null && !diff.binary && diff.hunks.length > 0;
 
@@ -81,8 +81,8 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZ
 }
 
 /**
- * Yoklama her 2 sn'de bağlı görünümü yeniden çizer; diff, mod ve renkler aynı kaldıkça
- * (useView aynı veride aynı nesneyi tutar) satırlar yeniden kurulmaz, gövde yeniden çizilmez.
+ * Polling rerenders the bound view every 2 s; as long as the diff, mode and colors stay the same
+ * (useView keeps the same object for the same data) the rows aren't rebuilt and the body isn't rerendered.
  */
 const DiffBody = memo(function DiffBody({ diff, mode, tokens }: { diff: ParsedDiff; mode: 'split' | 'inline'; tokens: DiffTokens | null }) {
   const rows = useMemo(() => diffRows(diff, mode), [diff, mode]);
@@ -134,8 +134,8 @@ function SplitCell({ side, cell, tokens }: { side: 'old' | 'new'; cell: Cell | n
 }
 
 /**
- * Satır metni. Renkler ancak metinle birebir örtüşüyorsa kullanılır: dosya değişti de yeni
- * renkler henüz gelmediyse eski satırın renkleri yeni metnin üstüne yazılmaz.
+ * Line text. Colors are used only if they match the text exactly: if the file changed and the new
+ * colors haven't arrived yet, the old line's colors aren't painted over the new text.
  */
 export function Code({ text, tokens }: { text: string; tokens: Token[] | undefined }) {
   const usable = tokens !== undefined && tokens.map((token) => token.text).join('') === text;

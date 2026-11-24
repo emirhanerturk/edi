@@ -1,4 +1,4 @@
-// History için zaman ve konu satırı biçimleri. Saf işlevler; gün başlıkları yerel saate göredir.
+// Time and subject line formats for History. Pure functions; day headings follow local time.
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -7,7 +7,7 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 
 const elapsed = (then: number, now: number) => Math.max(0, now - then);
 
-/** Satırlardaki kısa süre: "now", "25m", "3h", "2d", "3w", "5mo", "2y". */
+/** Short duration on rows: "now", "25m", "3h", "2d", "3w", "5mo", "2y". */
 export function shortAgo(then: number, now: number): string {
   const ms = elapsed(then, now);
   if (ms < MINUTE) return 'now';
@@ -22,7 +22,7 @@ export function shortAgo(then: number, now: number): string {
 
 const count = (n: number, unit: string, last: string) => (n === 1 ? last : `${n} ${unit}s ago`);
 
-/** Uzun süre: "just now", "25 minutes ago", "yesterday", "2 weeks ago", "last month" … */
+/** Long duration: "just now", "25 minutes ago", "yesterday", "2 weeks ago", "last month" … */
 export function longAgo(then: number, now: number): string {
   const ms = elapsed(then, now);
   if (ms < MINUTE) return 'just now';
@@ -41,9 +41,9 @@ const startOfDay = (time: number) => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 };
 
-/** Gün başlığı: TODAY, YESTERDAY, THIS WEEK (dünden önceki beş gün), sonra "NOV 12" ya da "NOV 12, 2025". */
+/** Day heading: TODAY, YESTERDAY, THIS WEEK (the five days before yesterday), then "NOV 12" or "NOV 12, 2025". */
 export function dayLabel(then: number, now: number): string {
-  // Yaz saati geçişinde gün 23 ya da 25 saat sürer: yuvarlamak takvim gününü verir.
+  // Around a daylight saving change a day lasts 23 or 25 hours: rounding gives the calendar day.
   const days = Math.round((startOfDay(now) - startOfDay(then)) / DAY);
   if (days <= 0) return 'TODAY';
   if (days === 1) return 'YESTERDAY';
@@ -53,10 +53,10 @@ export function dayLabel(then: number, now: number): string {
   return date.getFullYear() === new Date(now).getFullYear() ? label : `${label}, ${date.getFullYear()}`;
 }
 
-/** "tür(kapsam)!: " biçimi; ilk 32 karakter içinde biter. */
+/** The "type(scope)!: " form; ends within the first 32 characters. */
 const PREFIX = /^[\w-]+(\([^()]*\))?!?: /;
 
-/** Konu satırını sönük gösterilen Conventional Commits ön eki ve geri kalanı olarak ayırır. */
+/** Splits a subject line into the Conventional Commits prefix, shown dimmed, and the rest. */
 export function splitSubject(subject: string): { prefix: string; rest: string } {
   const match = PREFIX.exec(subject);
   if (!match || match[0].length - 2 >= 32) return { prefix: '', rest: subject };

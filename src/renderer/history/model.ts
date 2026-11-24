@@ -1,22 +1,22 @@
-// Repo loglarını tek bir zaman çizelgesinde ya da repo gruplarında birleştirir. Saf işlevler.
+// Merges repo logs into a single timeline or into repo groups. Pure functions.
 import type { CommitSummary, LogResult } from '../../git/types';
 import { dayLabel } from './time';
 
 const DAY = 24 * 60 * 60_000;
-/** Bir sayfada repo başına okunan commit sayısı (ana süreçteki `PAGE` ile aynı). */
+/** Commits read per repo per page (same as `PAGE` in the main process). */
 export const HISTORY_PAGE = 50;
-/** Ana sürecin kabul ettiği en büyük adet. */
+/** The largest count the main process accepts. */
 export const HISTORY_MAX = 5000;
 
 /**
- * Değişince reponun logu yeniden okunur: branch, HEAD (commit, pull, branch değişimi), upstream
- * ve ahead/behind (push ok işaretlerini, fetch upstream çizgisini değiştirir).
+ * When it changes, the repo's log is reread: branch, HEAD (commit, pull, branch switch), upstream
+ * and ahead/behind (changes the push arrows and the fetch upstream line).
  */
 export function historyKey(repo: { status: { head: string; headOid: string | null; upstream: string | null; ahead: number | null; behind: number | null } | null }): string {
   const s = repo.status;
   return s === null ? '' : [s.head, s.headOid, s.upstream, s.ahead, s.behind].join('|');
 }
-/** By repo düzeninde son commiti bundan yeni olan repo açık başlar. */
+/** In the By repo layout, a repo whose last commit is newer than this starts expanded. */
 export const RECENT_MS = 3 * DAY;
 
 export interface RepoLog {
@@ -32,10 +32,10 @@ export type HistoryRow =
       repoPath: string;
       commit: CommitSummary;
       unpushed: boolean;
-      /** Yazar, reponun `user.email`'inden farklıysa adı; değilse null. */
+      /** The author's name if it differs from the repo's `user.email`; otherwise null. */
       author: string | null;
       merge: boolean;
-      /** Konu satırıyla eşleşmeyen ilk etiket (rozet). */
+      /** The first tag that doesn't match the subject line (badge). */
       tag: string | null;
     }
   | { type: 'release'; repoName: string; repoPath: string; commit: CommitSummary; tag: string }
@@ -43,14 +43,14 @@ export type HistoryRow =
 
 const bare = (value: string) => value.trim().replace(/^v/, '');
 
-/** Etiket konu satırıyla aynıysa (`1.86.0` ↔ `v1.86.0`) commit bir sürüm satırı olarak gösterilir. */
+/** If a tag matches the subject line (`1.86.0` ↔ `v1.86.0`), the commit is shown as a release row. */
 export function isRelease(subject: string, tag: string): boolean {
   return bare(tag) !== '' && bare(subject) === bare(tag);
 }
 
 /**
- * Birleşik listede gösterilecek en eski an. Daha eski commitleri yüklenmemiş bir repo varsa
- * onun yüklenen en eski commitinden eskisi gösterilmez: yoksa o repo o aralıkta boş görünürdü.
+ * The oldest moment to show in the merged list. If a repo has older commits that aren't loaded,
+ * nothing older than its oldest loaded commit is shown: otherwise that repo would look empty for that span.
  */
 export function boundary(logs: RepoLog[]): number | null {
   let edge: number | null = null;
@@ -77,7 +77,7 @@ export function timeline(logs: RepoLog[], now: number, opts: { single: boolean }
       if (edge === null || commit.date >= edge) entries.push({ log, commit, unpushed: unpushed.has(commit.oid) });
     }
   }
-  // Sıralama kararlıdır: aynı andaki commitler reponun ve git'in sırasını korur.
+  // The sort is stable: commits at the same moment keep the repo's and git's order.
   entries.sort((a, b) => b.commit.date - a.commit.date);
 
   const only = opts.single && logs.length === 1 ? logs[0]!.log : null;
@@ -121,15 +121,15 @@ export interface RepoGroup {
   repoName: string;
   repoPath: string;
   ahead: number;
-  /** Son commit son 3 günde: açık başlar. */
+  /** Last commit within the last 3 days: starts expanded. */
   open: boolean;
-  /** En yeni commitin anı; commit yoksa null. */
+  /** Time of the newest commit; null if there are no commits. */
   latest: number | null;
-  /** En yeni üç commit. */
+  /** The three newest commits. */
   commits: CommitSummary[];
 }
 
-/** By repo: en son commit atılan repo üstte, commiti olmayanlar adıyla sonda. */
+/** By repo: the repo with the most recent commit on top, repos without commits at the end by name. */
 export function byRepo(logs: RepoLog[], now: number): RepoGroup[] {
   const groups = logs.map(({ repo, log }): RepoGroup => {
     const latest = log.commits.length === 0 ? null : Math.max(...log.commits.map((commit) => commit.date));

@@ -7,10 +7,10 @@ import type { Workspace } from './workspace.js';
 
 const UNKNOWN_REPO = { ok: false, error: 'Unknown repository' } as const;
 const MAX_COUNT = 5000;
-/** Kısa ya da tam, küçük harf hex. Başında "-" olamayacağı için seçenek sanılmaz. */
+/** Short or full lowercase hex. It can't start with "-", so it can't be mistaken for an option. */
 const OID = /^[0-9a-f]{7,64}$/;
 
-/** History sekmesinin salt okunur işlemleri. Repo yolu, adet ve commit kimliği git'e gitmeden doğrulanır. */
+/** Read-only operations of the History tab. The repo path, count and commit id are validated before reaching git. */
 export class HistoryOps {
   constructor(private readonly ws: Workspace) {}
 

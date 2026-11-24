@@ -1,6 +1,6 @@
 #!/bin/sh
-# edi [folder]: klasörü edi'de açar. edi zaten açıksa aynı pencere o klasöre geçer
-# (yeni kopya tek-kopya kilidine takılır ve klasörü açık olana devreder).
+# edi [folder]: opens the folder in edi. If edi is already open, the same window switches to it
+# (the new instance hits the single-instance lock and hands the folder to the open one).
 app="${EDI_APP:-/Applications/edi.app}"
 
 if [ "$#" -gt 1 ]; then
@@ -14,5 +14,5 @@ if ! dir=$(CDPATH= cd -- "$1" 2>/dev/null && pwd -P) || [ ! -d "$1" ]; then
   echo "edi: not a folder: $1" >&2
   exit 1
 fi
-# Tek parça (`--open=<yol>`): Chromium ikinci kopyanın argümanlarını yeniden sıralayabilir.
+# One piece (`--open=<path>`): Chromium may reorder the second instance's arguments.
 exec open -n -a "$app" --args "--open=$dir"

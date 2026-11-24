@@ -3,7 +3,7 @@ import { plural, tildify } from '../format';
 import { useApp } from '../store';
 import { ChevronRight, FolderIcon } from './icons';
 
-/** Henüz klasör açılmamışken görünen ekran. */
+/** The screen shown before any folder is open. */
 export function EmptyState() {
   const home = useApp((s) => s.home);
   const recent = useApp((s) => s.recent);

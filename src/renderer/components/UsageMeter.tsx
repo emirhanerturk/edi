@@ -5,7 +5,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const two = (n: number) => String(n).padStart(2, '0');
 
-/** Sıfırlanma anı, yerel saatle: bugünse "15:10", değilse "Fri 28 Nov 09:00". */
+/** Reset time in local time: "15:10" if today, otherwise "Fri 28 Nov 09:00". */
 export function resetText(at: number, now: number): string {
   const date = new Date(at);
   const time = `${two(date.getHours())}:${two(date.getMinutes())}`;
@@ -13,7 +13,7 @@ export function resetText(at: number, now: number): string {
   return `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]} ${time}`;
 }
 
-/** Verinin yaşı; saatler ve günler için de kısa. */
+/** The data's age; short for hours and days too. */
 function since(then: number, now: number): string {
   const minutes = Math.floor((now - then) / 60_000);
   if (minutes < 60) return ago(then, now);
@@ -28,7 +28,7 @@ interface Props {
   now: number;
 }
 
-/** Üst çubukta Claude kullanım limitleri: 5 saatlik ve haftalık yüzde, sıfırlanma zamanı. */
+/** Claude usage limits in the top bar: 5-hour and weekly percentage, reset time. */
 export function UsageMeter({ usage, now }: Props) {
   if (!usage) return null;
   const windows: [string, string, UsageWindow | null][] = [

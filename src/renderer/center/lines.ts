@@ -1,6 +1,6 @@
-// Dosya metnini satırlara böler. Ayrı modülde: hem dosya görünümü hem durum çubuğu kullanır.
+// Splits file text into lines. In its own module: both the file view and the status bar use it.
 
-/** Dosyanın satırları; sondaki satır sonu boş bir satır sayılmaz. */
+/** The file's lines; a trailing newline doesn't count as an empty line. */
 export function splitLines(text: string): string[] {
   if (text === '') return [];
   const lines = text.split(/\r?\n/);

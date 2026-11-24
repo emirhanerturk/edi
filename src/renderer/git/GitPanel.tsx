@@ -2,7 +2,7 @@ import { edi } from '../bridge';
 import { useApp } from '../store';
 import { GitPanelView } from './GitPanelView';
 
-/** Git sekmesinin uygulama durumuna bağlı hâli. */
+/** The Git tab bound to app state. */
 export function GitPanel() {
   const repos = useApp((s) => s.workspace.repos);
   const expanded = useApp((s) => s.expanded);
@@ -30,7 +30,7 @@ export function GitPanel() {
       onDismissError={dismissError}
       onOpenInZed={(repoPath, path) => void useApp.getState().openInZed(repoPath, path)}
       loadBranches={(repoPath) => edi.branches(repoPath)}
-      // Yeni dosyanın karşılaştırılacak eski hâli yoktur: içeriği dosya görünümünde açılır.
+      // A new file has no old version to compare against: its content opens in the file view.
       onOpenFile={(repoPath, file, pin) => openInCenter({ kind: file.kind === 'untracked' ? 'file' : 'diff', repoPath, path: file.path }, pin)}
       selected={active && { repoPath: active.repoPath, path: active.path }}
     />

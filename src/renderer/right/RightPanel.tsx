@@ -11,9 +11,9 @@ export type RightTab = 'git' | 'history' | 'files';
 
 export interface RightPanelViewProps {
   tab: RightTab;
-  /** Git sekmesinin rozeti: değişen dosya sayısı. */
+  /** Badge on the Git tab: number of changed files. */
   badge: number;
-  /** Remote'u olan en az bir repo var. */
+  /** At least one repo has a remote. */
   canFetch: boolean;
   onTab(tab: RightTab): void;
   onFetchAll(): void;
@@ -23,7 +23,7 @@ export interface RightPanelViewProps {
   children: ReactNode;
 }
 
-/** Sağ panel: Git ve Files sekmeleri; başlıktaki düğmeler seçili sekmeye göre değişir. */
+/** Right panel: Git and Files tabs; the header buttons change with the selected tab. */
 export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onRescan, onCollapseAll, onRefreshHistory, children }: RightPanelViewProps) {
   return (
     <section className="git" aria-label={tab === 'git' ? 'Git' : tab === 'history' ? 'History' : 'Files'}>
@@ -72,7 +72,7 @@ export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onResc
   );
 }
 
-/** Sağ panelin uygulama durumuna bağlı hâli. */
+/** The right panel bound to app state. */
 export function RightPanel() {
   const tab = useApp((s) => s.rightTab);
   const repos = useApp((s) => s.workspace.repos);

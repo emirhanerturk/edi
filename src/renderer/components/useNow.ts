@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-/** Şimdiki an; `everyMs`'de bir yenilenir. Göreli zaman yazıları için. */
+/** The current time, refreshed every `everyMs`. For relative time labels. */
 export function useNow(everyMs: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

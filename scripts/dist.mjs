@@ -1,5 +1,5 @@
-// `npm run dist`: imzasız (ad-hoc) edi.app üretir ve kurar: /Applications/edi.app ve
-// ~/.local/bin/edi. `--no-install` yalnız üretir (release/ altında).
+// `npm run dist`: builds an unsigned (ad-hoc signed) edi.app and installs it: /Applications/edi.app and
+// ~/.local/bin/edi. `--no-install` only builds (under release/).
 import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -11,13 +11,13 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const noInstall = process.argv.includes('--no-install');
 const target = { appPath: '/Applications/edi.app', linkPath: join(homedir(), '.local', 'bin', 'edi') };
 
-/** Kurulum hatası: yığın dökümü yerine tek satır. */
+/** An install error: one line instead of a stack trace. */
 function fail(error) {
   console.error(`npm run dist: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 }
 
-// Kurulamayacaksa (edi açık, yerinde başka bir edi) paketlemeden önce söylenir.
+// If it cannot be installed (edi is open, something else is in edi's place), say so before packaging.
 if (!noInstall) await preflight(target).catch(fail);
 
 execFileSync('npm', ['run', 'build'], { cwd: root, stdio: 'inherit' });
@@ -33,17 +33,17 @@ const [out] = await packager({
   overwrite: true,
   platform: 'darwin',
   arch: process.arch,
-  // node-pty'nin yerel modülü ve spawn-helper'ı asar arşivinin dışında olmalı.
+  // node-pty's native module and spawn-helper must stay outside the asar archive.
   asar: { unpack: '**/node_modules/node-pty/**' },
   extraResource: [join(root, 'resources', 'edi'), join(root, 'resources', 'edi-statusline')],
-  // Yalnız derlenmiş kod, package.json ve (packager'ın ayıkladığı) çalışma bağımlılıkları.
-  // node_modules içindeki araç önbellekleri (.vite, .vitest-cache, .bin) da alınmaz.
+  // Only the compiled code, package.json and the runtime dependencies (pruned by packager).
+  // Tool caches inside node_modules (.vite, .vitest-cache, .bin) are left out too.
   ignore: (path) =>
     !(path === '' || path === '/package.json' || /^\/(dist|node_modules)(\/|$)/.test(path)) || /^\/node_modules\/\./.test(path),
   prune: true,
 });
 const built = join(out, 'edi.app');
-// Apple Silicon imzasız uygulamayı açmaz; geliştirici sertifikası olmadan ad-hoc imza.
+// Apple Silicon will not open an unsigned app; sign ad-hoc, without a developer certificate.
 execFileSync('codesign', ['--force', '--deep', '--sign', '-', built], { stdio: 'inherit' });
 console.log(`Built ${built}`);
 

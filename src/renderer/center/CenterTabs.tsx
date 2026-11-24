@@ -1,14 +1,14 @@
 import { CloseIcon, CommitIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 
-/** Bir sekmenin çubukta görünen hâli. */
+/** How a tab looks in the bar. */
 export interface TabLabel {
   id: string;
   kind: 'diff' | 'file' | 'commit';
   name: string;
-  /** Dosyanın klasörü; kökteyse boş. */
+  /** The file's folder; empty if at the root. */
   dir: string;
-  /** Durum harfi (M, A, D, ?, U…); dosya değişmemişse null. */
+  /** Status letter (M, A, D, ?, U…); null if the file is unchanged. */
   letter: string | null;
   pinned: boolean;
 }
@@ -22,14 +22,14 @@ export interface CenterTabsProps {
   onClosePanel(): void;
 }
 
-/** Orta panelin sekme çubuğu. Sağ uçtaki düğme paneli kapatır; sekmeler yerinde kalır. */
+/** The center panel's tab bar. The button at the right end closes the panel; the tabs stay put. */
 export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePanel }: CenterTabsProps) {
   return (
     <div className="tabbar center-tabbar">
       <div className="tabbar-tabs" role="tablist" aria-label="Open files">
         {tabs.map((tab) => {
           const isActive = tab.id === active;
-          // Etkin sekmede klasör; arka plandaki diff sekmesi, aynı dosyanın içerik sekmesinden ayırt edilsin diye "diff".
+          // Folder on the active tab; "diff" on a background diff tab, to tell it apart from the same file's content tab.
           const hint = isActive ? tab.dir : tab.kind === 'diff' ? 'diff' : '';
           return (
             <div
@@ -42,7 +42,7 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               tabIndex={-1}
               title={tab.dir ? `${tab.dir}/${tab.name}` : tab.name}
               onMouseDown={(event) => {
-                // Orta tuş sekmeyi kapatır.
+                // Middle click closes the tab.
                 if (event.button === 1) {
                   event.preventDefault();
                   onClose(tab.id);
@@ -58,7 +58,7 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               )}
               <span className="tab-title">{tab.name}</span>
               {hint !== '' && <span className="tab-hint">{hint}</span>}
-              {/* Her sekmede yer tutar; etkin olmayanınki üzerine gelince görünür (CSS). */}
+              {/* Takes up space on every tab; on an inactive tab it shows on hover (CSS). */}
               <button
                 className="tab-close"
                 data-reveal={isActive ? 'always' : 'hover'}

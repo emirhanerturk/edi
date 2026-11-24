@@ -6,24 +6,24 @@ import type { Readable } from 'node:stream';
 export type GitResult = { ok: true; stdout: string } | { ok: false; error: string; stdout: string };
 
 export interface RunGitOptions {
-  /** Varsayılan 15000. Aşılırsa süreç grubu sonlandırılır. */
+  /** Defaults to 15000. If exceeded, the process group is terminated. */
   timeoutMs?: number;
-  /** Başarı sayılan çıkış kodları. Varsayılan [0]. */
+  /** Exit codes that count as success. Defaults to [0]. */
   okCodes?: number[];
-  /** Çıktı bu kadar karakteri geçerse okuma bırakılır, süreç sonlandırılır ve `OUTPUT_TOO_LARGE` döner. */
+  /** If the output exceeds this many characters, reading stops, the process is terminated and `OUTPUT_TOO_LARGE` is returned. */
   maxOutput?: number;
-  /** Ek ortam değişkenleri (ör. `GIT_NO_LAZY_FETCH`). */
+  /** Extra environment variables (e.g. `GIT_NO_LAZY_FETCH`). */
   env?: Record<string, string>;
 }
 
 export const OUTPUT_TOO_LARGE = 'Output too large';
 
-/** SIGTERM'den sonra sürecin kendi kendine kapanması için tanınan süre. */
+/** How long the process gets to exit on its own after SIGTERM. */
 const KILL_GRACE_MS = 2000;
-/** git çıktıktan sonra, çıktı borularının kapanması için beklenen süre. */
+/** How long to wait for the output pipes to close after git exits. */
 const CLOSE_GRACE_MS = 200;
 
-/** Komutu `cwd` dışındaki bir repoya yönlendirebilecek ortam değişkenleri. */
+/** Environment variables that could redirect the command to a repo other than `cwd`. */
 const REDIRECTING_VARS = [
   'GIT_DIR',
   'GIT_WORK_TREE',
@@ -34,25 +34,25 @@ const REDIRECTING_VARS = [
 ];
 
 function gitEnv(cwd: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  // Yerel ayar sabit: hata satırı seçimi ve arayüz metinleri git'in İngilizce çıktısına dayanır.
+  // Fixed locale: picking the error line and the UI text rely on git's English output.
   const env: NodeJS.ProcessEnv = { ...process.env, ...extra, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };
   for (const name of REDIRECTING_VARS) delete env[name];
-  // git, `cwd` repo değilse üst klasörlerde repo aramaya çıkar. Tavan, bir satırın
-  // komutunun yanlışlıkla üstteki başka bir repoda çalışmasını engeller.
+  // If `cwd` isn't a repo, git searches the parent folders for one. The ceiling keeps a row's
+  // command from accidentally running in another repo further up.
   env.GIT_CEILING_DIRECTORIES = [dirname(cwd), process.env.GIT_CEILING_DIRECTORIES].filter(Boolean).join(':');
   return env;
 }
 
 /**
- * git'i argüman dizisiyle çalıştırır; hiçbir durumda reject etmez.
+ * Runs git with an argument array; never rejects.
  *
- * `detached` süreci kontrol terminalinden koparır: git ya da ssh parola sormak için
- * terminali ele geçiremez, sormak yerine hata verir.
+ * `detached` detaches the process from the controlling terminal: git or ssh can't take over
+ * the terminal to ask for a password, so they fail instead of asking.
  */
 export async function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): Promise<GitResult> {
   const { timeoutMs = 15000, okCodes = [0], maxOutput = Infinity, env: extraEnv } = opts;
 
-  // Olmayan cwd ile spawn "spawn git ENOENT" der; bu, git yokmuş gibi okunur.
+  // With a missing cwd, spawn reports "spawn git ENOENT", which reads as if git weren't installed.
   const isDir = await stat(cwd).then((s) => s.isDirectory(), () => false);
   if (!isDir) return { ok: false, error: 'Repository folder not found', stdout: '' };
 
@@ -78,24 +78,24 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
     try {
       child = spawn('git', args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: gitEnv(cwd, extraEnv) });
     } catch (err) {
-      // Örn. NUL içeren argüman: spawn eşzamanlı olarak throw eder.
+      // E.g. an argument containing NUL: spawn throws synchronously.
       finish({ ok: false, error: err instanceof Error ? err.message : String(err), stdout: '' });
       return;
     }
 
-    // Negatif pid: git'in başlattığı alt süreçler (hook, ssh) dahil tüm grup.
+    // Negative pid: the whole group, including child processes git started (hooks, ssh).
     const killGroup = (signal: NodeJS.Signals) => {
       try {
         if (child.pid !== undefined) process.kill(-child.pid, signal);
       } catch {
-        // Süreç zaten bitmiş.
+        // The process has already finished.
       }
     };
 
     timer = setTimeout(() => {
       timedOut = true;
-      // Önce SIGTERM: git kilit dosyalarını (index.lock) temizleyerek çıkar.
-      // SIGKILL kilidi geride bırakır ve repodaki sonraki tüm yazma işlemleri kilitlenir.
+      // SIGTERM first: git cleans up its lock files (index.lock) before exiting.
+      // SIGKILL leaves the lock behind and every later write in the repo gets locked out.
       killGroup('SIGTERM');
       killTimer = setTimeout(() => {
         killGroup('SIGKILL');
@@ -107,7 +107,7 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
       if (settled) return;
       stdout += chunk;
       if (stdout.length > maxOutput) {
-        // Bellekte büyümesin: okuma bırakılır. SIGTERM, git'in kilitlerini temizleyerek çıkmasına izin verir.
+        // Don't let it grow in memory: stop reading. SIGTERM lets git clean up its locks before exiting.
         killGroup('SIGTERM');
         finish({ ok: false, error: OUTPUT_TOO_LARGE, stdout: '' });
       }
@@ -117,12 +117,12 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
     const settle = (code: number | null) => {
       if (timedOut) finish({ ok: false, error: 'Timed out', stdout });
       else if (code !== null && okCodes.includes(code)) finish({ ok: true, stdout });
-      // Bazı git hataları ("nothing to commit" gibi) stderr'e değil stdout'a yazılır.
+      // Some git errors (like "nothing to commit") are written to stdout, not stderr.
       else finish({ ok: false, error: pickErrorLine(stderr.trim() === '' ? stdout : stderr), stdout });
     };
     child.on('close', settle);
-    // Bir hook arka plana süreç bırakırsa borular açık kalır ve 'close' o süreç bitene kadar gelmez.
-    // git'in kendisi çıktıysa iş bitmiştir: kısa bir süre kalan çıktıyı bekle, sonra sonucu ver.
+    // If a hook leaves a process in the background, the pipes stay open and 'close' doesn't fire until it ends.
+    // Once git itself has exited the work is done: wait briefly for any remaining output, then settle.
     child.on('exit', (code) => {
       if (timedOut) return;
       clearTimeout(timer);
@@ -135,7 +135,7 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
   });
 }
 
-/** git'in hata çıktısından tek satırda gösterilecek en bilgilendirici satırı seçer. */
+/** Picks the most informative line of git's error output to show on a single line. */
 export function pickErrorLine(stderr: string): string {
   const lines = stderr
     .split('\n')

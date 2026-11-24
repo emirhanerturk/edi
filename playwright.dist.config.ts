@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-// Paketli uygulamanın testi: önce `npm run dist -- --no-install`.
+// Tests the packaged app: run `npm run dist -- --no-install` first.
 export default defineConfig({
   testDir: 'e2e-dist',
   timeout: 60_000,

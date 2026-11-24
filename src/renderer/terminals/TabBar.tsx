@@ -47,7 +47,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       tabIndex={-1}
       title={tab.title}
       onMouseDown={(event) => {
-        // Orta tuş sekmeyi kapatır.
+        // Middle click closes the tab.
         if (event.button === 1) {
           event.preventDefault();
           closeTab(tab.id);
@@ -63,7 +63,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       )}
       {tab.exited && <span className="tab-exited">exited</span>}
       {tab.waiting && !active && <BellIcon size={13} label="Needs input" style={{ flex: 'none', color: 'var(--yellow)' }} />}
-      {/* Her sekmede yer tutar; etkin olmayanınki üzerine gelince görünür (CSS). */}
+      {/* Takes up space on every tab; on an inactive tab it shows on hover (CSS). */}
       <button
         className="tab-close"
         data-reveal={active ? 'always' : 'hover'}

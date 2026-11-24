@@ -8,7 +8,7 @@ import { FileView } from './FileView';
 import type { CenterTab } from './tabs';
 import './center.css';
 
-/** Orta panel: açık dosyaların sekmeleri ve etkin sekmenin görünümü. Kapalıyken hiç çizilmez. */
+/** Center panel: tabs for open files and the active tab's view. Not rendered at all when closed. */
 export function CenterPanel() {
   const center = useApp((s) => s.center);
   const repos = useApp((s) => s.workspace.repos);
@@ -49,7 +49,7 @@ export function CenterPanel() {
 }
 
 function CenterView({ tab, repo }: { tab: CenterTab; repo: RepoView | null }) {
-  // Repo kaybolduysa sekme bir sonraki çalışma alanı olayında kapanır.
+  // If the repo disappeared, the tab closes on the next workspace event.
   if (!repo) return null;
   if (tab.kind === 'diff') return <DiffView repo={repo} path={tab.path} />;
   if (tab.kind === 'file') return <FileView repo={repo} path={tab.path} />;

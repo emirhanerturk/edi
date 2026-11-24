@@ -8,7 +8,7 @@ import { DiffPane } from './DiffPane';
 import { tabId } from './tabs';
 import { useView, useVersion } from './useView';
 
-/** Son renklendirme. Dosya değişince yenisi gelene kadar eskisi kalır; `Code` uyuşmayan satırda onu kullanmaz. */
+/** Last highlighting. When the file changes, the old one stays until the new one arrives; `Code` doesn't use it on a mismatched line. */
 function useDiffTokens(diff: ParsedDiff | null, path: string): DiffTokens | null {
   const [tokens, setTokens] = useState<DiffTokens | null>(null);
   useEffect(() => {
@@ -24,11 +24,11 @@ function useDiffTokens(diff: ParsedDiff | null, path: string): DiffTokens | null
   return tokens;
 }
 
-/** Diff görünümünün uygulama durumuna bağlı hâli. Reponun her durum yoklamasında yenilenir. */
+/** The diff view bound to app state. Refreshed on every status poll of the repo. */
 export function DiffView({ repo, path }: { repo: RepoView; path: string }) {
   const refreshedAt = useApp((s) => s.workspace.refreshedAt);
   const mode = useApp((s) => s.layout.diffMode);
-  // Yoklama ya da bir git işlemi (commit, stage) repo durumunu yenileyince diff de yeniden okunur.
+  // When a poll or a git operation (commit, stage) refreshes the repo status, the diff is reread too.
   const version = useVersion(refreshedAt, repo.status);
   const { data } = useView(`${repo.path}\n${path}`, () => edi.diff(repo.path, path), version);
   const tokens = useDiffTokens(data?.ok ? data.diff : null, path);
@@ -49,7 +49,7 @@ export function DiffView({ repo, path }: { repo: RepoView; path: string }) {
       onMode={(next) => useApp.getState().setDiffMode(next)}
       onOpenInZed={() => void useApp.getState().openInZed(repo.path, path)}
       onOpenFile={() => {
-        // Yeni sekme önizleme sekmesinin yerine geçer: diff kaybolmasın diye önce o kalıcı olur.
+        // The new tab replaces the preview tab: so the diff isn't lost, that one is pinned first.
         const app = useApp.getState();
         app.pinCenterTab(tabId({ kind: 'diff', repoPath: repo.path, path }));
         app.openInCenter({ kind: 'file', repoPath: repo.path, path }, false);

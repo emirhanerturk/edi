@@ -1,11 +1,11 @@
-// Commit'in GitHub sayfası. Ağa çıkmaz: yalnız yerel uzak dallara ve uzak reponun adresine bakar.
+// The commit's GitHub page. No network access: it looks only at local remote-tracking branches and the remote's URL.
 import { runGit } from './exec.js';
 
 const NAME = /^[A-Za-z0-9._-]+$/;
 
 /**
- * Uzak reponun adresi GitHub'daysa commit'in sayfası; değilse null. Adresteki kullanıcı adı ve
- * token bağlantıya taşınmaz: yalnız sahip ve repo adı kullanılır.
+ * The commit's page if the remote's URL is on GitHub; null otherwise. The user name and token in the URL
+ * aren't carried into the link: only the owner and repo name are used.
  */
 export function githubCommitUrl(remoteUrl: string, oid: string): string | null {
   let path: string;
@@ -28,8 +28,8 @@ export function githubCommitUrl(remoteUrl: string, oid: string): string | null {
 }
 
 /**
- * Commit'i içeren bir uzak dal (push edilmiş) varsa o uzak reponun GitHub commit sayfası.
- * `origin` önce gelir. Push edilmemiş commit'in sayfası GitHub'da yoktur: null.
+ * The GitHub commit page of a remote that has a branch containing the commit (i.e. it was pushed).
+ * `origin` comes first. An unpushed commit has no page on GitHub: null.
  */
 export async function commitWebUrl(repo: string, oid: string): Promise<string | null> {
   const [refs, remotes] = await Promise.all([
@@ -40,7 +40,7 @@ export async function commitWebUrl(repo: string, oid: string): Promise<string | 
   const names = remotes.stdout.split('\n').filter((name) => name !== '');
   const containing = new Set<string>();
   for (const ref of refs.stdout.split('\n')) {
-    // Adında "/" olan uzak adlarında en uzun eşleşme.
+    // The longest match, for remote names that contain "/".
     const remote = names.filter((name) => ref.startsWith(`refs/remotes/${name}/`)).sort((a, b) => b.length - a.length)[0];
     if (remote) containing.add(remote);
   }

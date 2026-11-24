@@ -9,7 +9,7 @@ import { useApp } from '../store';
 export function StatusBar() {
   const workspace = useApp((s) => s.workspace);
   const now = useNow(1000);
-  // Orta panelde açık olanın kısa bilgisi: dosyada dil ve satır sayısı, diff'te toplamlar.
+  // Short info on what's open in the center panel: language and line count for a file, totals for a diff.
   const info = useApp((s) => (s.center.open ? s.centerInfo : null));
   const { repos, withChanges, toPush } = summary(workspace);
   const servers = useApp((s) => s.servers);

@@ -18,13 +18,13 @@ import { openUrl } from './openUrl.js';
 import { ViewOps } from './viewOps.js';
 import { Workspace } from './workspace.js';
 
-/** Süreç yoklaması: sekme adları ve Claude Code oturumları. */
+/** Process polling: tab names and Claude Code sessions. */
 const PROCESSES_MS = 3000;
-/** Claude kullanım dosyasına bakma aralığı; sıfırlanan pencere de böyle düşer. */
+/** How often the Claude usage file is checked; this is also how a window that has reset drops out. */
 const USAGE_MS = 5000;
-/** Yeni açılan sekmede komutun başlaması için beklenen süre; sonra bir kez erken yoklanır. */
+/** How long to wait for the command to start in a newly opened tab; then one early poll runs. */
 const AFTER_CREATE_MS = 700;
-/** Sürükleme gibi art arda gelen düzen değişiklikleri bu kadar bekletilip bir kez yazılır. */
+/** Rapid layout changes, such as dragging, are held this long and written once. */
 const LAYOUT_SAVE_MS = 400;
 
 const QUESTIONS = {
@@ -32,7 +32,7 @@ const QUESTIONS = {
   switch: { message: 'Switch folders?', suffix: ' Switching closes every terminal.', confirm: 'Switch' },
 } as const;
 
-/** Ana sürecin durumu ve sayfayla konuştuğu her şey. */
+/** The main process's state and everything it talks to the page about. */
 export class AppCore {
   readonly workspace: Workspace;
   readonly ptys: PtyManager;
@@ -75,13 +75,13 @@ export class AppCore {
     return this.state;
   }
 
-  /** Sayfaya olay gönderir; pencere kapanmışsa sessizce geçer. */
+  /** Sends an event to the page; does nothing if the window is closed. */
   send<K extends keyof EdiEvents>(channel: K, ...args: EdiEvents[K]): void {
     const win = this.getWindow();
     if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
   }
 
-  /** Durumu diske yazar; yazmalar sıraya girer, biri diğerinin üstüne binmez. */
+  /** Writes the state to disk; writes are queued so none overlaps another. */
   update(change: (state: Persisted) => Persisted): void {
     this.state = change(this.state);
     const snapshot = this.state;
@@ -97,7 +97,7 @@ export class AppCore {
     return this.saving;
   }
 
-  /** Düzen değişikliğini hemen belleğe alır, diske gecikmeli yazar. */
+  /** Applies a layout change in memory right away and writes it to disk with a delay. */
   setLayout(patch: unknown): void {
     this.state = { ...this.state, layout: mergeLayout(this.state.layout, patch) };
     if (this.layoutTimer) clearTimeout(this.layoutTimer);
@@ -107,7 +107,7 @@ export class AppCore {
     }, LAYOUT_SAVE_MS);
   }
 
-  /** Kabuğun dışında süreç çalıştıran terminal sayısı; süreç listesi şimdi okunur. */
+  /** The number of terminals running a process other than the shell; the process list is read now. */
   async busyTerminals(): Promise<number> {
     const ptys = this.ptyInfos();
     if (ptys.length === 0) return 0;
@@ -115,7 +115,7 @@ export class AppCore {
     return tabStates(ptys, ps, new Set(pids)).filter((tab) => tab.busy).length;
   }
 
-  /** Çalışan süreç varsa kullanıcıya sorar. Yoksa ya da onaylanırsa true. */
+  /** Asks the user if a process is running. True if none is, or if the user confirms. */
   async confirmBusy(kind: keyof typeof QUESTIONS): Promise<boolean> {
     const busy = await this.busyTerminals().catch(() => 0);
     if (busy === 0) return true;
@@ -142,14 +142,14 @@ export class AppCore {
 
   async openFolder(dir: string): Promise<OpenResult> {
     const previous = this.workspace.view().dir;
-    // Klasör değişince terminaller kapanır: çalışan süreç varsa önce sorulur.
+    // Changing folders closes the terminals: if a process is running, ask first.
     if (previous !== null && resolve(dir) !== previous && (await stat(dir).then((s) => s.isDirectory(), () => false))) {
       if (!(await this.confirmBusy('switch'))) return { ok: false, error: 'Cancelled', cancelled: true };
     }
     const result = await this.workspace.open(dir);
     if (!result.ok) return result;
     const opened = this.workspace.view().dir ?? dir;
-    // Terminaller açık klasöre aittir: klasör değişince kapanır, sayfa yenilerini açar.
+    // Terminals belong to the open folder: they close when it changes, and the page opens new ones.
     if (opened !== previous) this.ptys.killAll();
     this.update((state) => ({ ...addRecent(state, opened, result.repoCount), lastDir: opened }));
     this.send('workspace', this.workspace.view());
@@ -158,7 +158,7 @@ export class AppCore {
     return { ok: true };
   }
 
-  /** Açılışta: istenen klasör, yoksa son açılan (hâlâ duruyorsa). */
+  /** On startup: the requested folder, otherwise the last one opened (if it still exists). */
   async openInitial(requested: string | undefined): Promise<void> {
     const dir = requested ?? this.state.lastDir;
     if (!dir) return;
@@ -171,7 +171,7 @@ export class AppCore {
   }
 
   register(): void {
-    // Dosya görünümündeki görsel ve videolar: yalnız keşfedilmiş repoların içinden.
+    // Images and videos in the file view: only from inside discovered repos.
     protocol.handle(MEDIA_SCHEME, (request) =>
       serveMedia((repoPath) => this.workspace.repo(repoPath)?.path ?? null, request.url, request.headers.get('range')),
     );
@@ -194,11 +194,11 @@ export class AppCore {
     ipcMain.handle('workspace:rescan', () => this.workspace.rescan());
     ipcMain.on('layout:set', (_event, patch: unknown) => this.setLayout(patch));
 
-    // Repo yolu ve işlem GitOps'ta doğrulanır; buradan git'e serbest biçimli hiçbir şey geçmez.
+    // The repo path and operation are validated in GitOps; nothing free-form reaches git from here.
     ipcMain.handle('git:run', (_event, repoPath: unknown, op: unknown) => this.gitOps.run(repoPath as string, op as GitOp));
     ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
-    // Salt okunur görünüm işlemleri: yollar ViewOps içinde doğrulanır.
+    // Read-only view operations: paths are validated in ViewOps.
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
@@ -212,7 +212,7 @@ export class AppCore {
       const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;
       const dir = this.workspace.view().dir;
       if (dir === null) throw new Error('No folder is open');
-      // Sayfadan gelen yol serbest değildir: yalnız keşfedilmiş bir repo ya da açık klasör.
+      // The path from the page isn't free: only a discovered repo or the open folder.
       const repo = typeof opts.repoPath === 'string' ? this.workspace.repo(opts.repoPath) : null;
       if (typeof opts.repoPath === 'string' && !repo) throw new Error('Unknown repository');
       const id = this.ptys.create({
@@ -246,7 +246,7 @@ export class AppCore {
     return usage;
   }
 
-  /** Kullanım dosyası değişince (ya da bir pencere sıfırlanınca) sayfaya gönderilir. */
+  /** Sent to the page when the usage file changes (or a window resets). */
   private async pollUsage(): Promise<void> {
     const usage = await readUsage(this.usagePath);
     const json = JSON.stringify(usage);
@@ -264,7 +264,7 @@ export class AppCore {
     this.ptys.killAll();
   }
 
-  /** Süreç listesini bir kez okur; ondan hem sekme durumlarını hem Claude Code oturumlarını çıkarır. */
+  /** Reads the process list once and derives both the tab states and the Claude Code sessions from it. */
   private async pollProcesses(): Promise<void> {
     if (this.pollingProcesses || this.workspace.view().dir === null) return;
     this.pollingProcesses = true;
@@ -273,14 +273,14 @@ export class AppCore {
 
       const ptys = this.ptyInfos();
       const tabs = tabStates(ptys, ps, new Set(pids));
-      // Yalnız değişince gönderilir: sayfa her üç saniyede boşuna yeniden çizilmez.
+      // Sent only on change, so the page isn't needlessly redrawn every three seconds.
       const serialized = JSON.stringify(tabs);
       if (serialized !== this.tabsSent) {
         this.tabsSent = serialized;
         this.send('tabs', tabs);
       }
 
-      // Terminallerde dinlemeye açılmış localhost portları; yalnız değişince gönderilir.
+      // Localhost ports opened for listening in the terminals; sent only on change.
       const servers = await listServers(ptys, ps);
       const serversJson = JSON.stringify(servers);
       if (serversJson !== this.serversSent) {

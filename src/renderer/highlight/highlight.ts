@@ -1,5 +1,5 @@
-// Sözdizimi renkleri: Shiki, One Dark Pro teması. JavaScript regex motoru kullanılır; WebAssembly
-// yüklenmez, ağa çıkılmaz. Tema ve diller paketin içindedir.
+// Syntax colors: Shiki with the One Dark Pro theme. Uses the JavaScript regex engine; no WebAssembly
+// is loaded and nothing goes over the network. The theme and languages ship in the bundle.
 import type { HighlighterCore, LanguageInput } from 'shiki/core';
 import type { ParsedDiff } from '../../git/diffParse';
 import { LOADERS, languageOf } from './languages';
@@ -9,11 +9,11 @@ export interface Token {
   color: string;
 }
 
-/** Bundan uzun metin renklendirilmez: düz gösterilir. */
+/** Text longer than this isn't highlighted: it's shown plain. */
 export const MAX_HIGHLIGHT_CHARS = 200_000;
 /**
- * Bundan uzun bir satır varsa metin renklendirilmez. Sıkıştırılmış (minified) dosyalarda Shiki
- * sayfanın ana iş parçacığını saniyelerce meşgul eder; terminaller de o iş parçacığındadır.
+ * If any line is longer than this, the text isn't highlighted. On minified files Shiki keeps the
+ * page's main thread busy for seconds, and the terminals run on that thread too.
  */
 export const MAX_LINE_CHARS = 2000;
 
@@ -45,8 +45,8 @@ function loadLanguage(core: HighlighterCore, id: string): Promise<void> {
 }
 
 /**
- * Metni satır satır renkli parçalara ayırır. Dil bilinmiyorsa, metin çok uzunsa ya da
- * renklendirme başarısız olursa `null` döner; çağıran düz metin gösterir. Hiç throw etmez.
+ * Splits text into colored tokens line by line. Returns `null` if the language is unknown, the
+ * text is too long or highlighting fails; the caller shows plain text. Never throws.
  */
 export async function highlightLines(text: string, path: string): Promise<Token[][] | null> {
   const language = languageOf(path);
@@ -55,7 +55,7 @@ export async function highlightLines(text: string, path: string): Promise<Token[
   try {
     const core = await getHighlighter();
     await loadLanguage(core, language.id);
-    // İkinci güvence: tek bir satırda takılırsa Shiki yarım saniyede bırakır.
+    // Second safeguard: if it gets stuck on a single line, Shiki gives up after half a second.
     const lines = core.codeToTokensBase(text, { lang: language.id, theme: THEME, tokenizeMaxLineLength: MAX_LINE_CHARS, tokenizeTimeLimit: 500 });
     return lines.map((line) => line.filter((token) => token.content !== '').map((token) => ({ text: token.content, color: token.color ?? FOREGROUND })));
   } catch {
@@ -63,15 +63,15 @@ export async function highlightLines(text: string, path: string): Promise<Token[
   }
 }
 
-/** Diff'in iki tarafının renkleri: satır numarası → parçalar. */
+/** Colors for both sides of a diff: line number → tokens. */
 export interface DiffTokens {
   old: Map<number, Token[]>;
   new: Map<number, Token[]>;
 }
 
 /**
- * Diff'teki satırları renklendirir. Her hunk'ın eski ve yeni hâli ayrı ayrı, kendi içinde
- * bütün bir kod parçası olarak okunur. Dil bilinmiyorsa ya da diff boşsa `null`.
+ * Highlights the lines in a diff. Each hunk's old and new versions are read separately, each as
+ * a whole piece of code on its own. `null` if the language is unknown or the diff is empty.
  */
 export async function highlightDiff(diff: ParsedDiff, path: string): Promise<DiffTokens | null> {
   if (diff.hunks.length === 0 || !languageOf(path)) return null;
@@ -86,7 +86,7 @@ export async function highlightDiff(diff: ParsedDiff, path: string): Promise<Dif
       if (side.lines.length === 0) continue;
       const text = side.lines.map((line) => line.text).join('\n');
       budget -= text.length;
-      // Çok uzun diff'in kalanı düz gösterilir.
+      // The rest of a very long diff is shown plain.
       if (budget < 0) return tokens;
       const lines = await highlightLines(text, path);
       if (!lines) return null;

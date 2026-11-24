@@ -1,4 +1,4 @@
-// `git diff` çıktısını (tek dosyanın unified diff'i) satırlara ayırır. Electron'a bağlı değildir.
+// Splits `git diff` output (a single file's unified diff) into lines. Doesn't depend on Electron.
 
 export type DiffLine =
   | { kind: 'context'; oldNo: number; newNo: number; text: string }
@@ -15,7 +15,7 @@ export interface ParsedDiff {
   hunks: Hunk[];
   added: number;
   removed: number;
-  /** Git "Binary files … differ" dedi: gösterilecek satır yok. */
+  /** Git said "Binary files … differ": there are no lines to show. */
   binary: boolean;
 }
 
@@ -24,8 +24,8 @@ const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 export function parseDiff(text: string): ParsedDiff {
   const diff: ParsedDiff = { hunks: [], added: 0, removed: 0, binary: false };
   let hunk: Hunk | null = null;
-  // Hunk'ta kalan satır sayıları: içerik satırlarını başlıklardan ayırmanın tek güvenilir yolu.
-  // ("--- a" ile başlayan bir silme ya da "@@" ile başlayan bir bağlam satırı başlığa benzer.)
+  // Lines left in the hunk: the only reliable way to tell content lines from headers.
+  // (A deletion starting with "--- a" or a context line starting with "@@" looks like a header.)
   let oldLeft = 0;
   let newLeft = 0;
   let oldNo = 0;
@@ -45,12 +45,12 @@ export function parseDiff(text: string): ParsedDiff {
         oldLeft--;
         diff.removed++;
       } else if (mark === ' ' || line === '') {
-        // Bazı araçlar boş bağlam satırının baştaki boşluğunu siler.
+        // Some tools strip the leading space of an empty context line.
         hunk.lines.push({ kind: 'context', oldNo: oldNo++, newNo: newNo++, text: body });
         oldLeft--;
         newLeft--;
       }
-      // "\ No newline at end of file" ve tanınmayan satırlar sayılmaz.
+      // "\ No newline at end of file" and unrecognized lines aren't counted.
       continue;
     }
     const match = HUNK.exec(line);
@@ -74,15 +74,15 @@ export interface SplitSide {
   changed: boolean;
 }
 
-/** Yan yana görünümde bir satır: sol eski, sağ yeni; o tarafta satır yoksa `null`. */
+/** A row in the side-by-side view: left is old, right is new; `null` if that side has no line. */
 export interface SplitRow {
   left: SplitSide | null;
   right: SplitSide | null;
 }
 
 /**
- * Hunk'ı yan yana satırlara çevirir. Art arda gelen silmeler, hemen ardından gelen eklemelerle
- * sırayla eşleştirilir; artan satırların karşısı boş kalır.
+ * Turns a hunk into side-by-side rows. A run of deletions is paired in order with the additions
+ * that immediately follow; leftover lines have an empty opposite side.
  */
 export function splitRows(hunk: Hunk): SplitRow[] {
   const rows: SplitRow[] = [];
@@ -95,7 +95,7 @@ export function splitRows(hunk: Hunk): SplitRow[] {
   };
   for (const line of hunk.lines) {
     if (line.kind === 'del') {
-      // Eklemelerden sonra gelen silme yeni bir değişiklik öbeğidir.
+      // A deletion after additions starts a new block of changes.
       if (adds.length > 0) flush();
       dels.push({ no: line.oldNo, text: line.text, changed: true });
     } else if (line.kind === 'add') {

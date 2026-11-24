@@ -4,7 +4,7 @@ import type { PsRow } from './procs.js';
 import { parseLsofPidCwd } from './sessions.js';
 import type { ServerInfo } from './shared/api.js';
 
-/** Çıkış kodu ne olursa olsun stdout'u döner (lsof eşleşme yoksa 1 ile çıkar). */
+/** Returns stdout whatever the exit code (lsof exits with 1 when nothing matches). */
 export type Run = (cmd: string, args: string[]) => Promise<string>;
 
 const run: Run = (cmd, args) =>
@@ -12,18 +12,18 @@ const run: Run = (cmd, args) =>
     execFile(cmd, args, { timeout: 5000, maxBuffer: 4 * 1024 * 1024 }, (_error, stdout) => resolve(typeof stdout === 'string' ? stdout : ''));
   });
 
-/** localhost'tan erişilebilen dinleme adresi: tüm adresler ya da geri döngü. */
+/** A listen address reachable from localhost: all addresses or loopback. */
 function reachable(host: string): boolean {
   return host === '*' || host === '0.0.0.0' || host === '[::]' || host === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(host);
 }
 
 /**
- * macOS'un `listen(0)` isteyenlere rastgele verdiği aralığın başı. Bu aralıktaki portlar
- * kimsenin yazmadığı iç portlardır (Claude Code, vite eklentileri, workerd); sunucu sayılmaz.
+ * Start of the range macOS assigns at random to callers of `listen(0)`. Ports in this range
+ * are internal ports nobody typed (Claude Code, vite plugins, workerd); they don't count as servers.
  */
 export const EPHEMERAL_FIRST = 49152;
 
-/** `lsof -Fpn` çıktısı: pid → localhost'tan erişilebilen, rastgele verilmemiş portlar (sıralı, tekrarsız). */
+/** `lsof -Fpn` output: pid → ports reachable from localhost and not randomly assigned (sorted, unique). */
 export function parseListening(out: string): Map<number, number[]> {
   const ports = new Map<number, Set<number>>();
   let pid: number | null = null;
@@ -43,18 +43,18 @@ export function parseListening(out: string): Map<number, number[]> {
   return new Map([...ports].map(([key, set]) => [key, [...set].sort((a, b) => a - b)]));
 }
 
-/** Claude Code'un kendisi: kendi iç portunu açar, sunucu değildir. Başlattığı alt süreçler sayılır. */
+/** Claude Code itself: it opens its own internal port and is not a server. The child processes it starts do count. */
 const isClaude = (args: string) => basename(args.split(' ')[0] ?? '') === 'claude';
 
 /**
- * edi terminallerinin tty'sinde çalışan, kabuk ve Claude Code olmayan süreçler: pid → sekme.
- * Arka plandakiler (`&`) de sayılır.
+ * Processes running on the tty of an edi terminal that are neither the shell nor Claude Code: pid → tab.
+ * Background ones (`&`) count too.
  */
 export function serverCandidates(ptys: { id: number; pid: number; tty: string }[], ps: PsRow[]): Map<number, number> {
   const tabByTty = new Map<string, number>();
   const shells = new Set<number>();
   for (const { id, pid, tty } of ptys) {
-    // tty adı pty'den okunamadıysa kabuğun kendi süreç satırı söyler.
+    // If the tty name couldn't be read from the pty, the shell's own process row tells us.
     const terminal = tty || (ps.find((row) => row.pid === pid)?.tty ?? '');
     if (terminal !== '') tabByTty.set(terminal, id);
     shells.add(pid);
@@ -67,7 +67,7 @@ export function serverCandidates(ptys: { id: number; pid: number; tty: string }[
   return candidates;
 }
 
-/** Adayların dinlediği portlardan sunucu listesi: port sırasıyla, bir sekmede aynı port bir kez. */
+/** The server list from the ports the candidates listen on: in port order, each port once per tab. */
 export function serversFor(candidates: Map<number, number>, listening: Map<number, number[]>, cwds: Map<number, string>): ServerInfo[] {
   const servers = new Map<string, ServerInfo>();
   for (const [pid, ports] of [...listening].sort(([a], [b]) => a - b)) {
@@ -81,14 +81,14 @@ export function serversFor(candidates: Map<number, number>, listening: Map<numbe
   return [...servers.values()].sort((a, b) => a.port - b.port || a.tabId - b.tabId);
 }
 
-/** Verilen süreçlerin dinlediği TCP portları. */
+/** TCP ports the given processes listen on. */
 export async function readListening(pids: number[], exec: Run = run): Promise<Map<number, number[]>> {
   return parseListening(await exec('lsof', ['-nP', '-a', '-iTCP', '-sTCP:LISTEN', '-p', pids.join(','), '-Fpn']));
 }
 
 /**
- * edi terminallerinde dinlemeye açılmış localhost portları. Kabuk dışı süreç yoksa lsof
- * çalıştırılmaz. Okunamazsa boş liste: liste bir kolaylık, hatası kullanıcıyı ilgilendirmez.
+ * Localhost ports opened for listening in edi terminals. If there are no non-shell processes, lsof
+ * isn't run. An empty list if they can't be read: the list is a convenience, and its errors don't concern the user.
  */
 export async function listServers(ptys: { id: number; pid: number; tty: string }[], ps: PsRow[], exec: Run = run): Promise<ServerInfo[]> {
   const candidates = serverCandidates(ptys, ps);

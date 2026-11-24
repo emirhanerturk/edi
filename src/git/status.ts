@@ -3,7 +3,7 @@ import type { FileChange, RepoStatus } from './types.js';
 
 export type { FileChange, RepoStatus } from './types.js';
 
-/** `s` içinde n. boşluktan sonraki her şey (yol boşluk içerebilir). */
+/** Everything in `s` after the nth space (the path may contain spaces). */
 function afterNthSpace(s: string, n: number): string {
   let index = -1;
   for (let i = 0; i < n; i++) {
@@ -13,7 +13,7 @@ function afterNthSpace(s: string, n: number): string {
   return s.slice(index + 1);
 }
 
-/** `git status --porcelain=v2 --branch -z` çıktısını ayrıştırır. */
+/** Parses the output of `git status --porcelain=v2 --branch -z`. */
 export function parseStatus(raw: string): RepoStatus {
   const status: RepoStatus = {
     head: '',
@@ -54,9 +54,9 @@ export function parseStatus(raw: string): RepoStatus {
         kind: 'changed',
       });
     } else if (type === '2') {
-      // Rename/kopya kaydının kaynak yolu ayrı bir NUL alanında gelir.
+      // The source path of a rename/copy entry comes in a separate NUL-delimited field.
       i++;
-      // Kopyada kaynak dosya yerinde durur ve bu değişikliğin parçası değildir; yalnız rename'de eski yol tutulur.
+      // In a copy the source file stays in place and isn't part of this change; the old path is kept only for renames.
       const renamed = record[2] === 'R' || record[3] === 'R';
       status.files.push({
         path: afterNthSpace(record, 9),
@@ -76,7 +76,7 @@ export function parseStatus(raw: string): RepoStatus {
     } else if (type === '?') {
       status.files.push({ path: record.slice(2), origPath: null, x: '?', y: '?', kind: 'untracked' });
     }
-    // '!' (yok sayılan) ve boş kayıtlar atlanır.
+    // '!' (ignored) and empty entries are skipped.
   }
 
   status.unborn = oid === '(initial)';
@@ -91,7 +91,7 @@ export function parseStatus(raw: string): RepoStatus {
 export async function getStatus(
   repoPath: string,
 ): Promise<{ ok: true; status: RepoStatus } | { ok: false; error: string }> {
-  // --no-optional-locks: yoklama index kilidi almaz, o sırada çalışan başka git komutlarıyla çakışmaz.
+  // --no-optional-locks: polling doesn't take the index lock, so it doesn't clash with other git commands running at the time.
   const result = await runGit(repoPath, [
     '--no-optional-locks',
     'status',

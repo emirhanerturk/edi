@@ -1,9 +1,9 @@
-// Dosya adından dil: renklendirme ve durum çubuğundaki etiket için.
+// Language from the file name: for highlighting and the status bar label.
 
 export interface Language {
-  /** Shiki'deki dil adı. */
+  /** Language name in Shiki. */
   id: string;
-  /** Durum çubuğunda görünen ad. */
+  /** Name shown in the status bar. */
   label: string;
 }
 
@@ -73,7 +73,7 @@ const BY_NAME: Record<string, Language> = {
   '.profile': SHELL,
 };
 
-/** Bilinmeyen ya da uzantısız dosyada `null`: düz metin olarak gösterilir. */
+/** `null` for an unknown file or one without an extension: shown as plain text. */
 export function languageOf(path: string): Language | null {
   const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
   if (name === '') return null;
@@ -82,14 +82,14 @@ export function languageOf(path: string): Language | null {
   if (name === 'dockerfile' || name.startsWith('dockerfile.')) return BY_NAME.dockerfile!;
   if (name === '.env' || name.startsWith('.env.')) return ENV;
   const dot = name.lastIndexOf('.');
-  // Baştaki nokta uzantı değildir (.gitignore).
+  // A leading dot isn't an extension (.gitignore).
   if (dot <= 0) return null;
   return BY_EXTENSION[name.slice(dot + 1)] ?? null;
 }
 
 type Loader = () => Promise<{ default: unknown }>;
 
-/** Diller ilk kullanıldıklarında yüklenir; her biri ayrı bir parça olarak paketlenir. */
+/** Languages load on first use; each is bundled as a separate chunk. */
 export const LOADERS: Record<string, Loader> = {
   typescript: () => import('shiki/langs/typescript.mjs'),
   tsx: () => import('shiki/langs/tsx.mjs'),
