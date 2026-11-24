@@ -1,0 +1,114 @@
+/* Görsel dil: One Dark yüzeyleri, nötr vurgu. Kaynak: docs/design/edi-ui. */
+:root {
+  --bg: #282c34;
+  --panel: #21252b;
+  --panel-open: #252930;
+  --input: #1b1d23;
+  --selected: #2f343e;
+  --line: #181a1f;
+  --line-soft: #1b1e23;
+  --border: #3e4451;
+  --chip: #31363f;
+  --chip-strong: #3a3f4b;
+  --chip-quiet: #2c313a;
+  --text: #d7dae0;
+  --text-2: #abb2bf;
+  --muted: #969da8;
+  --accent: #d7dae0;
+  --on-accent: #1b1d23;
+  --yellow: #e5c07b;
+  --green: #98c379;
+  --red: #e06c75;
+  --cyan: #56b6c2;
+  --claude: #d97757;
+
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: -1px;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Başlık çubuğu: pencere buradan sürüklenir; soldaki boşluk trafik ışıklarının yeri. */
+.titlebar {
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 86px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+}
+
+.titlebar button {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-name {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

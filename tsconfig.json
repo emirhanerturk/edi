@@ -10,5 +10,6 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src", "tests", "vitest.config.ts"]
+  "include": ["src", "tests", "e2e", "scripts", "vitest.config.ts", "vite.config.ts", "playwright.config.ts"],
+  "exclude": ["src/renderer", "tests/renderer"]
 }
