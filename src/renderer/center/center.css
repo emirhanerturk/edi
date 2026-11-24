@@ -537,6 +537,8 @@
   flex: none;
   overflow: visible;
   padding: 0;
+  /* The lines are as large as in the diff and file views; the file headers stay at 12px. */
+  font-size: 13px;
 }
 
 .commit-diff .diff-hunk {

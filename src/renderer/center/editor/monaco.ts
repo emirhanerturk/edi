@@ -118,7 +118,8 @@ export function mountEditor(element: HTMLElement, doc: EditorDocument, options: 
     theme: THEME,
     automaticLayout: true,
     fontFamily: "'IBM Plex Mono', ui-monospace, Menlo, monospace",
-    fontSize: 12,
+    // The same size and line height as the diff and commit views.
+    fontSize: 13,
     lineHeight: 22,
     fontLigatures: false,
     minimap: { enabled: true, renderCharacters: false, showSlider: 'mouseover' },
