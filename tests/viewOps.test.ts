@@ -35,6 +35,8 @@ describe('ViewOps', () => {
       expect(await ops.diff(path, 'README.md'), String(path)).toEqual(UNKNOWN);
       expect(await ops.readFile(path, 'README.md'), String(path)).toEqual(UNKNOWN);
       expect(await ops.writeFile(path, 'README.md', 'x', null), String(path)).toEqual(UNKNOWN);
+      expect(await ops.headText(path, 'README.md'), String(path)).toEqual(UNKNOWN);
+      expect(await ops.blame(path, 'README.md', 'x'), String(path)).toEqual(UNKNOWN);
       expect(await ops.listFiles(path), String(path)).toEqual(UNKNOWN);
       expect(await ops.openInZed(path, null), String(path)).toEqual(UNKNOWN);
     }
@@ -148,6 +150,15 @@ describe('ViewOps', () => {
     expect(await ops.writeFile(repo, 'README.md', 'edited\n', 'readme\n')).toEqual({ ok: true });
     expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('edited\n');
     expect(ws.repo(repo)!.status!.files.map((file) => file.path)).toEqual(['README.md']);
+  });
+
+  it('gives the HEAD text and the blame of the editor text; refuses bad input', async () => {
+    const { repo, ops } = await setup();
+    expect(await ops.headText(repo, 'README.md')).toEqual({ ok: true, text: 'readme\n' });
+    const blame = await ops.blame(repo, 'README.md', 'readme\nnew\n');
+    expect(blame.ok && blame.lines.map((oid) => oid !== null)).toEqual([true, false]);
+    expect(await ops.headText(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
+    expect(await ops.blame(repo, 'README.md', 7)).toEqual({ ok: false, error: 'Invalid text' });
   });
 
   it('opens the file in Zed, or the repo folder when no path is given', async () => {

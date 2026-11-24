@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { RepoView } from '../../shared/api';
+import type { BlameResult, RepoView } from '../../shared/api';
 import { edi } from '../bridge';
 import { type Token, highlightLines } from '../highlight/highlight';
 import { useApp } from '../store';
 import type { EditState } from './editSession';
+import { MAX_LINES, lineChanges } from './editor/lineChanges';
+import { lineNote } from './editor/lineNote';
+import type { EditorHandle } from './editor/monaco';
 import { type EditEntry, editEntry, ensureEditEntry } from './editor/registry';
 import { FilePane, fileInfo } from './FilePane';
 import { tabId } from './tabs';
@@ -55,19 +58,129 @@ function useEditEntry(id: string, path: string, text: string | null): { entry: E
   return loaded ? { entry: loaded.entry, monaco: loaded.monaco } : { entry: null, monaco: null };
 }
 
-/** Monaco mounted on the file's document; it saves its scroll position and cursor when it goes away. */
-function EditorHost({ entry, monaco, onSave }: { entry: EditEntry; monaco: MonacoModule; onSave(): void }) {
+interface EditorHostProps {
+  entry: EditEntry;
+  monaco: MonacoModule;
+  repoPath: string;
+  path: string;
+  /** HEAD's commit: when it moves (a commit, a checkout), the changed lines and blame are read again. */
+  headOid: string | null;
+  onSave(): void;
+  onOpenCommit(oid: string): void;
+}
+
+type Blame = Extract<BlameResult, { ok: true }>;
+
+/**
+ * Monaco mounted on the file's document, with the changed-line bars (against HEAD) and a muted note
+ * at the end of the cursor's line saying who changed it. It saves its scroll position and cursor when
+ * it goes away.
+ */
+function EditorHost({ entry, monaco, repoPath, path, headOid, onSave, onOpenCommit }: EditorHostProps) {
   const element = useRef<HTMLDivElement>(null);
-  const save = useRef(onSave);
-  save.current = onSave;
+  const [handle, setHandle] = useState<EditorHandle | null>(null);
+  const callbacks = useRef<{ onSave(): void; onOpenCommit(oid: string): void; cursorLine(): void; noteClick(): void }>({
+    onSave,
+    onOpenCommit,
+    cursorLine: () => undefined,
+    noteClick: () => undefined,
+  });
+  callbacks.current.onSave = onSave;
+  callbacks.current.onOpenCommit = onOpenCommit;
+
   useEffect(() => {
-    const handle = monaco.mountEditor(element.current!, entry.doc, {
-      onSave: () => save.current(),
+    const mounted = monaco.mountEditor(element.current!, entry.doc, {
+      onSave: () => callbacks.current.onSave(),
       viewState: entry.viewState,
       onLeave: (viewState) => (entry.viewState = viewState),
+      onCursorLine: () => callbacks.current.cursorLine(),
+      onNoteClick: () => callbacks.current.noteClick(),
     });
-    return () => handle.dispose();
+    setHandle(mounted);
+    return () => {
+      mounted.dispose();
+      setHandle(null);
+    };
   }, [entry, monaco]);
+
+  // Changed lines: the HEAD version, read again when HEAD moves; compared after each pause in typing.
+  const [head, setHead] = useState<{ text: string | null } | null>(null);
+  useEffect(() => {
+    let current = true;
+    void edi.headText(repoPath, path).then(
+      (result) => current && setHead(result.ok ? { text: result.text } : null),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [repoPath, path, headOid]);
+  useEffect(() => {
+    if (!handle) return;
+    if (!head) return handle.setChanges([]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const update = () => handle.setChanges(lineChanges(head.text, entry.doc.getValue()) ?? []);
+    update();
+    const stop = entry.doc.onChange(() => {
+      clearTimeout(timer);
+      timer = setTimeout(update, 150);
+    });
+    return () => {
+      stop();
+      clearTimeout(timer);
+    };
+  }, [handle, head, entry]);
+
+  // Who changed the cursor's line: blame of the current text, read again after edits and HEAD moves.
+  useEffect(() => {
+    if (!handle) return;
+    let blame: (Blame & { version: number }) | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let alive = true;
+    const show = () => {
+      const note = blame && blame.version === entry.doc.version() ? lineNote(blame, currentLine, Date.now()) : null;
+      handle.setNote(note ? { line: currentLine, text: note.text, link: note.oid !== null } : null);
+    };
+    const request = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const version = entry.doc.version();
+        const text = entry.doc.getValue();
+        if (text.split('\n').length > MAX_LINES) return;
+        void edi.blame(repoPath, path, text).then(
+          (result) => {
+            if (!alive || !result.ok || entry.doc.version() !== version) return;
+            blame = { ...result, version };
+            show();
+          },
+          () => undefined,
+        );
+      }, 400);
+    };
+    let currentLine = 0;
+    callbacks.current.cursorLine = () => {
+      currentLine = handle.cursorLine();
+      show();
+    };
+    callbacks.current.noteClick = () => {
+      const oid = blame?.lines[currentLine - 1];
+      if (oid) callbacks.current.onOpenCommit(oid);
+    };
+    currentLine = handle.cursorLine();
+    request();
+    const stop = entry.doc.onChange(() => {
+      handle.setNote(null);
+      request();
+    });
+    return () => {
+      alive = false;
+      stop();
+      clearTimeout(timer);
+      callbacks.current.cursorLine = () => undefined;
+      callbacks.current.noteClick = () => undefined;
+    };
+  }, [handle, entry, repoPath, path, headOid]);
+
   return <div ref={element} className="monaco-host" />;
 }
 
@@ -110,7 +223,24 @@ export function FileView({ repo, path }: { repo: RepoView; path: string }) {
       isNew={isNew}
       tokens={tokens}
       onOpenInZed={() => void useApp.getState().openInZed(repo.path, path)}
-      editor={entry && monaco ? <EditorHost entry={entry} monaco={monaco} onSave={save} /> : null}
+      editor={
+        entry && monaco ? (
+          <EditorHost
+            entry={entry}
+            monaco={monaco}
+            repoPath={repo.path}
+            path={path}
+            headOid={repo.status?.headOid ?? null}
+            onSave={save}
+            onOpenCommit={(oid) => {
+              // The file tab stays: the commit opens in the preview tab.
+              const app = useApp.getState();
+              app.pinCenterTab(id);
+              app.openInCenter({ kind: 'commit', repoPath: repo.path, path: oid }, false);
+            }}
+          />
+        ) : null
+      }
       edit={edit}
       onSave={save}
       onKeepMine={() => session?.keepMine()}

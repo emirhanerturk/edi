@@ -290,7 +290,12 @@ test('an image opened from the Files tab is previewed; the video URL serves byte
 async function editorLines(page: Page): Promise<string[]> {
   return page.locator('[data-testid="file-editor"] .view-line').evaluateAll((lines) =>
     lines
-      .map((line) => ({ top: parseFloat((line as HTMLElement).style.top), text: (line.textContent ?? '').replace(/ /g, ' ') }))
+      .map((line) => {
+        // The muted "who changed this line" note isn't part of the text.
+        const copy = line.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll('.edi-line-note').forEach((note) => note.remove());
+        return { top: parseFloat((line as HTMLElement).style.top), text: (copy.textContent ?? '').replace(/\u00a0/g, ' ') };
+      })
       .sort((a, b) => a.top - b.top)
       .map((line) => line.text),
   );
@@ -454,3 +459,59 @@ test('quitting with unsaved edits asks first', async () => {
     await app.close();
   }
 });
+
+test('the editor marks lines changed since HEAD and says who last changed the cursor line', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await writeFile(join(repo, 'app.ts'), 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n');
+  await git(repo, 'add', '-A');
+  await git(repo, 'commit', '-q', '-m', 'feat: four constants');
+  // Line 2 changed, a line added after line 3, line 4 removed.
+  await writeFile(join(repo, 'app.ts'), 'const a = 1;\nconst b = 20;\nconst c = 3;\nconst e = 5;\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await openFromFiles(page, 'alpha', 'app.ts');
+    const editor = page.getByTestId('file-editor');
+    await expect.poll(() => editorLines(page)).toEqual(['const a = 1;', 'const b = 20;', 'const c = 3;', 'const e = 5;', '']);
+    await expect(editor.locator('.edi-change-modified')).toHaveCount(2);
+    await expect(editor.locator('.edi-change-added')).toHaveCount(0);
+
+    // A new line above an unchanged one is added.
+    // (Clicking a line number selects the line: the cursor goes to the start of the file instead.)
+    await editor.locator('.view-lines').click();
+    await page.keyboard.press('Meta+ArrowUp');
+    await page.keyboard.type('const z = 0;');
+    await page.keyboard.press('Enter');
+    await expect(editor.locator('.edi-change-added')).toHaveCount(1);
+
+    // The cursor's line: a muted note with the author, when and the commit subject.
+    await clickLine(page, 2);
+    const note = editor.locator('.edi-line-note');
+    // Monaco draws the note's spaces as no-break spaces.
+    const noteText = () => note.evaluate((el) => (el.textContent ?? '').replace(/\u00a0/g, ' ').trim()).catch(() => '');
+    await expect.poll(noteText).toContain('Test, just now · feat: four constants');
+    await clickLine(page, 3);
+    await expect.poll(noteText).toContain('Not committed yet');
+    await clickLine(page, 1);
+    await expect.poll(noteText).toContain('Not committed yet');
+
+    // Clicking the note opens the commit; the file tab stays.
+    await clickLine(page, 2);
+    await expect.poll(noteText).toContain('feat: four constants');
+    await note.click();
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'commit');
+    await expect(page.locator('.commit-title')).toContainText('four constants');
+    await expect(centerTabs(page)).toHaveCount(2);
+  } finally {
+    await app.close();
+  }
+});
+
+/**
+ * Puts the cursor on a line (Monaco doesn't keep its line elements in order). Clicking a line number
+ * selects the line, ending at the next one; Left moves the cursor back to the line's start.
+ */
+async function clickLine(page: Page, line: number) {
+  await page.getByTestId('file-editor').locator('.line-numbers').getByText(String(line), { exact: true }).click();
+  await page.keyboard.press('ArrowLeft');
+}

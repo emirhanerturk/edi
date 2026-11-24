@@ -3,8 +3,10 @@
  * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
+import type { BlameCommit, BlameResult, HeadText } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 
+export type { BlameCommit, BlameResult, HeadText };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 
 export interface RepoView {
@@ -152,6 +154,10 @@ export interface EdiApi {
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
   /** Saves editor text over an existing file; `expected` is the disk text the edit started from (`null`: overwrite). */
   writeFile(repoPath: string, filePath: string, text: string, expected: string | null): Promise<WriteResult>;
+  /** The file's text at HEAD (null if not in HEAD), to mark the editor's changed lines. */
+  headText(repoPath: string, filePath: string): Promise<HeadText>;
+  /** Who last changed each line of `text` (the editor's current text for the file). */
+  blame(repoPath: string, filePath: string, text: string): Promise<BlameResult>;
   /** Tells the main process how many open files have unsaved edits (asked about on quit and folder switch). */
   setUnsaved(count: number): void;
   /** Asks before closing a tab with unsaved edits; true to discard them. */

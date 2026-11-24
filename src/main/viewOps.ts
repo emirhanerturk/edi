@@ -2,8 +2,9 @@ import { join } from 'node:path';
 import { diffFile } from '../git/actions.js';
 import { parseDiff } from '../git/diffParse.js';
 import { OUTPUT_TOO_LARGE } from '../git/exec.js';
-import { type DirList, type FileContent, type FileList, OUTSIDE, listDir, listFiles, locateInRepo, readRepoFile, writeRepoFile } from '../git/files.js';
+import { type DirList, type FileContent, type FileList, OUTSIDE, listDir, listFiles, locateInRepo, readRepoFile, writeRepoFile, MAX_WRITE_BYTES } from '../git/files.js';
 import type { WriteResult } from '../git/types.js';
+import { type BlameResult, type HeadText, blameText, readHeadText } from '../git/lineInfo.js';
 import { getStatus } from '../git/status.js';
 import type { DiffView, OpResult } from '../shared/api.js';
 import { openInZed } from './openInZed.js';
@@ -64,6 +65,23 @@ export class ViewOps {
     // The Git tab shows the change at once instead of on the next poll.
     if (result.ok) await this.ws.refresh(repo.path).catch(() => undefined);
     return result;
+  }
+
+  /** The file's text at HEAD, to mark the editor's changed lines. */
+  async headText(repoPath: unknown, filePath: unknown): Promise<HeadText> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    if (typeof filePath !== 'string') return INVALID_PATH;
+    return readHeadText(repo.path, filePath);
+  }
+
+  /** Who last changed each line of the editor's current text. */
+  async blame(repoPath: unknown, filePath: unknown, text: unknown): Promise<BlameResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    if (typeof filePath !== 'string') return INVALID_PATH;
+    if (typeof text !== 'string' || text.length > MAX_WRITE_BYTES) return { ok: false, error: 'Invalid text' };
+    return blameText(repo.path, filePath, text);
   }
 
   async listFiles(repoPath: unknown): Promise<FileList> {

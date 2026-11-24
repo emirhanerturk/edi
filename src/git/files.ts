@@ -39,7 +39,7 @@ export const OUTSIDE = 'File is outside the repository';
 const isGitDir = (segment: string | undefined) => segment?.toLowerCase() === '.git';
 
 /** Whether the path is syntactically inside the repo: relative, no `..`, not into `.git`. Doesn't check the disk. */
-function staysInside(relPath: unknown): relPath is string {
+export function staysInside(relPath: unknown): relPath is string {
   if (typeof relPath !== 'string' || relPath === '' || relPath.includes('\0') || isAbsolute(relPath)) return false;
   const segments = relPath.split('/');
   // A nested repo's .git folder (vendor/tool/.git/config) is off-limits too.

@@ -200,6 +200,8 @@ export class AppCore {
     });
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
+    ipcMain.handle('view:headText', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.headText(repoPath, filePath));
+    ipcMain.handle('view:blame', (_event, repoPath: unknown, filePath: unknown, text: unknown) => this.viewOps.blame(repoPath, filePath, text));
     ipcMain.handle('view:write', (_event, repoPath: unknown, filePath: unknown, text: unknown, expected: unknown) =>
       this.viewOps.writeFile(repoPath, filePath, text, expected),
     );

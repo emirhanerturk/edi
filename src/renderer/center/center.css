@@ -627,3 +627,52 @@
 .edit-bar button:hover {
   background: var(--selected);
 }
+
+/* Editor: changed lines against HEAD (bars in the gutter, as in VS Code). */
+.monaco-editor .edi-change {
+  margin-left: 4px;
+  width: 3px !important;
+}
+
+.monaco-editor .edi-change-added {
+  background: rgba(152, 195, 121, 0.75);
+}
+
+.monaco-editor .edi-change-modified {
+  background: rgba(97, 175, 239, 0.75);
+}
+
+/* Deleted lines: a small red wedge on the line they followed. */
+.monaco-editor .edi-change-deleted {
+  background: none;
+}
+
+.monaco-editor .edi-change-deleted::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--red);
+}
+
+.monaco-editor .edi-change-deleted-top::after {
+  top: -4px;
+  bottom: auto;
+}
+
+/* Who changed the cursor's line: muted, after the line's text. */
+.monaco-editor .edi-line-note {
+  color: #5c6370 !important;
+  font-style: normal;
+}
+
+.monaco-editor .edi-line-note-link {
+  cursor: pointer;
+}
+
+.monaco-editor .edi-line-note-link:hover {
+  color: var(--text-2) !important;
+  text-decoration: underline;
+}

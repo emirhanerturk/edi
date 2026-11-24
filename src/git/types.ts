@@ -100,3 +100,16 @@ export interface CommitDetail extends CommitSummary {
 
 /** `webUrl`: the GitHub page if the commit was pushed; null otherwise (the field is absent if it wasn't read). */
 export type CommitResult = { ok: true; commit: CommitDetail; webUrl?: string | null } | { ok: false; error: string };
+
+export type HeadText = { ok: true; text: string | null } | { ok: false; error: string };
+
+export interface BlameCommit {
+  authorName: string;
+  authorEmail: string;
+  /** Author time, ms. */
+  date: number;
+  summary: string;
+}
+
+/** `lines[i]`: the commit oid of line i + 1, or null if it isn't committed yet. */
+export type BlameResult = { ok: true; lines: (string | null)[]; commits: Record<string, BlameCommit> } | { ok: false; error: string };
