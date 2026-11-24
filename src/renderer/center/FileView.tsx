@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { RepoView } from '../../shared/api';
 import { edi } from '../bridge';
 import { type Token, highlightLines } from '../highlight/highlight';
@@ -30,7 +30,8 @@ export function FileView({ repo, path }: { repo: RepoView; path: string }) {
   const text = data?.ok && data.kind === 'text' ? data.text : null;
   const tokens = useFileTokens(text, path);
   const isNew = repo.status?.files.some((file) => file.path === path && file.kind === 'untracked') ?? false;
-  const info = fileInfo(path, data);
+  // Satır saymak için metin bölünür: yalnız veri değişince.
+  const info = useMemo(() => fileInfo(path, data), [path, data]);
 
   useEffect(() => {
     useApp.getState().setCenterInfo(info);

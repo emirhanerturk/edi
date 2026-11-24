@@ -1,3 +1,5 @@
+import { memo, useMemo } from 'react';
+import type { ParsedDiff } from '../../git/diffParse';
 import type { DiffView } from '../../shared/api';
 import type { DiffTokens, Token } from '../highlight/highlight';
 import { ViewHeader, ViewNote } from './ViewHeader';
@@ -58,13 +60,18 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZ
           {view.file.origPath !== null && <span className="view-note-detail"> · Renamed from {view.file.origPath}</span>}
         </ViewNote>
       ) : (
-        <DiffBody rows={diffRows(view.diff, mode)} mode={mode} tokens={tokens} />
+        <DiffBody diff={view.diff} mode={mode} tokens={tokens} />
       )}
     </div>
   );
 }
 
-function DiffBody({ rows, mode, tokens }: { rows: { rows: Row[]; truncated: boolean }; mode: 'split' | 'inline'; tokens: DiffTokens | null }) {
+/**
+ * Yoklama her 2 sn'de bağlı görünümü yeniden çizer; diff, mod ve renkler aynı kaldıkça
+ * (useView aynı veride aynı nesneyi tutar) satırlar yeniden kurulmaz, gövde yeniden çizilmez.
+ */
+const DiffBody = memo(function DiffBody({ diff, mode, tokens }: { diff: ParsedDiff; mode: 'split' | 'inline'; tokens: DiffTokens | null }) {
+  const rows = useMemo(() => diffRows(diff, mode), [diff, mode]);
   return (
     <div className={`diff-body mono ${mode}`} data-testid="diff-body">
       {mode === 'split' && (
@@ -99,7 +106,7 @@ function DiffBody({ rows, mode, tokens }: { rows: { rows: Row[]; truncated: bool
       )}
     </div>
   );
-}
+});
 
 function SplitCell({ side, cell, tokens }: { side: 'old' | 'new'; cell: Cell | null; tokens: DiffTokens | null }) {
   if (!cell) return <div className="diff-cell" data-side={side} data-kind="empty" />;
