@@ -13,6 +13,14 @@ export function resetText(at: number, now: number): string {
   return `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]} ${time}`;
 }
 
+/** Time left until the reset: "1h 3m" (or "5m") under a day, "2d 4h" from a day on. */
+export function leftText(at: number, now: number): string {
+  const minutes = Math.max(0, Math.floor((at - now) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+  return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+}
+
 /** The data's age; short for hours and days too. */
 function since(then: number, now: number): string {
   const minutes = Math.floor((now - then) / 60_000);
@@ -42,13 +50,14 @@ export function UsageMeter({ usage, now }: Props) {
       {shown.map(([label, name, window]) => {
         const percent = Math.round(window.percent);
         const reset = resetText(window.resetsAt, now);
+        const left = leftText(window.resetsAt, now);
         return (
           <span
             key={label}
             className="usage-window"
             data-testid="usage-window"
             data-level={level(window.percent)}
-            title={`${name}: ${percent}% used · resets ${reset} · updated ${since(usage.updatedAt, now)}`}
+            title={`${name}: ${percent}% used · resets ${reset}, in ${left} · updated ${since(usage.updatedAt, now)}`}
           >
             <span className="usage-label">{label}</span>
             <span className="usage-bar" aria-hidden="true">
@@ -56,6 +65,7 @@ export function UsageMeter({ usage, now }: Props) {
             </span>
             <span className="usage-percent mono">{percent}%</span>
             <span className="usage-reset mono">{reset}</span>
+            <span className="usage-left mono">({left})</span>
           </span>
         );
       })}

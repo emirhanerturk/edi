@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { UsageMeter, resetText } from '../../src/renderer/components/UsageMeter';
+import { UsageMeter, leftText, resetText } from '../../src/renderer/components/UsageMeter';
 import type { ClaudeUsage } from '../../src/shared/api';
 
 afterEach(cleanup);
@@ -18,6 +18,17 @@ describe('resetText', () => {
   });
 });
 
+describe('leftText', () => {
+  it('hours and minutes under a day, days and hours from a day on', () => {
+    expect(leftText(NOW + 63 * 60_000, NOW)).toBe('1h 3m');
+    expect(leftText(NOW + 5 * 60_000 + 59_000, NOW)).toBe('5m');
+    expect(leftText(NOW + 30_000, NOW)).toBe('0m');
+    expect(leftText(NOW + 23 * 3_600_000 + 59 * 60_000, NOW)).toBe('23h 59m');
+    expect(leftText(NOW + (2 * 24 + 4) * 3_600_000 + 10 * 60_000, NOW)).toBe('2d 4h');
+    expect(leftText(NOW + 24 * 3_600_000, NOW)).toBe('1d 0h');
+  });
+});
+
 const usage = (over: Partial<ClaudeUsage> = {}): ClaudeUsage => ({
   fiveHour: { percent: 42.4, resetsAt: at(2026, 11, 24, 15, 10) },
   week: { percent: 91, resetsAt: at(2026, 11, 28, 9, 0) },
@@ -29,10 +40,10 @@ describe('UsageMeter', () => {
   it('shows both windows with percent and reset time; the fill color follows the percent', () => {
     render(<UsageMeter usage={usage()} now={NOW} />);
     const items = screen.getAllByTestId('usage-window');
-    expect(items.map((item) => item.textContent)).toEqual(['5h42%15:10', 'Week91%Sat 28 Nov 09:00']);
+    expect(items.map((item) => item.textContent)).toEqual(['5h42%15:10(3h 10m)', 'Week91%Sat 28 Nov 09:00(3d 21h)']);
     expect(items.map((item) => item.dataset.level)).toEqual(['normal', 'high']);
-    expect(items[0]!.title).toBe('5-hour limit: 42% used · resets 15:10 · updated 3m ago');
-    expect(items[1]!.title).toBe('Weekly limit: 91% used · resets Sat 28 Nov 09:00 · updated 3m ago');
+    expect(items[0]!.title).toBe('5-hour limit: 42% used · resets 15:10, in 3h 10m · updated 3m ago');
+    expect(items[1]!.title).toBe('Weekly limit: 91% used · resets Sat 28 Nov 09:00, in 3d 21h · updated 3m ago');
   });
 
   it('70 to 89 is a warning; over 100% draws as 100 but the text keeps the value', () => {
@@ -48,6 +59,6 @@ describe('UsageMeter', () => {
     expect(container.textContent).toBe('');
     cleanup();
     render(<UsageMeter usage={usage({ fiveHour: { percent: 50, resetsAt: NOW - 1 } })} now={NOW} />);
-    expect(screen.getAllByTestId('usage-window').map((item) => item.textContent)).toEqual(['Week91%Sat 28 Nov 09:00']);
+    expect(screen.getAllByTestId('usage-window').map((item) => item.textContent)).toEqual(['Week91%Sat 28 Nov 09:00(3d 21h)']);
   });
 });
