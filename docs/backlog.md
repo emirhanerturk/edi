@@ -1,7 +1,7 @@
 # Pending small issues
 
 Findings deferred from the final reviews of plans 1–4 and the server list, ranked by their
-impact on the user. An item is removed from here once it is fixed. Last updated: 2026-11-24.
+impact on the user. An item is removed from here once it is fixed. Last updated: 2026-11-25.
 
 ## High priority: lost work or wrong information
 
@@ -53,14 +53,19 @@ impact on the user. An item is removed from here once it is fixed. Last updated:
     stays for 3 s; a short race on folder switch; truncated `lsof` output can show a wrong port
     for one poll; no warning if opening in the browser (or Option-click in the terminal)
     fails. (servers)
-18. **Looks and small behaviors:** a long branch name squeezes the repo name in an open repo's
+18. **Files tab inside an ignored folder:** a file or folder made inside an open ignored folder
+    (such as `dist/`) shows only after that folder is closed and opened again; its one-level
+    listing is not read again after the change. The new file still opens in the editor.
+    Renames and the existence check have a small TOCTOU window between the check and
+    `rename` (no exclusive rename on macOS from Node). (editor, Files and Git round)
+19. **Looks and small behaviors:** a long branch name squeezes the repo name in an open repo's
     header; Zed can open twice on a cold start (5 s+); the branch menu closes when the page
     scrolls; the selected row does not tell the file view from the diff view. (plan 1, 2)
-19. **Install details:** ~60 MB of node-pty Windows files and sources in the bundle;
+20. **Install details:** ~60 MB of node-pty Windows files and sources in the bundle;
     `isRunning`'s `pgrep -f` pattern is not anchored (false positives); no warning when
     `~/.local/bin` is not on PATH; `edi -` and a folder without permission say "not a folder".
     (plan 4)
-20. **Theoretical risks:** a TOCTOU between `realpath` and `open` when reading files, and
+21. **Theoretical risks:** a TOCTOU between `realpath` and `open` when reading files, and
     unbounded reads of a growing file; releasing the busy lock depends on the refresh not
     throwing; `process.env` is modified after startup; in a SHA-256 repo with no commits the
     diff base is wrong. (plan 1, 2, 4)
