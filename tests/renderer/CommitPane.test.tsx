@@ -76,6 +76,27 @@ describe('CommitPane', () => {
     expect(screen.queryByRole('button', { name: 'Open on GitHub' })).toBeNull();
   });
 
+  it('tek düğmeyle bütün dosyalar kapanır, hepsi kapalıyken açılır', () => {
+    renderPane({ ok: true, commit: detail() });
+    const expanded = () => screen.getAllByTestId('commit-file-head').map((head) => head.getAttribute('aria-expanded'));
+    expect(expanded()).toContain('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all files' }));
+    expect(expanded()).toEqual(['false', 'false', 'false']);
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all files' }));
+    expect(expanded()).toEqual(['true', 'true', 'true']);
+    // Tek tek kapatılınca hepsi kapalı olana kadar düğme yine "kapat" der.
+    fireEvent.click(screen.getAllByTestId('commit-file-head')[0]!);
+    expect(screen.getByRole('button', { name: 'Collapse all files' })).toBeTruthy();
+  });
+
+  it('dosyası olmayan ya da satır satır gösterilemeyecek kadar büyük commit\'te aç/kapat düğmesi yoktur', () => {
+    renderPane({ ok: true, commit: detail({ files: [] }) });
+    expect(screen.queryByRole('button', { name: /all files/ })).toBeNull();
+    cleanup();
+    renderPane({ ok: true, commit: detail({ tooLarge: true }) });
+    expect(screen.queryByRole('button', { name: /all files/ })).toBeNull();
+  });
+
   it('yazarın adı yoksa e-postası gösterilir', () => {
     renderPane({ ok: true, commit: detail({ authorName: '', authorEmail: 'bot@ci.dev' }) });
     expect(screen.getByTestId('commit-author').textContent).toBe('bot@ci.dev');

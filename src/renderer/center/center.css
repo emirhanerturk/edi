@@ -444,6 +444,13 @@
   font-size: 11.5px;
 }
 
+.commit-fold {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+  color: var(--text-2);
+}
+
 .commit-web {
   color: var(--text-2);
 }

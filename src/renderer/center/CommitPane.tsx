@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { ChevronDown, ChevronRight, CopyIcon, ExternalIcon } from '../components/icons';
+import { ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FoldIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -43,6 +43,16 @@ export interface CommitPaneProps {
 
 /** Bir commit: başlık, gövde, bilgiler ve değişen her dosyanın diff'i alt alta. */
 export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl }: CommitPaneProps) {
+  const commitOrNull = result?.ok ? result.commit : null;
+  // Kapalı dosyalar burada tutulur: başlıktaki "hepsini aç/kapat" düğmesi de değiştirir.
+  // Başka commit'e geçince 400 satırı aşanlar kapalı olarak baştan başlar.
+  const initial = useMemo(() => (commitOrNull ? initiallyCollapsed(commitOrNull.files) : new Set<string>()), [commitOrNull]);
+  const [changed, setChanged] = useState<{ oid: string; collapsed: Set<string> } | null>(null);
+  const collapsed = commitOrNull && changed?.oid === commitOrNull.oid ? changed.collapsed : initial;
+  const setCollapsed = (update: (prev: Set<string>) => Set<string>) => {
+    if (commitOrNull) setChanged({ oid: commitOrNull.oid, collapsed: update(collapsed) });
+  };
+
   if (result === null) return <div className="center-view" data-testid="center-view" data-kind="commit" />;
   if (!result.ok) {
     return (
@@ -84,6 +94,13 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
           <span className="mono">
             <span className="add">+{commit.added}</span> <span className="del">−{commit.removed}</span>
           </span>
+          {!commit.tooLarge && commit.files.length > 0 && (
+            <AllFilesButton
+              allCollapsed={commit.files.every((file) => collapsed.has(file.path))}
+              onCollapse={() => setCollapsed(() => new Set(commit.files.map((file) => file.path)))}
+              onExpand={() => setCollapsed(() => new Set())}
+            />
+          )}
           {result.webUrl && (
             <button className="commit-copy commit-web" aria-label="Open on GitHub" title={result.webUrl} onClick={() => onOpenUrl(result.webUrl!)}>
               <span>GitHub</span>
@@ -97,21 +114,39 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
         </div>
       </header>
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
-      <CommitFiles key={commit.oid} files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} />
+      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onToggle={(path) =>
+          setCollapsed((prev) => {
+            const next = new Set(prev);
+            if (next.has(path)) next.delete(path);
+            else next.add(path);
+            return next;
+          })
+        }
+      />
     </div>
   );
 }
 
-const CommitFiles = memo(function CommitFiles({ files, tokens, countsOnly }: { files: CommitFile[]; tokens: Map<string, DiffTokens>; countsOnly: boolean }) {
-  const [collapsed, setCollapsed] = useState(() => initiallyCollapsed(files));
+/** Başlıktaki tek düğme: en az bir dosya açıksa hepsini kapatır, hepsi kapalıysa açar. */
+function AllFilesButton({ allCollapsed, onCollapse, onExpand }: { allCollapsed: boolean; onCollapse(): void; onExpand(): void }) {
+  const label = allCollapsed ? 'Expand all files' : 'Collapse all files';
+  return (
+    <button className="commit-copy commit-fold" aria-label={label} title={label} onClick={allCollapsed ? onExpand : onCollapse}>
+      {allCollapsed ? <ExpandIcon size={13} /> : <FoldIcon size={13} />}
+    </button>
+  );
+}
+
+interface CommitFilesProps {
+  files: CommitFile[];
+  tokens: Map<string, DiffTokens>;
+  countsOnly: boolean;
+  collapsed: Set<string>;
+  onToggle(path: string): void;
+}
+
+function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle }: CommitFilesProps) {
   if (files.length === 0) return <ViewNote>No file changes</ViewNote>;
-  const toggle = (path: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
   return (
     <div className="commit-files mono">
       {files.map((file) => (
@@ -120,15 +155,26 @@ const CommitFiles = memo(function CommitFiles({ files, tokens, countsOnly }: { f
           file={file}
           open={countsOnly ? null : !collapsed.has(file.path)}
           tokens={tokens.get(file.path) ?? null}
-          onToggle={() => toggle(file.path)}
+          onToggle={onToggle}
         />
       ))}
     </div>
   );
-});
+}
 
 /** `open` null: satırlar okunmadı (çok büyük commit), dosya açılamaz; yalnız sayılar. */
-function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile; open: boolean | null; tokens: DiffTokens | null; onToggle(): void }) {
+// Bir dosya açılıp kapanınca yalnız o bölüm yeniden çizilir (büyük commit'lerde önemli).
+const CommitFileSection = memo(function CommitFileSection({
+  file,
+  open,
+  tokens,
+  onToggle,
+}: {
+  file: CommitFile;
+  open: boolean | null;
+  tokens: DiffTokens | null;
+  onToggle(path: string): void;
+}) {
   const slash = file.path.lastIndexOf('/');
   const showsLines = !file.diff.binary && (file.diff.hunks.length > 0 || open === null);
   return (
@@ -137,7 +183,7 @@ function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile;
         className="commit-file-head"
         data-testid="commit-file-head"
         aria-expanded={open ?? undefined}
-        onClick={open === null ? undefined : onToggle}
+        onClick={open === null ? undefined : () => onToggle(file.path)}
       >
         {open === null ? <span className="commit-file-spacer" /> : open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
         <span className="commit-file-letter" style={{ color: letterColor(file.letter) }}>
@@ -160,7 +206,7 @@ function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile;
       {open === true && <CommitFileBody file={file} tokens={tokens} />}
     </section>
   );
-}
+});
 
 function CommitFileBody({ file, tokens }: { file: CommitFile; tokens: DiffTokens | null }) {
   const rows = useMemo(() => diffRows(file.diff, 'inline'), [file.diff]);

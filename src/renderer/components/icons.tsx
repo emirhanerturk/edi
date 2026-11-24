@@ -153,6 +153,20 @@ export const CollapseIcon = (p: IconProps) => (
   </Icon>
 );
 
+/** Hepsini kapat (commit dosyaları): birbirine bakan iki ok. */
+export const FoldIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 2L8 5.5 11.5 2M4.5 14L8 10.5l3.5 3.5" />
+  </Icon>
+);
+
+/** Hepsini aç: dışa bakan iki ok. */
+export const ExpandIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 4.5L8 1l3.5 3.5M4.5 11.5L8 15l3.5-3.5" />
+  </Icon>
+);
+
 export const CommitIcon = (p: IconProps) => (
   <Icon strokeWidth={1.5} {...p}>
     <circle cx="8" cy="8" r="2.6" />
