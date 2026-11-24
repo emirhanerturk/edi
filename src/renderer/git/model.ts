@@ -93,3 +93,8 @@ export function isExpanded(status: RepoStatus | null, preference: boolean | unde
   if (!status) return false;
   return preference ?? status.files.length > 0;
 }
+
+/** Uzakta yerelde olmayan commit olduğu için reddedilen push: çözümü önce pull etmektir. */
+export function isRejectedPush(error: string): boolean {
+  return error.includes('[rejected]') || error.includes('fetch first') || error.includes('non-fast-forward');
+}

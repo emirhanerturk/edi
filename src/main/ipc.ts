@@ -4,7 +4,8 @@ import { basename } from 'node:path';
 import { type BrowserWindow, dialog, ipcMain } from 'electron';
 import { listPs } from '../procs.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, EdiEvents, OpenResult, TerminalCreated } from '../shared/api.js';
+import type { AppState, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
+import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, saveState } from './store.js';
 import { tabStates } from './tabs.js';
@@ -19,6 +20,7 @@ const AFTER_CREATE_MS = 700;
 export class AppCore {
   readonly workspace: Workspace;
   readonly ptys: PtyManager;
+  readonly gitOps: GitOps;
   private state: Persisted;
   private saving: Promise<void> = Promise.resolve();
   private processTimer: NodeJS.Timeout | null = null;
@@ -32,6 +34,7 @@ export class AppCore {
   ) {
     this.state = state;
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
+    this.gitOps = new GitOps(this.workspace);
     this.ptys = new PtyManager({
       shell: process.env.EDI_SHELL,
       onData: (id, data) => this.send('pty:data', id, data),
@@ -108,6 +111,11 @@ export class AppCore {
       typeof dir === 'string' ? this.openFolder(dir) : { ok: false, error: 'Folder not found' },
     );
     ipcMain.handle('workspace:rescan', () => this.workspace.rescan());
+
+    // Repo yolu ve işlem GitOps'ta doğrulanır; buradan git'e serbest biçimli hiçbir şey geçmez.
+    ipcMain.handle('git:run', (_event, repoPath: unknown, op: unknown) => this.gitOps.run(repoPath as string, op as GitOp));
+    ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
+    ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
 
     ipcMain.handle('pty:create', (_event, o: unknown): TerminalCreated => {
       const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;

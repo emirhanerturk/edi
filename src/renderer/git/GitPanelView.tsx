@@ -1,5 +1,5 @@
 import type { FileChange } from '../../git/types';
-import type { RepoView } from '../../shared/api';
+import type { BranchList, GitOp, RepoView } from '../../shared/api';
 import {
   ArrowDown,
   ArrowUp,
@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClaudeMark,
+  FetchIcon,
   MinusIcon,
   RescanIcon,
   Spinner,
@@ -15,10 +16,14 @@ import {
   TerminalIcon,
   WarningIcon,
 } from '../components/icons';
+import { BranchMenu } from './BranchMenu';
+import { CommitBox } from './CommitBox';
+import { ErrorBox } from './ErrorBox';
 import {
   type Group,
   type SyncAction,
   changeCount,
+  commitTarget,
   groupFiles,
   isDeletion,
   isExpanded,
@@ -36,7 +41,18 @@ export interface GitPanelProps {
   onToggle(repoPath: string, open: boolean): void;
   onRescan?(): void;
   onOpenTerminal?(repoPath: string): void;
+  /** Yazılmakta olan commit mesajları (yol → metin). */
+  drafts?: Record<string, string>;
+  /** Son işlemin hatası (yol → git'in satırı). */
+  errors?: Record<string, string>;
+  onDraft?(repoPath: string, message: string): void;
+  onOp?(repoPath: string, op: GitOp): void;
+  onDismissError?(repoPath: string): void;
+  onFetchAll?(): void;
+  loadBranches?(repoPath: string): Promise<BranchList>;
 }
+
+const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
 
 /** Sağ panel, Git sekmesi: tüm repolar alt alta. */
 export function GitPanelView(props: GitPanelProps) {
@@ -56,6 +72,15 @@ export function GitPanelView(props: GitPanelProps) {
           )}
         </div>
         <div className="spacer" />
+        <button
+          className="icon-button"
+          aria-label="Fetch all repositories"
+          title="Fetch all repositories"
+          disabled={!repos.some((repo) => repo.hasRemote)}
+          onClick={props.onFetchAll}
+        >
+          <FetchIcon size={14} />
+        </button>
         <button className="icon-button" aria-label="Rescan repositories" title="Rescan repositories" onClick={props.onRescan}>
           <RescanIcon size={14} />
         </button>
@@ -71,8 +96,15 @@ export function GitPanelView(props: GitPanelProps) {
   );
 }
 
-function Repo({ repo, expanded, onToggle, onOpenTerminal }: GitPanelProps & { repo: RepoView }) {
+function Repo(props: GitPanelProps & { repo: RepoView }) {
+  const { repo, expanded, onToggle, onOpenTerminal } = props;
   const { status } = repo;
+  const error = props.errors?.[repo.path];
+  const run = (op: GitOp) => props.onOp?.(repo.path, op);
+  const busy = repo.busy !== null;
+  const errorBox = error !== undefined && (
+    <ErrorBox error={error} onPull={repo.hasRemote ? () => run({ op: 'pull' }) : undefined} onDismiss={() => props.onDismissError?.(repo.path)} />
+  );
   const open = isExpanded(status, expanded[repo.path]);
 
   if (!status) {
@@ -106,11 +138,32 @@ function Repo({ repo, expanded, onToggle, onOpenTerminal }: GitPanelProps & { re
 
         {open ? (
           <>
-            <span className="branch-chip mono" title={status.head}>
-              <BranchIcon size={11} />
-              <span className="branch-name">{status.head}</span>
-            </span>
-            {repo.busy ? <Busy label={repo.busy} /> : <SyncIcons ahead={status.ahead ?? 0} behind={status.behind ?? 0} hasRemote={repo.hasRemote} publish={action?.kind === 'publish'} />}
+            {status.detached ? (
+              <span className="branch-chip mono" title={`Detached HEAD at ${status.head}`}>
+                <BranchIcon size={11} />
+                <span className="branch-name">{status.head}</span>
+              </span>
+            ) : (
+              <BranchMenu
+                current={status.head}
+                disabled={busy}
+                load={() => props.loadBranches?.(repo.path) ?? Promise.resolve(NO_BRANCHES)}
+                onSwitch={(branch) => run({ op: 'switch', branch })}
+                onCreate={(branch) => run({ op: 'createBranch', branch })}
+              />
+            )}
+            {repo.busy ? (
+              <Busy label={repo.busy} />
+            ) : (
+              <SyncIcons
+                ahead={status.ahead ?? 0}
+                behind={status.behind ?? 0}
+                hasRemote={repo.hasRemote}
+                publish={action?.kind === 'publish'}
+                onPull={() => run({ op: 'pull' })}
+                onPush={() => run({ op: 'push' })}
+              />
+            )}
             <button
               className="icon-button small"
               aria-label="Open a terminal in this repository"
@@ -132,13 +185,25 @@ function Repo({ repo, expanded, onToggle, onOpenTerminal }: GitPanelProps & { re
                 {count}
               </span>
             )}
-            {repo.busy ? <Busy label={repo.busy} /> : <SyncButton action={action} />}
+            {repo.busy ? <Busy label={repo.busy} /> : <SyncButton action={action} onClick={() => run({ op: action?.kind === 'pull' ? 'pull' : 'push' })} />}
           </>
         )}
       </div>
 
+      {errorBox}
+
       {open && (
         <div className="repo-body">
+          {count > 0 && (
+            <CommitBox
+              target={commitTarget(groups)}
+              message={props.drafts?.[repo.path] ?? ''}
+              busy={busy}
+              canPush={repo.hasRemote}
+              onChange={(message) => props.onDraft?.(repo.path, message)}
+              onCommit={({ all, push }) => run({ op: 'commit', message: props.drafts?.[repo.path] ?? '', all, push })}
+            />
+          )}
           {groups.conflicts.length > 0 && (
             <p className="repo-note">
               {groups.conflicts.length === 1 ? '1 file has conflicts. Resolve it' : `${groups.conflicts.length} files have conflicts. Resolve them`}{' '}
@@ -146,9 +211,9 @@ function Repo({ repo, expanded, onToggle, onOpenTerminal }: GitPanelProps & { re
               conflicts as resolved.
             </p>
           )}
-          <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} />
-          <FileGroup title="STAGED" group="staged" files={groups.staged} />
-          <FileGroup title="CHANGES" group="changes" files={groups.changes} />
+          <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} busy={busy} run={run} />
+          <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} />
+          <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} />
           {count === 0 && <p className="repo-clean">No changes</p>}
         </div>
       )}
@@ -165,10 +230,10 @@ function Busy({ label }: { label: string }) {
   );
 }
 
-function SyncButton({ action }: { action: SyncAction }) {
+function SyncButton({ action, onClick }: { action: SyncAction; onClick(): void }) {
   if (!action) return null;
   return (
-    <button className={`sync-button sync-${action.kind}`} data-testid="sync-button">
+    <button className={`sync-button sync-${action.kind}`} data-testid="sync-button" onClick={onClick}>
       {action.kind === 'pull' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
       <span>{action.label}</span>
     </button>
@@ -176,7 +241,8 @@ function SyncButton({ action }: { action: SyncAction }) {
 }
 
 /** Açık repo başlığındaki pull ve push düğmeleri; bekleyen commit varsa sayısıyla. */
-function SyncIcons({ ahead, behind, hasRemote, publish }: { ahead: number; behind: number; hasRemote: boolean; publish: boolean }) {
+function SyncIcons(props: { ahead: number; behind: number; hasRemote: boolean; publish: boolean; onPull(): void; onPush(): void }) {
+  const { ahead, behind, hasRemote, publish } = props;
   const pushTitle = !hasRemote ? 'No remote' : publish ? 'Publish branch' : ahead > 0 ? `Push ${ahead}` : 'Push';
   return (
     <>
@@ -185,11 +251,18 @@ function SyncIcons({ ahead, behind, hasRemote, publish }: { ahead: number; behin
         aria-label="Pull"
         title={!hasRemote ? 'No remote' : behind > 0 ? `Pull ${behind}` : 'Pull'}
         disabled={!hasRemote}
+        onClick={props.onPull}
       >
         <ArrowDown size={13} strokeWidth={1.7} />
         {behind > 0 && <span className="icon-count">{behind}</span>}
       </button>
-      <button className={`icon-button small${ahead > 0 || publish ? ' has-push' : ''}`} aria-label="Push" title={pushTitle} disabled={!hasRemote}>
+      <button
+        className={`icon-button small${ahead > 0 || publish ? ' has-push' : ''}`}
+        aria-label="Push"
+        title={pushTitle}
+        disabled={!hasRemote}
+        onClick={props.onPush}
+      >
         <ArrowUp size={13} strokeWidth={1.7} />
         {ahead > 0 && <span className="icon-count">{ahead}</span>}
       </button>
@@ -197,7 +270,17 @@ function SyncIcons({ ahead, behind, hasRemote, publish }: { ahead: number; behin
   );
 }
 
-function FileGroup({ title, group, files }: { title: string; group: Group; files: FileChange[] }) {
+interface FileGroupProps {
+  title: string;
+  group: Group;
+  files: FileChange[];
+  busy: boolean;
+  run(op: GitOp): void;
+  /** Çakışma varken "hepsini stage et" kapalıdır: çakışmayı çözülmüş diye işaretlerdi. */
+  blocked?: boolean;
+}
+
+function FileGroup({ title, group, files, busy, run, blocked }: FileGroupProps) {
   if (files.length === 0) return null;
   return (
     <div className="file-group">
@@ -206,24 +289,31 @@ function FileGroup({ title, group, files }: { title: string; group: Group; files
         <span className="file-group-count">{files.length}</span>
         <div className="spacer" />
         {group === 'staged' && (
-          <button className="icon-button tiny" data-testid="unstage-all" aria-label="Unstage all" title="Unstage all">
+          <button className="icon-button tiny" data-testid="unstage-all" aria-label="Unstage all" title="Unstage all" disabled={busy} onClick={() => run({ op: 'unstageAll' })}>
             <MinusIcon size={12} />
           </button>
         )}
         {group === 'changes' && (
-          <button className="icon-button tiny" data-testid="stage-all" aria-label="Stage all" title="Stage all">
+          <button
+            className="icon-button tiny"
+            data-testid="stage-all"
+            aria-label="Stage all"
+            title={blocked ? 'Resolve the conflicts first' : 'Stage all'}
+            disabled={busy || blocked}
+            onClick={() => run({ op: 'stageAll' })}
+          >
             <StageIcon size={12} />
           </button>
         )}
       </div>
       {files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} />
       ))}
     </div>
   );
 }
 
-function FileRow({ file, group }: { file: FileChange; group: Group }) {
+function FileRow({ file, group, busy, run }: { file: FileChange; group: Group; busy: boolean; run(op: GitOp): void }) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
   return (
@@ -235,12 +325,19 @@ function FileRow({ file, group }: { file: FileChange; group: Group }) {
       <span className="file-dir">{dir}</span>
       {group === 'staged' && isPartlyStaged(file) && <span className="chip">partly staged</span>}
       {group === 'staged' && (
-        <button className="icon-button tiny" data-testid="unstage-file" aria-label={`Unstage ${name}`} title="Unstage">
+        <button
+          className="icon-button tiny"
+          data-testid="unstage-file"
+          aria-label={`Unstage ${name}`}
+          title="Unstage"
+          disabled={busy}
+          onClick={() => run({ op: 'unstage', file })}
+        >
           <MinusIcon size={12} />
         </button>
       )}
       {group === 'changes' && (
-        <button className="icon-button tiny" data-testid="stage-file" aria-label={`Stage ${name}`} title="Stage">
+        <button className="icon-button tiny" data-testid="stage-file" aria-label={`Stage ${name}`} title="Stage" disabled={busy} onClick={() => run({ op: 'stage', file })}>
           <StageIcon size={12} />
         </button>
       )}

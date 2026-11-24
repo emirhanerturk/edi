@@ -494,6 +494,17 @@ describe('ertelenen bulgular', () => {
     expect(await git(repo, 'ls-remote', 'origin', 'refs/tags/v1')).toBe('');
   });
 
+  it('çok satırlı, tireyle başlayan ve özel karakterli mesaj aynen commit edilir', async () => {
+    const repo = await newRepo();
+    await write(repo, 'a.txt', 'x\n');
+    const message = '-m fix: x\n\nbody with "quotes", `ticks` and $(touch pwned)\n# kare ile başlayan satır\n--amend';
+
+    expect(await commit(repo, `${message}\n\n  `, { addAll: true })).toEqual({ ok: true, message: 'Committed' });
+    expect(await git(repo, 'log', '-1', '--format=%B')).toBe(`${message}\n\n`);
+    expect(await exists(join(repo, 'pwned'))).toBe(false);
+    expect(await commitCount(repo)).toBe(2); // --amend seçenek olarak yorumlanmadı
+  });
+
   it('tire ile başlayan branch adı reddedilir', async () => {
     const repo = await newRepo();
     const invalid = { ok: false, error: 'Invalid branch name' };

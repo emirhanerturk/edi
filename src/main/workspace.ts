@@ -22,7 +22,7 @@ export class Workspace {
   private refreshedAt = 0;
   private timer: NodeJS.Timeout | null = null;
   /** O an durumu okunan repolar: yavaş bir repo, üst üste binen yoklamalar biriktirmez. */
-  private readonly inFlight = new Set<string>();
+  private readonly inFlight = new Map<string, Promise<boolean>>();
   /** Klasör değişince artar; eski klasörden geç gelen sonuçlar yok sayılır. */
   private generation = 0;
   private readonly onChange: (view: WorkspaceView) => void;
@@ -74,7 +74,9 @@ export class Workspace {
     return this.repos.find((repo) => repo.path === path) ?? null;
   }
 
+  /** Durumu şimdi yeniden okur. Süren bir okuma varsa onu bekler: o, bu çağrıdan önceki hâli görmüş olabilir. */
   async refresh(path: string): Promise<void> {
+    await this.inFlight.get(path);
     if (await this.refreshOne(path)) this.emit();
   }
 
@@ -148,19 +150,22 @@ export class Workspace {
     this.emit();
   }
 
-  /** Durum okunduysa true; repo zaten okunuyorsa ya da klasör bu arada değiştiyse false. */
-  private async refreshOne(path: string): Promise<boolean> {
-    if (this.inFlight.has(path)) return false;
+  /** Durum okunduysa true; klasör bu arada değiştiyse false. Süren okuma varsa onun sonucu paylaşılır. */
+  private refreshOne(path: string): Promise<boolean> {
+    const running = this.inFlight.get(path);
+    if (running) return running;
     const generation = this.generation;
-    this.inFlight.add(path);
-    try {
-      const result = await getStatus(path);
-      if (generation !== this.generation) return false;
-      this.patch(path, result.ok ? { status: result.status, error: null } : { status: null, error: result.error });
-      return true;
-    } finally {
-      if (generation === this.generation) this.inFlight.delete(path);
-    }
+    const reading: Promise<boolean> = getStatus(path)
+      .then((result) => {
+        if (generation !== this.generation) return false;
+        this.patch(path, result.ok ? { status: result.status, error: null } : { status: null, error: result.error });
+        return true;
+      })
+      .finally(() => {
+        if (this.inFlight.get(path) === reading) this.inFlight.delete(path);
+      });
+    this.inFlight.set(path, reading);
+    return reading;
   }
 }
 

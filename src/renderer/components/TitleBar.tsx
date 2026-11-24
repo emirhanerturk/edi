@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
 import { edi } from '../bridge';
 import { plural, tildify } from '../format';
 import { useApp } from '../store';
 import { ChevronDown, ClaudeMark, FolderIcon } from './icons';
+import { usePopover } from './usePopover';
 
 export function TitleBar() {
   const home = useApp((s) => s.home);
@@ -26,24 +26,7 @@ export function TitleBar() {
 function FolderMenu({ dir, home }: { dir: string; home: string }) {
   const recent = useApp((s) => s.recent);
   const openFolder = useApp((s) => s.openFolder);
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  const { open, setOpen, ref: root } = usePopover<HTMLDivElement>();
 
   const others = recent.filter((item) => item.dir !== dir);
   const pick = (action: () => void) => {
@@ -58,7 +41,7 @@ function FolderMenu({ dir, home }: { dir: string; home: string }) {
         data-testid="folder-button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setOpen(!open)}
       >
         <FolderIcon size={13} />
         <span className="folder-path">{tildify(dir, home)}</span>

@@ -376,3 +376,223 @@ button.branch-chip:hover {
     animation-duration: 3s;
   }
 }
+
+/* Commit kutusu */
+.commit {
+  padding: 2px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commit-message {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  user-select: text;
+}
+
+.commit-message::placeholder {
+  color: var(--muted);
+}
+
+.commit-message:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.commit-actions {
+  position: relative;
+  display: flex;
+  gap: 6px;
+}
+
+.commit-button {
+  flex: 1;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-button:hover:not(:disabled) {
+  background: #fff;
+  border-color: #fff;
+}
+
+/* Hiçbir şey stage'li değilken: çerçeveli, "her şeyi alır" uyarısıyla birlikte. */
+.commit-button.commit-all {
+  background: transparent;
+  color: var(--accent);
+}
+
+.commit-button.commit-all:hover:not(:disabled) {
+  background: var(--chip);
+  border-color: var(--accent);
+}
+
+.commit-button:disabled {
+  background: var(--chip);
+  border-color: var(--chip);
+  color: var(--muted);
+}
+
+.commit-caret {
+  flex: none;
+  width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.commit-menu {
+  top: 34px;
+  right: 0;
+  min-width: 180px;
+}
+
+.commit-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.menu-item:disabled {
+  color: var(--muted);
+  background: none;
+}
+
+/* Branch menüsü */
+.branch {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 48px;
+  display: flex;
+}
+
+.branch .branch-chip {
+  max-width: 150px;
+}
+
+.branch-menu {
+  top: 26px;
+  right: 0;
+  min-width: 230px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.branch-menu .menu-item {
+  flex: none;
+  font-size: 12px;
+}
+
+.menu-check {
+  flex: none;
+  width: 12px;
+  display: flex;
+  color: var(--text-2);
+}
+
+.menu-error {
+  color: var(--red);
+  letter-spacing: 0;
+}
+
+.menu-input {
+  height: 28px;
+  margin: 0 2px 2px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  user-select: text;
+}
+
+.menu-input:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+/* Hata kutusu */
+.error-box {
+  display: flex;
+  gap: 8px;
+  margin: 0 10px 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: rgba(224, 108, 117, 0.1);
+  border: 1px solid rgba(224, 108, 117, 0.35);
+}
+
+.error-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.error-title {
+  font-weight: 500;
+}
+
+.error-text {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.error-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.button-outline,
+.button-quiet {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.button-outline {
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.button-outline:hover {
+  border-color: var(--muted);
+}
+
+.button-quiet {
+  color: var(--text-2);
+  margin-left: -10px;
+}
+
+.button-quiet:hover {
+  color: var(--text);
+}
+
+.error-actions .button-outline + .button-quiet {
+  margin-left: 0;
+}

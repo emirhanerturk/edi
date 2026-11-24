@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
+import type { GitOp, Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
 import { edi } from './bridge';
 import { disposeAllTerminals, disposeTerminal, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
@@ -60,7 +60,21 @@ interface AppStore {
   /** Git sekmesinde kullanıcının elle açıp kapattığı repolar (oturum boyunca). */
   expanded: Record<string, boolean>;
   toggleRepo(repoPath: string, open: boolean): void;
+
+  /** Yazılmakta olan commit mesajları (repo yolu → metin). */
+  drafts: Record<string, string>;
+  /** Son git işleminin hatası (repo yolu → git'in satırı). */
+  errors: Record<string, string>;
+  setDraft(repoPath: string, message: string): void;
+  dismissError(repoPath: string): void;
+  gitOp(repoPath: string, op: GitOp): Promise<void>;
+  fetchAll(): Promise<void>;
 }
+
+const without = <T,>(record: Record<string, T>, key: string): Record<string, T> => {
+  const { [key]: _removed, ...rest } = record;
+  return rest;
+};
 
 const EMPTY: WorkspaceView = { dir: null, repos: [], rootSessions: 0, refreshedAt: 0 };
 
@@ -131,6 +145,30 @@ export const useApp = create<AppStore>((set, get) => ({
 
   expanded: {},
   toggleRepo: (repoPath, open) => set((state) => ({ expanded: { ...state.expanded, [repoPath]: open } })),
+
+  drafts: {},
+  errors: {},
+  setDraft: (repoPath, message) => set((state) => ({ drafts: { ...state.drafts, [repoPath]: message } })),
+  dismissError: (repoPath) => set((state) => ({ errors: without(state.errors, repoPath) })),
+  async gitOp(repoPath, op) {
+    set((state) => ({ errors: without(state.errors, repoPath) }));
+    const result = await edi.git(repoPath, op);
+    set((state) => ({
+      errors: result.ok ? without(state.errors, repoPath) : { ...state.errors, [repoPath]: result.error },
+      // Commit atıldıysa mesaj temizlenir (push'u başarısız olsa bile commit yerindedir).
+      drafts: op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) ? without(state.drafts, repoPath) : state.drafts,
+    }));
+  },
+  async fetchAll() {
+    const results = await edi.fetchAll();
+    set((state) => {
+      let errors = state.errors;
+      for (const { repoPath, result } of results) {
+        errors = result.ok ? without(errors, repoPath) : { ...errors, [repoPath]: result.error };
+      }
+      return { errors };
+    });
+  },
 }));
 
 /** Ana süreçten ilk durumu alır ve değişikliklere abone olur. Dönen işlev abonelikleri kaldırır. */

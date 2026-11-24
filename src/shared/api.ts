@@ -2,7 +2,7 @@
  * Ana süreç ile sayfa arasındaki sözleşme. Yalnız tür içerir: sayfa Node'a erişemez,
  * bu dosyadan çalışan kod almaz.
  */
-import type { RepoStatus } from '../git/types.js';
+import type { FileChange, RepoStatus } from '../git/types.js';
 
 export interface RepoView {
   name: string;
@@ -47,6 +47,23 @@ export interface AppState {
   layout: Layout;
 }
 
+/** Sayfanın bir repoda isteyebileceği işlemler. Serbest biçimli komut yoktur. */
+export type GitOp =
+  | { op: 'stage'; file: FileChange }
+  | { op: 'unstage'; file: FileChange }
+  | { op: 'stageAll' }
+  | { op: 'unstageAll' }
+  | { op: 'commit'; message: string; all: boolean; push: boolean }
+  | { op: 'push' }
+  | { op: 'pull' }
+  | { op: 'fetch' }
+  | { op: 'switch'; branch: string }
+  | { op: 'createBranch'; branch: string };
+
+export type OpResult = { ok: true; message: string } | { ok: false; error: string };
+
+export type BranchList = { ok: true; branches: string[]; current: string | null } | { ok: false; error: string };
+
 export type OpenResult = { ok: true } | { ok: false; error: string };
 
 export interface NewTerminal {
@@ -89,6 +106,11 @@ export interface EdiApi {
   chooseFolder(): Promise<void>;
   openFolder(dir: string): Promise<OpenResult>;
   rescan(): Promise<void>;
+  /** `repoPath` keşfedilmiş bir reponun yolu olmalıdır; ana süreç doğrular. */
+  git(repoPath: string, op: GitOp): Promise<OpResult>;
+  /** Remote'u olan tüm repolarda fetch; repo başına sonucu döner. */
+  fetchAll(): Promise<{ repoPath: string; result: OpResult }[]>;
+  branches(repoPath: string): Promise<BranchList>;
   pty: {
     create(o: NewTerminal): Promise<TerminalCreated>;
     write(id: number, data: string): void;
