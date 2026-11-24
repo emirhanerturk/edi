@@ -58,15 +58,31 @@
   justify-content: center;
 }
 
-/* Claude usage limits: next to the session count. */
+/* Claude usage limits: next to the session count. Not a drag area, so hovering works. */
 .usage {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding-left: 12px;
+  padding-left: 6px;
   border-left: 1px solid var(--border);
   font-size: 12px;
   white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.usage-trigger {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  outline: none;
+}
+
+.usage-trigger[data-open='true'],
+.usage-trigger:focus-visible {
+  background: var(--chip);
 }
 
 .usage-window {
@@ -95,31 +111,125 @@
   background: var(--text-2);
 }
 
-.usage-reset {
+.usage-left {
   color: var(--muted);
   font-size: 11px;
 }
 
-/* Time left until the reset, fainter than the reset time; it sits right after it. */
-.usage-left {
-  margin-left: -2px;
-  color: #6b717c;
-  font-size: 11px;
+/* Every detail, right under the meter. */
+.usage-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 300px;
+  padding: 4px 12px 8px;
+  border-radius: 9px;
+  background: var(--panel-open);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  white-space: normal;
 }
 
-.usage-window[data-level='warn'] .usage-fill {
-  background: var(--yellow);
+/* Bridges the gap so the pointer can move into the panel without closing it. */
+.usage-panel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 8px;
 }
 
-.usage-window[data-level='warn'] .usage-percent {
+.usage-detail {
+  padding: 8px 0;
+}
+
+.usage-detail + .usage-detail {
+  border-top: 1px solid var(--line);
+}
+
+.usage-detail-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.usage-detail-head .usage-percent {
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.usage-detail-bar {
+  position: relative;
+  height: 5px;
+  margin: 6px 0 7px;
+  border-radius: 3px;
+  background: var(--chip-strong);
+}
+
+.usage-detail-bar .usage-fill {
+  border-radius: 3px;
+}
+
+.usage-tick {
+  position: absolute;
+  top: -2px;
+  width: 1px;
+  height: 9px;
+  background: var(--muted);
+}
+
+.usage-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 11.5px;
+}
+
+.usage-rows dt {
+  color: var(--muted);
+}
+
+.usage-rows dd {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.usage-rows dd[data-level='warn'] {
   color: var(--yellow);
 }
 
-.usage-window[data-level='high'] .usage-fill {
+.usage-rows dd[data-level='high'] {
+  color: var(--red);
+}
+
+.usage-panel-foot {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.usage-window[data-level='warn'] .usage-fill,
+.usage-detail[data-level='warn'] .usage-fill {
+  background: var(--yellow);
+}
+
+.usage-window[data-level='warn'] .usage-percent,
+.usage-detail[data-level='warn'] .usage-percent {
+  color: var(--yellow);
+}
+
+.usage-window[data-level='high'] .usage-fill,
+.usage-detail[data-level='high'] .usage-fill {
   background: var(--red);
 }
 
-.usage-window[data-level='high'] .usage-percent {
+.usage-window[data-level='high'] .usage-percent,
+.usage-detail[data-level='high'] .usage-percent {
   color: var(--red);
 }
 

@@ -101,6 +101,12 @@ test('Claude usage limits come from the bridge, show in the title bar and refres
     await expect(windows.nth(0)).toContainText('5h');
     await expect(windows.nth(0)).toContainText('42%');
     await expect(windows.nth(1)).toContainText('18%');
+    // Hovering opens the details right under it; the title bar's drag area doesn't swallow the pointer.
+    await page.getByTestId('usage').hover();
+    await expect(page.getByTestId('usage-detail')).toHaveCount(2);
+    await expect(page.getByTestId('usage-detail').nth(1)).toContainText('Weekly limit');
+    await page.mouse.move(10, 400);
+    await expect(page.getByTestId('usage-panel')).toHaveCount(0);
     await bridge(file, { five_hour: { used_percentage: 93, resets_at: soon }, seven_day: { used_percentage: 20, resets_at: later } });
     await expect(windows.nth(0)).toContainText('93%', { timeout: 10_000 });
     await expect(windows.nth(0)).toHaveAttribute('data-level', 'high');
