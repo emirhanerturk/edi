@@ -190,17 +190,27 @@ Son sekme kapatılınca panel de kapanır.
   birikmesin.)
 - **Diff görünümü** (Git sekmesinden): dosyanın HEAD'e göre tüm değişikliği
   (stage'li + stage'siz birlikte). Üstte repo ve yol, `+7 −3`, "Split / Inline"
-  seçimi (hatırlanır) ve "Open in Zed". Yeni (untracked) dosya diff yerine dosya
+  seçimi (hatırlanır), "Open file" (dosyanın tamamı; diff sekmesi kalıcı olur ve yerinde
+  kalır, dosya önizleme sekmesinde açılır; çalışma ağacından silinmiş dosyada yok) ve
+  "Open in Zed". Yeni (untracked) dosya diff yerine dosya
   görünümünde "new file" rozetiyle açılır. Henüz commit'i olmayan repoda da
   çalışır.
 - **Dosya görünümü** (Files sekmesinden): salt okunur, satır numaralı, sözdizimi
-  renkli. Üstte yol, "Read-only" notu ve "Open in Zed". 1 MB'tan büyük ya da
-  ikili dosyalar gösterilmez; yerine kısa bir not ve "Open in Zed" çıkar.
+  renkli. Üstte yol, "Read-only" notu ve "Open in Zed". Görsel (png, jpg, gif, webp,
+  avif, bmp, ico, svg) ve video (mp4, m4v, webm, ogv, mov) önizlenir, boyut sınırı
+  olmadan: ana süreç bunları `edi-media://` adresinden, yalnız keşfedilmiş repoların
+  içinden (bağlar çözülerek) ve video ileri sarılabilsin diye byte aralığıyla verir;
+  sayfanın CSP'si bu adrese yalnız `img-src`/`media-src` olarak izin verir, `connect-src`
+  kapalı kalır. Diğer 1 MB'tan büyük ya da ikili dosyalar gösterilmez; yerine kısa bir
+  not ve "Open in Zed" çıkar.
 - **Commit görünümü** (History sekmesinden): başlık (Conventional Commits öneki
-  soluk), gövde metni, repo, branch, göreli zaman, toplam `+/−`, kısa hash ve
+  soluk), gövde metni, yazar (adı; üzerine gelince e-postası), repo, branch, göreli zaman, toplam `+/−`, kısa hash ve
   kopyalama düğmesi; altında değişen dosyalar alt alta, her biri satır içi
   diff'iyle. Dosya başlığı diff'i açıp kapatır; 400 satırı aşan diff kapalı
-  gelir.
+  gelir; bilgi satırındaki tek düğme hepsini kapatır (biri açıksa) ya da açar. Commit
+  push edildiyse (bir uzak dal içeriyorsa) ve o uzak repo GitHub'daysa "GitHub" düğmesi
+  commit sayfasını tarayıcıda açar; ağa çıkılmaz, adresteki kimlik bilgisi atılır
+  (2026-11-24, kullanıcı istedi).
 - **Open in Zed:** sırayla PATH'teki `zed`, `/Applications/Zed.app/Contents/MacOS/cli`,
   `open -a Zed`. Hepsi başarısızsa hata gösterilir.
 - Dosya diskte değişirse açık görünüm, o reponun bir sonraki durum yoklamasında

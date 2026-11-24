@@ -23,18 +23,19 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   shows its whole change against HEAD (staged and unstaged together), side by side or inline,
   with syntax colors; a new file opens with its content. A single click opens a preview tab
   that the next click reuses, a double click keeps the tab. The open view follows the file
-  as it changes on disk.
+  as it changes on disk. Open file shows the whole file next to its diff.
 - **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
   (an ignored folder is read from disk one level at a time when you open it). Changed files carry
   their status letter, folders that contain changes a dot. Clicking a file opens it read-only.
-  Files over 1 MB and binary files are not shown.
+  Images and videos open as a preview. Other files over 1 MB and binary files are not shown.
 - **History tab.** The recent commits of every repository's current branch in one timeline,
   under day headers, newest first; or grouped by repository. Commits not pushed yet carry an
   arrow, a version commit shows as a tag line, merges are dimmed. Filter to one repository to
   see where its upstream stands. 50 commits per repository at a time, with "Load 50 more".
-- **Commit view.** Clicking a commit opens it in the center panel: message, repository,
-  branch, time, totals, a copy button for the hash, and every changed file's diff one under
-  another. Files with more than 400 changed lines start collapsed.
+- **Commit view.** Clicking a commit opens it in the center panel: message, author,
+  repository, branch, time, totals, a copy button for the hash, a GitHub link once the commit
+  is pushed, and every changed file's diff one under another. Files with more than 400 changed
+  lines start collapsed; one button expands or collapses them all.
 - **Running servers.** A dev server started in a terminal (`npm run dev` and the like) shows
   in the status bar with its localhost port, repository and terminal, found from the
   terminal's processes rather than its output; clicking it opens the address in the browser.
