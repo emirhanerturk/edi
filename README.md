@@ -40,7 +40,9 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Remembers** the last folder, recent folders, the window position, the panel widths, the
   diff layout and the History layout.
 
-Packaging and the `edi` command are planned next; see `docs/superpowers/`.
+- **The `edi` command.** `edi <folder>` opens that folder in edi from any terminal; `edi .`
+  opens the current one, `edi` alone brings edi to the front. When edi is already open, the
+  same window switches to the folder (asking first if a terminal is busy).
 
 ## Setup
 
@@ -60,14 +62,34 @@ npm run build    # build into dist/
 npm start        # run the built app
 ```
 
+The development copy keeps its settings in a folder of its own (`edi-dev`), apart from the
+installed app.
+
 `⌘O` opens a folder, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab,
 `⌘1`–`⌘9` switch tabs.
+
+## Install
+
+```sh
+npm run dist     # build edi.app, install it and the edi command
+```
+
+`npm run dist` builds an unsigned (ad-hoc signed) `edi.app` with the wordmark icon, copies it
+to `/Applications/edi.app` and links `~/.local/bin/edi` to the command inside it. Run it
+again to update. It stops without changing anything while edi is running, and it never
+overwrites an `edi.app` or an `edi` command that is not edi's. `npm run dist -- --no-install`
+only builds, into `release/`.
+
+Opened from the Dock, edi reads your login shell's environment once at startup, so git hooks
+find `node` and other tools from your shell's `PATH`. `npm run icon` regenerates
+`build/icon.icns` from `docs/design/icon/wordmark.svg`.
 
 ## Tests
 
 ```sh
 npm test         # unit and component tests (Vitest)
 npm run e2e      # builds, then drives the real app (Playwright)
+npm run e2e:dist # drives the packaged app; run `npm run dist -- --no-install` first
 npm run typecheck
 ```
 
