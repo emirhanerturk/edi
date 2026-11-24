@@ -43,13 +43,17 @@ describe('CenterTabs', () => {
     expect(onPin).toHaveBeenCalledWith(labels[1]!.id);
   });
 
-  it('kapatma düğmesi yalnız etkin sekmededir ve sekmeye geçmeden kapatır', () => {
+  it('her sekmenin kapatma düğmesi vardır; etkin olmayanınki üzerine gelince görünür; sekmeye geçmeden kapatır', () => {
     const { onClose, onActivate } = renderTabs();
     const buttons = screen.getAllByRole('button', { name: 'Close tab' });
-    expect(buttons).toHaveLength(1);
+    expect(buttons).toHaveLength(labels.length);
+    expect(buttons.map((button) => button.dataset.reveal)).toEqual(['always', ...labels.slice(1).map(() => 'hover')]);
     fireEvent.mouseDown(buttons[0]!, { button: 0 });
     fireEvent.click(buttons[0]!);
     expect(onClose).toHaveBeenCalledWith(labels[0]!.id);
+    fireEvent.mouseDown(buttons[2]!, { button: 0 });
+    fireEvent.click(buttons[2]!);
+    expect(onClose).toHaveBeenLastCalledWith(labels[2]!.id);
     expect(onActivate).not.toHaveBeenCalled();
   });
 

@@ -71,7 +71,7 @@ test('değişen dosyaya tıklayınca diff açılır', async () => {
     await expect(centerTabs(page).first()).toHaveAttribute('aria-selected', 'true');
 
     // Son sekme kapanınca panel de kapanır.
-    const closeTab = page.locator('.center').getByRole('button', { name: 'Close tab' });
+    const closeTab = page.locator('.center [role="tab"][aria-selected="true"]').getByRole('button', { name: 'Close tab' });
     await closeTab.click();
     await closeTab.click();
     await expect(view).toHaveCount(0);

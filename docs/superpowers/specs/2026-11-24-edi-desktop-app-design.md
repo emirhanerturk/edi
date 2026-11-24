@@ -137,7 +137,8 @@ tty süzgeci kazanır.
 - **Sekme çubuğu:** sekmeler, sağda `+` (yeni terminal) ve Claude simgeli düğme
   (yeni Claude oturumu). Sekme adı öndeki sürecin komutudur (`npm run dev`);
   boşta kabuğun adıdır (`zsh`). Adlar alt satıra geçmez; yer daralınca üç
-  noktayla kısalır. Aktif sekmede kapatma çarpısı vardır.
+  noktayla kısalır. Her sekmede kapatma çarpısının yeri ayrılır: aktif sekmede görünür,
+  diğerlerinde sekmenin üzerine gelince görünür ve tıklanır (2026-11-24, kullanıcı istedi).
 - **Claude sekmesi:** bir sekmenin tty'sinde Claude Code öndeyken sekme adı
   `claude`, simgesi turuncu Claude işareti (`#D97757`) olur; Claude kapanınca
   sekme normale döner. Kullanıcı Claude'u düğmeyle de açsa, düz sekmede `claude`
