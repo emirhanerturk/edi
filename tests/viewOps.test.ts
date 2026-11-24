@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ViewOps } from '../src/main/viewOps.js';
+import { DIFF_TOO_LARGE, MAX_DIFF_BYTES, ViewOps } from '../src/main/viewOps.js';
 import { Workspace } from '../src/main/workspace.js';
 import type { OpResult } from '../src/shared/api.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
@@ -90,6 +90,20 @@ describe('ViewOps', () => {
     await writeFile(join(repo, 'ilk.txt'), 'x\n');
     await git(repo, 'add', '-A');
     expect(await ops.diff(repo, 'ilk.txt')).toMatchObject({ ok: true, diff: { added: 1, removed: 0 } });
+  });
+
+  it('çok büyük diff okunmaz, ayrıştırılmaz; anlaşılır not döner', async () => {
+    const { repo, ops } = await setup();
+    const line = `${'x'.repeat(99)}\n`;
+    await writeFile(join(repo, 'veri.csv'), 'a\n');
+    await git(repo, 'add', 'veri.csv');
+    await git(repo, 'commit', '-q', '-m', 'chore: veri');
+    await writeFile(join(repo, 'veri.csv'), line.repeat(Math.ceil(MAX_DIFF_BYTES / line.length) + 10));
+    expect(await ops.diff(repo, 'veri.csv')).toEqual({ ok: false, error: DIFF_TOO_LARGE });
+    await writeFile(join(repo, 'yeni.csv'), line.repeat(Math.ceil(MAX_DIFF_BYTES / line.length) + 10));
+    expect(await ops.diff(repo, 'yeni.csv')).toEqual({ ok: false, error: DIFF_TOO_LARGE });
+    await writeFile(join(repo, 'veri.csv'), line.repeat(100));
+    expect(await ops.diff(repo, 'veri.csv')).toMatchObject({ ok: true, diff: { added: 100, removed: 1 } });
   });
 
   it('değişiklik listesinde olmayan yol için diff çalışmaz', async () => {

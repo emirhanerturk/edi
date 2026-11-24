@@ -10,7 +10,11 @@ export interface RunGitOptions {
   timeoutMs?: number;
   /** Başarı sayılan çıkış kodları. Varsayılan [0]. */
   okCodes?: number[];
+  /** Çıktı bu kadar karakteri geçerse okuma bırakılır, süreç sonlandırılır ve `OUTPUT_TOO_LARGE` döner. */
+  maxOutput?: number;
 }
+
+export const OUTPUT_TOO_LARGE = 'Output too large';
 
 /** SIGTERM'den sonra sürecin kendi kendine kapanması için tanınan süre. */
 const KILL_GRACE_MS = 2000;
@@ -44,7 +48,7 @@ function gitEnv(cwd: string): NodeJS.ProcessEnv {
  * terminali ele geçiremez, sormak yerine hata verir.
  */
 export async function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): Promise<GitResult> {
-  const { timeoutMs = 15000, okCodes = [0] } = opts;
+  const { timeoutMs = 15000, okCodes = [0], maxOutput = Infinity } = opts;
 
   // Olmayan cwd ile spawn "spawn git ENOENT" der; bu, git yokmuş gibi okunur.
   const isDir = await stat(cwd).then((s) => s.isDirectory(), () => false);
@@ -97,7 +101,15 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
       }, KILL_GRACE_MS);
     }, timeoutMs);
 
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk));
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      if (settled) return;
+      stdout += chunk;
+      if (stdout.length > maxOutput) {
+        // Bellekte büyümesin: okuma bırakılır. SIGTERM, git'in kilitlerini temizleyerek çıkmasına izin verir.
+        killGroup('SIGTERM');
+        finish({ ok: false, error: OUTPUT_TOO_LARGE, stdout: '' });
+      }
+    });
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
     child.on('error', (err) => finish({ ok: false, error: err.message, stdout }));
     const settle = (code: number | null) => {

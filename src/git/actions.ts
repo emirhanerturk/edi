@@ -141,17 +141,20 @@ export async function createBranch(repo: string, name: string): Promise<ActionRe
 
 const diffBase = (status: RepoStatus) => (status.unborn ? EMPTY_TREE : 'HEAD');
 
-function untrackedDiff(repo: string, path: string) {
+function untrackedDiff(repo: string, path: string, maxOutput: number) {
   // --no-index fark bulduğunda 1 ile çıkar.
-  return runGit(repo, [...DIFF_ARGS, '--no-index', '--', '/dev/null', path], { okCodes: [0, 1] });
+  return runGit(repo, [...DIFF_ARGS, '--no-index', '--', '/dev/null', path], { okCodes: [0, 1], maxOutput });
 }
 
-/** Dosyanın HEAD'e göre tüm değişikliği (stage'li + stage'siz); yeni dosyada tamamı ekleme olarak. */
-export async function diffFile(repo: string, status: RepoStatus, f: FileChange): Promise<DiffResult> {
+/**
+ * Dosyanın HEAD'e göre tüm değişikliği (stage'li + stage'siz); yeni dosyada tamamı ekleme olarak.
+ * Çıktı `maxOutput` karakteri geçerse `OUTPUT_TOO_LARGE` hatası döner.
+ */
+export async function diffFile(repo: string, status: RepoStatus, f: FileChange, maxOutput = Infinity): Promise<DiffResult> {
   const paths = f.origPath === null ? [f.path] : [f.path, f.origPath];
   const result =
     f.kind === 'untracked'
-      ? await untrackedDiff(repo, f.path)
-      : await runGit(repo, [...DIFF_ARGS, '-M', diffBase(status), '--', ...paths.map(literal)]);
+      ? await untrackedDiff(repo, f.path, maxOutput)
+      : await runGit(repo, [...DIFF_ARGS, '-M', diffBase(status), '--', ...paths.map(literal)], { maxOutput });
   return result.ok ? { ok: true, text: result.stdout } : { ok: false, error: result.error };
 }

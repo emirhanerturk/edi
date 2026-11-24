@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { diffFile } from '../git/actions.js';
 import { parseDiff } from '../git/diffParse.js';
+import { OUTPUT_TOO_LARGE } from '../git/exec.js';
 import { type FileContent, type FileList, OUTSIDE, listFiles, locateInRepo, readRepoFile } from '../git/files.js';
 import { getStatus } from '../git/status.js';
 import type { DiffView, OpResult } from '../shared/api.js';
@@ -9,6 +10,13 @@ import type { Workspace } from './workspace.js';
 
 const UNKNOWN_REPO = { ok: false, error: 'Unknown repository' } as const;
 const INVALID_PATH = { ok: false, error: 'Invalid file path' } as const;
+
+/**
+ * Bundan büyük diff okunmaz: ayrıştırma ana süreçte (terminal verisini de taşıyan iş parçacığında)
+ * çalışır ve görünüm zaten en çok 5.000 satır gösterir.
+ */
+export const MAX_DIFF_BYTES = 2 * 1_048_576;
+export const DIFF_TOO_LARGE = 'This diff is too large to show';
 
 /**
  * Sayfanın orta panel için istediği salt okunur işlemler. Repo yolu keşfedilmiş listeyle,
@@ -33,8 +41,8 @@ export class ViewOps {
     if (!read.ok) return { ok: false, error: read.error };
     const file = read.status.files.find((f) => f.path === filePath);
     if (!file) return { ok: false, error: 'File is not in the list of changes' };
-    const result = await diffFile(repo.path, read.status, file);
-    if (!result.ok) return { ok: false, error: result.error };
+    const result = await diffFile(repo.path, read.status, file, MAX_DIFF_BYTES);
+    if (!result.ok) return { ok: false, error: result.error === OUTPUT_TOO_LARGE ? DIFF_TOO_LARGE : result.error };
     return { ok: true, diff: parseDiff(result.text), file };
   }
 

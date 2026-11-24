@@ -101,6 +101,12 @@ describe('DiffPane', () => {
     expect(screen.getByText(/Renamed from app\/old\.tsx/)).toBeTruthy();
   });
 
+  it('çok büyük diff için uyarı değil, sakin bir not', () => {
+    renderPane({ ok: false, error: 'This diff is too large to show' });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('This diff is too large to show — open the file in Zed')).toBeTruthy();
+  });
+
   it('başka hatayı olduğu gibi gösterir', () => {
     renderPane({ ok: false, error: 'fatal: bad revision' });
     expect(screen.getByRole('alert').textContent).toContain('fatal: bad revision');

@@ -18,6 +18,7 @@ export interface DiffPaneProps {
 }
 
 const NOT_CHANGED = 'File is not in the list of changes';
+const TOO_LARGE = 'This diff is too large to show';
 
 /** Bir dosyanın HEAD'e göre değişikliği: yan yana ya da tek sütun. */
 export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZed }: DiffPaneProps) {
@@ -49,6 +50,8 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZ
       ) : !view.ok ? (
         view.error === NOT_CHANGED ? (
           <ViewNote>No changes left in this file</ViewNote>
+        ) : view.error === TOO_LARGE ? (
+          <ViewNote>{TOO_LARGE} — open the file in Zed</ViewNote>
         ) : (
           <ViewNote alert>{view.error}</ViewNote>
         )
