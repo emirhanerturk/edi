@@ -1,17 +1,13 @@
+import { memo, useMemo } from 'react';
 import type { FileContent } from '../../shared/api';
 import { LockIcon } from '../components/icons';
 import type { Token } from '../highlight/highlight';
 import { languageOf } from '../highlight/languages';
 import { Code } from './DiffPane';
+import { splitLines } from './lines';
 import { ViewHeader, ViewNote } from './ViewHeader';
 
-/** Dosyanın satırları; sondaki satır sonu boş bir satır sayılmaz. */
-export function splitLines(text: string): string[] {
-  if (text === '') return [];
-  const lines = text.split(/\r?\n/);
-  if (lines[lines.length - 1] === '') lines.pop();
-  return lines;
-}
+export { splitLines };
 
 function size(bytes: number): string {
   if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -58,14 +54,19 @@ export function FilePane({ repoName, path, content, isNew, tokens, onOpenInZed }
   );
 }
 
-function FileBody({ content, tokens }: { content: FileContent | null; tokens: Token[][] | null }) {
+/**
+ * Yoklama her 2 sn'de bağlı görünümü yeniden çizer; içerik ve renkler aynı nesne kaldıkça
+ * (useView aynı veride aynı nesneyi tutar) bu gövde yeniden çizilmez.
+ */
+const FileBody = memo(function FileBody({ content, tokens }: { content: FileContent | null; tokens: Token[][] | null }) {
+  const text = content?.ok && content.kind === 'text' ? content.text : null;
+  const lines = useMemo(() => (text === null ? [] : splitLines(text)), [text]);
   if (content === null) return <div className="file-body" />;
   if (!content.ok) {
     return content.error === 'File not found' ? <ViewNote>File not found</ViewNote> : <ViewNote alert>{content.error}</ViewNote>;
   }
   if (content.kind === 'tooLarge') return <ViewNote>This file is too large to show ({(content.size / 1_048_576).toFixed(1)} MB)</ViewNote>;
   if (content.kind === 'binary') return <ViewNote>Binary file</ViewNote>;
-  const lines = splitLines(content.text);
   if (lines.length === 0) return <ViewNote>Empty file</ViewNote>;
   return (
     <div className="file-body mono" data-testid="file-body">
@@ -77,4 +78,4 @@ function FileBody({ content, tokens }: { content: FileContent | null; tokens: To
       ))}
     </div>
   );
-}
+});

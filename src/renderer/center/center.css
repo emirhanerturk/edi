@@ -52,7 +52,7 @@
   max-width: max(300px, calc(100% - 680px));
 }
 
-.center-error {
+.view-error {
   flex: none;
   display: flex;
   align-items: center;

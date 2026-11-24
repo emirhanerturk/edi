@@ -175,8 +175,12 @@ function TreeItem({ name, title, depth, kind, open, badge, selected, onClick, on
   );
 }
 
-/** Değişen dosyaların yolları: değişince dosya listesi yeniden okunur (yeni ya da silinen dosya olabilir). */
-const changeSignature = (repo: RepoView) => (repo.status?.files ?? []).map((file) => `${file.x}${file.y} ${file.path}`).join('\n');
+/**
+ * Değişince dosya listesi yeniden okunur: branch ve HEAD (branch değişimi, pull, commit temiz
+ * repoda da dosyaları değiştirir) ve değişen dosyaların yolları (yeni ya da silinen dosya olabilir).
+ */
+const changeSignature = (repo: RepoView) =>
+  [repo.status?.head ?? '', repo.status?.headOid ?? '', ...(repo.status?.files ?? []).map((file) => `${file.x}${file.y} ${file.path}`)].join('\n');
 
 /**
  * Files sekmesinin uygulama durumuna bağlı hâli. Bir reponun dosya listesi, klasörü ilk açıldığında
@@ -190,6 +194,15 @@ export function FilesPanel() {
   const loaded = useRef(new Map<string, string>());
   const { repos } = workspace;
   const single = repos.length === 1 && repos[0]!.path === workspace.dir;
+
+  // Başka klasöre geçince eski listeler çizim sırasında atılır (React yeniden çizer, yükleme
+  // etkisi temiz başlar); klasöre dönüldüğünde liste yeniden okunur.
+  const [listsDir, setListsDir] = useState(workspace.dir);
+  if (listsDir !== workspace.dir) {
+    setListsDir(workspace.dir);
+    setLists({});
+    loaded.current.clear();
+  }
 
   useEffect(() => {
     for (const repo of repos) {

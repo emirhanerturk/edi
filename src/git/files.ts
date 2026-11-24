@@ -1,5 +1,6 @@
 // Çalışma ağacındaki dosyaları listeler ve okur. Yalnız okuma yapar; Electron'a bağlı değildir.
-import { open, realpath } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { open, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { runGit } from './exec.js';
 import type { FileContent, FileList } from './types.js';
@@ -37,7 +38,8 @@ const isGitDir = (segment: string | undefined) => segment?.toLowerCase() === '.g
 function staysInside(relPath: unknown): relPath is string {
   if (typeof relPath !== 'string' || relPath === '' || relPath.includes('\0') || isAbsolute(relPath)) return false;
   const segments = relPath.split('/');
-  return !segments.some((segment) => segment === '..') && !isGitDir(segments.find((segment) => segment !== '.' && segment !== ''));
+  // İç içe bir reponun .git klasörü de (vendor/tool/.git/config) kapalıdır.
+  return !segments.some((segment) => segment === '..' || isGitDir(segment));
 }
 
 export type Located = { ok: true; target: string } | { ok: false; reason: 'outside' | 'missing' };
@@ -57,7 +59,8 @@ export async function locateInRepo(repo: string, relPath: unknown): Promise<Loca
   }
   // Bağlar çözüldükten sonra da repo içinde ve .git dışında olmalı.
   const inside = relative(root, target);
-  if (inside === '' || inside.startsWith('..') || isAbsolute(inside) || isGitDir(inside.split(sep)[0])) return { ok: false, reason: 'outside' };
+  const parts = inside.split(sep);
+  if (inside === '' || parts[0] === '..' || isAbsolute(inside) || parts.some(isGitDir)) return { ok: false, reason: 'outside' };
   return { ok: true, target };
 }
 
@@ -74,7 +77,9 @@ export async function readRepoFile(repo: string, relPath: unknown): Promise<File
   const target = located.target;
   let handle;
   try {
-    handle = await open(target, 'r');
+    // Açmadan önce bakılır: bir FIFO'yu açmak, yazan biri gelene kadar bekler.
+    if (!(await stat(target)).isFile()) return { ok: false, error: 'Not a file' };
+    handle = await open(target, constants.O_RDONLY | constants.O_NONBLOCK);
     const info = await handle.stat();
     if (!info.isFile()) return { ok: false, error: 'Not a file' };
     if (info.size > MAX_FILE_BYTES) return { ok: true, kind: 'tooLarge', size: info.size };

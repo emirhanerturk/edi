@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDiff } from '../../src/git/diffParse';
-import { MAX_HIGHLIGHT_CHARS, highlightDiff, highlightLines } from '../../src/renderer/highlight/highlight';
+import { MAX_HIGHLIGHT_CHARS, MAX_LINE_CHARS, highlightDiff, highlightLines } from '../../src/renderer/highlight/highlight';
 
 const text = (tokens: { text: string }[]) => tokens.map((token) => token.text).join('');
 
@@ -49,6 +49,15 @@ describe('highlightLines', () => {
   it('çok uzun metni renklendirmez', async () => {
     expect(await highlightLines('a'.repeat(MAX_HIGHLIGHT_CHARS + 1), 'a.ts')).toBeNull();
     expect(MAX_HIGHLIGHT_CHARS).toBe(200_000);
+  });
+
+  it('sıkıştırılmış dosya gibi çok uzun satırı olan metni renklendirmez (sayfa donmaz)', async () => {
+    const long = `const a = [${'1,'.repeat(1000)}];`;
+    expect(long.length).toBeGreaterThan(MAX_LINE_CHARS);
+    expect(await highlightLines(`const x = 1;\n${long}`, 'a.min.js')).toBeNull();
+    const fits = `const a = "${'x'.repeat(MAX_LINE_CHARS - 13)}";`;
+    expect(fits.length).toBe(MAX_LINE_CHARS);
+    expect(await highlightLines(fits, 'a.js')).toHaveLength(1);
   });
 });
 

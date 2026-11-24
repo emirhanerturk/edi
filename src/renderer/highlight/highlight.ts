@@ -11,6 +11,11 @@ export interface Token {
 
 /** Bundan uzun metin renklendirilmez: düz gösterilir. */
 export const MAX_HIGHLIGHT_CHARS = 200_000;
+/**
+ * Bundan uzun bir satır varsa metin renklendirilmez. Sıkıştırılmış (minified) dosyalarda Shiki
+ * sayfanın ana iş parçacığını saniyelerce meşgul eder; terminaller de o iş parçacığındadır.
+ */
+export const MAX_LINE_CHARS = 2000;
 
 const THEME = 'one-dark-pro';
 const FOREGROUND = '#abb2bf';
@@ -46,10 +51,12 @@ function loadLanguage(core: HighlighterCore, id: string): Promise<void> {
 export async function highlightLines(text: string, path: string): Promise<Token[][] | null> {
   const language = languageOf(path);
   if (!language || !LOADERS[language.id] || text.length > MAX_HIGHLIGHT_CHARS) return null;
+  if (text.split('\n').some((line) => line.length > MAX_LINE_CHARS)) return null;
   try {
     const core = await getHighlighter();
     await loadLanguage(core, language.id);
-    const lines = core.codeToTokensBase(text, { lang: language.id, theme: THEME });
+    // İkinci güvence: tek bir satırda takılırsa Shiki yarım saniyede bırakır.
+    const lines = core.codeToTokensBase(text, { lang: language.id, theme: THEME, tokenizeMaxLineLength: MAX_LINE_CHARS, tokenizeTimeLimit: 500 });
     return lines.map((line) => line.filter((token) => token.content !== '').map((token) => ({ text: token.content, color: token.color ?? FOREGROUND })));
   } catch {
     return null;
