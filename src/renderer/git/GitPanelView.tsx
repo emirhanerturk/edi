@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import type { FileChange } from '../../git/types';
 import type { BranchList, GitOp, RepoView } from '../../shared/api';
 import {
@@ -85,6 +85,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
     openInZed: (file: FileChange) => props.onOpenInZed?.(repo.path, file.path),
+    repoPath: repo.path,
   };
 
   if (!status) {
@@ -270,13 +271,40 @@ interface FileGroupProps {
   selectedPath: string | null;
   /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
   blocked?: boolean;
+  repoPath: string;
 }
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath }: FileGroupProps) {
+/** Collapsed file groups, by repo and group, for the session: the panel redraws on every status poll. */
+const collapsedGroups = new Set<string>();
+
+function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath, repoPath }: FileGroupProps) {
+  const key = `${repoPath}\n${group}`;
+  const [collapsed, setCollapsed] = useState(() => collapsedGroups.has(key));
   if (files.length === 0) return null;
+  const toggle = () => {
+    if (collapsed) collapsedGroups.delete(key);
+    else collapsedGroups.add(key);
+    setCollapsed(!collapsed);
+  };
   return (
     <div className="file-group">
-      <div className="file-group-head">
+      <div
+        className="file-group-head"
+        data-testid="file-group-head"
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('button')) return;
+          toggle();
+        }}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+          event.preventDefault();
+          toggle();
+        }}
+      >
+        {collapsed ? <ChevronRight size={11} strokeWidth={1.9} /> : <ChevronDown size={11} strokeWidth={1.9} />}
         <span>{title}</span>
         <span className="file-group-count">{files.length}</span>
         <div className="spacer" />
@@ -305,7 +333,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, s
           </button>
         )}
       </div>
-      {files.map((file) => (
+      {!collapsed && files.map((file) => (
         <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openInZed={openInZed} selected={file.path === selectedPath} />
       ))}
     </div>

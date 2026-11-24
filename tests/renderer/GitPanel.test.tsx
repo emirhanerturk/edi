@@ -91,6 +91,28 @@ describe('GitPanelView', () => {
     expect(within(app).getByText('feat/banner')).toBeTruthy();
   });
 
+  it('the Staged and Changes headers collapse and expand their files; the header buttons do not toggle', () => {
+    renderPanel();
+    const head = (title: string) => screen.getAllByTestId('file-group-head').find((el) => el.textContent?.startsWith(title))!;
+    const groups = () => screen.getAllByTestId('file-row').map((el) => el.getAttribute('data-group'));
+    expect(head('STAGED').getAttribute('aria-expanded')).toBe('true');
+    expect(head('STAGED').querySelector('svg')).toBeTruthy();
+    fireEvent.click(head('STAGED'));
+    expect(head('STAGED').getAttribute('aria-expanded')).toBe('false');
+    expect(groups()).toEqual(['changes', 'changes', 'changes']);
+    fireEvent.click(within(head('CHANGES')).getByRole('button', { name: 'Stage all' }));
+    expect(groups()).toEqual(['changes', 'changes', 'changes']);
+    fireEvent.click(head('CHANGES'));
+    expect(screen.queryAllByTestId('file-row')).toHaveLength(0);
+    // The choice is kept when the panel draws again (the next status poll, or switching tabs).
+    cleanup();
+    renderPanel();
+    expect(screen.queryAllByTestId('file-row')).toHaveLength(0);
+    fireEvent.click(head('STAGED'));
+    fireEvent.click(head('CHANGES'));
+    expect(groups()).toEqual(['staged', 'changes', 'changes', 'changes']);
+  });
+
   it('shows the error of an unreadable repo', () => {
     renderPanel();
     expect(within(row('broken')).getByText('fatal: not a git repository')).toBeTruthy();
