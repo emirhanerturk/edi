@@ -3,6 +3,7 @@ import os from 'node:os';
 import { basename, resolve } from 'node:path';
 import { type BrowserWindow, dialog, ipcMain } from 'electron';
 import { listPs } from '../procs.js';
+import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
 import type { AppState, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
 import { GitOps } from './gitOps.js';
@@ -38,6 +39,7 @@ export class AppCore {
   private processTimer: NodeJS.Timeout | null = null;
   private pollingProcesses = false;
   private tabsSent = '';
+  private serversSent = '[]';
   private layoutTimer: NodeJS.Timeout | null = null;
 
   private constructor(
@@ -236,12 +238,21 @@ export class AppCore {
     try {
       const [ps, pids] = await Promise.all([listPs(), listClaudePids()]);
 
-      const tabs = tabStates(this.ptyInfos(), ps, new Set(pids));
+      const ptys = this.ptyInfos();
+      const tabs = tabStates(ptys, ps, new Set(pids));
       // Yalnız değişince gönderilir: sayfa her üç saniyede boşuna yeniden çizilmez.
       const serialized = JSON.stringify(tabs);
       if (serialized !== this.tabsSent) {
         this.tabsSent = serialized;
         this.send('tabs', tabs);
+      }
+
+      // Terminallerde dinlemeye açılmış localhost portları; yalnız değişince gönderilir.
+      const servers = await listServers(ptys, ps);
+      const serversJson = JSON.stringify(servers);
+      if (serversJson !== this.serversSent) {
+        this.serversSent = serversJson;
+        this.send('servers', servers);
       }
 
       const sessions = await listClaudeSessions(ps, pids);

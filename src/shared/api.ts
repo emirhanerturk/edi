@@ -97,6 +97,15 @@ export interface TabState {
   busy: boolean;
 }
 
+/** Bir edi terminalinde dinlemeye açılmış localhost portu. */
+export interface ServerInfo {
+  tabId: number;
+  port: number;
+  pid: number;
+  /** Dinleyen sürecin çalışma dizini; okunamadıysa null. */
+  cwd: string | null;
+}
+
 /** Ana sürecin sayfaya kendiliğinden gönderdiği olaylar. */
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
@@ -104,6 +113,7 @@ export interface EdiEvents {
   'pty:data': [id: number, data: string];
   'pty:exit': [id: number];
   tabs: [tabs: TabState[]];
+  servers: [servers: ServerInfo[]];
 }
 
 /** Sayfaya `window.edi` olarak verilen köprü. Görevler ilerledikçe büyür. */
