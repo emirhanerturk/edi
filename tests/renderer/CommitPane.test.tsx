@@ -69,6 +69,8 @@ describe('CommitPane', () => {
     const { onOpenUrl } = renderPane({ ok: true, commit: detail(), webUrl: url });
     const link = within(screen.getByTestId('commit-meta')).getByRole('button', { name: 'Open on GitHub' });
     expect(link.title).toBe(url);
+    // The GitHub button is the last one in the row, after the hash.
+    expect(link.parentElement!.lastElementChild).toBe(link);
     fireEvent.click(link);
     expect(onOpenUrl).toHaveBeenCalledWith(url);
     cleanup();

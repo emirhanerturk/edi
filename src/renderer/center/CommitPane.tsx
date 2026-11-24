@@ -101,16 +101,16 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
               onExpand={() => setCollapsed(() => new Set())}
             />
           )}
+          <button className="commit-copy" aria-label={`Copy hash ${commit.short}`} title="Copy hash" onClick={onCopy}>
+            <span className="mono">{commit.short}</span>
+            <CopyIcon size={12} />
+          </button>
           {result.webUrl && (
             <button className="commit-copy commit-web" aria-label="Open on GitHub" title={result.webUrl} onClick={() => onOpenUrl(result.webUrl!)}>
               <span>GitHub</span>
               <ExternalIcon size={12} />
             </button>
           )}
-          <button className="commit-copy" aria-label={`Copy hash ${commit.short}`} title="Copy hash" onClick={onCopy}>
-            <span className="mono">{commit.short}</span>
-            <CopyIcon size={12} />
-          </button>
         </div>
       </header>
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
