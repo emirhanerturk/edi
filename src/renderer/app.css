@@ -100,6 +100,13 @@
   font-size: 11px;
 }
 
+/* Time left until the reset, fainter than the reset time; it sits right after it. */
+.usage-left {
+  margin-left: -2px;
+  color: #6b717c;
+  font-size: 11px;
+}
+
 .usage-window[data-level='warn'] .usage-fill {
   background: var(--yellow);
 }

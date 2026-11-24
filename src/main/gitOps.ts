@@ -1,4 +1,5 @@
 import { commit, createBranch, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
+import { type UnpushedResult, readUnpushed, undoLastCommit } from '../git/unpushed.js';
 import { getStatus } from '../git/status.js';
 import type { BranchList, GitOp, OpResult } from '../shared/api.js';
 import type { Workspace } from './workspace.js';
@@ -16,6 +17,8 @@ export function busyLabel(op: GitOp): string {
     case 'switch':
     case 'createBranch':
       return 'Switching…';
+    case 'undoCommit':
+      return 'Undoing commit…';
     default:
       return 'Working…';
   }
@@ -43,6 +46,8 @@ function isValidOp(op: unknown): op is GitOp {
     case 'switch':
     case 'createBranch':
       return typeof o.branch === 'string';
+    case 'undoCommit':
+      return typeof o.oid === 'string';
     default:
       return false;
   }
@@ -89,6 +94,12 @@ export class GitOps {
     return listBranches(repo.path);
   }
 
+  async unpushed(repoPath: unknown): Promise<UnpushedResult> {
+    const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
+    if (!repo) return { ok: false, error: 'Unknown repository' };
+    return readUnpushed(repo.path);
+  }
+
   private async execute(repo: string, op: GitOp): Promise<OpResult> {
     switch (op.op) {
       case 'stage':
@@ -121,6 +132,8 @@ export class GitOps {
         return switchBranch(repo, op.branch);
       case 'createBranch':
         return createBranch(repo, op.branch);
+      case 'undoCommit':
+        return undoLastCommit(repo, op.oid);
     }
   }
 

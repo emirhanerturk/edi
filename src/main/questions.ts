@@ -40,3 +40,30 @@ export function discardQuestion(name: string): Question {
     cancelId: 1,
   };
 }
+
+/** Before undoing the newest unpushed commit. */
+export function undoCommitQuestion(subject: string): Question {
+  const short = subject.length > 60 ? `${subject.slice(0, 59)}…` : subject;
+  return {
+    type: 'warning',
+    message: `Undo the commit "${short}"?`,
+    detail: 'The commit is removed from the branch. Its changes stay, staged, so you can commit them again.',
+    buttons: ['Undo commit', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}
+
+const unsavedLine = (count: number) => `${plural(count, 'open file has', 'open files have')} unsaved changes. They will be lost.`;
+
+/** Before moving a file or folder from the Files tab to the Trash. */
+export function trashQuestion(name: string, isDir: boolean, unsavedFiles: number): Question {
+  const lines = [isDir ? 'The folder and everything in it go to the Trash. You can restore them from there.' : 'You can restore it from the Trash.'];
+  if (unsavedFiles > 0) lines.push(unsavedLine(unsavedFiles));
+  return { type: 'warning', message: `Move "${name}" to the Trash?`, detail: lines.join(' '), buttons: ['Move to Trash', 'Cancel'], defaultId: 0, cancelId: 1 };
+}
+
+/** Before renaming a file or folder whose open tabs have unsaved edits (the tabs reload from disk). */
+export function renameQuestion(name: string, unsavedFiles: number): Question {
+  return { type: 'warning', message: `Rename "${name}"?`, detail: unsavedLine(unsavedFiles), buttons: ['Rename', 'Cancel'], defaultId: 0, cancelId: 1 };
+}

@@ -64,8 +64,14 @@
   color: var(--muted);
 }
 
-.tree-row.file .tree-icon {
+.tree-row.file .tree-icon,
+.tree-row .tree-icon.folder {
   color: #636d83;
+}
+
+.tree-spacer {
+  flex: none;
+  width: 11px;
 }
 
 .tree-name {
@@ -92,4 +98,44 @@
 
 .tree-note.error {
   color: var(--red);
+}
+
+/* New File / New Folder on repo and folder rows: shown on hover or keyboard focus. */
+.tree-actions {
+  display: none;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.tree-row:hover .tree-actions,
+.tree-row:focus-within .tree-actions {
+  display: flex;
+}
+
+/* The badge stays at the right edge; with the buttons showing it sits after them. */
+.tree-actions + .tree-badge {
+  margin-left: 4px;
+}
+
+/* The inline name field for new entries and renames. */
+.tree-name-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--input);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.tree-name-input:focus {
+  border-color: var(--muted);
+}
+
+.tree-row.name-input-row:hover {
+  background: none;
 }

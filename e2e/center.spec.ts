@@ -290,7 +290,12 @@ test('an image opened from the Files tab is previewed; the video URL serves byte
 async function editorLines(page: Page): Promise<string[]> {
   return page.locator('[data-testid="file-editor"] .view-line').evaluateAll((lines) =>
     lines
-      .map((line) => ({ top: parseFloat((line as HTMLElement).style.top), text: (line.textContent ?? '').replace(/ /g, ' ') }))
+      .map((line) => {
+        // The muted "who changed this line" note isn't part of the text.
+        const copy = line.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll('.edi-line-note').forEach((note) => note.remove());
+        return { top: parseFloat((line as HTMLElement).style.top), text: (copy.textContent ?? '').replace(/\u00a0/g, ' ') };
+      })
       .sort((a, b) => a.top - b.top)
       .map((line) => line.text),
   );
@@ -451,6 +456,108 @@ test('quitting with unsaved edits asks first', async () => {
     await app.evaluate(({ dialog }) => {
       (dialog as unknown as { showMessageBox: unknown }).showMessageBox = async () => ({ response: 0, checkboxChecked: false });
     });
+    await app.close();
+  }
+});
+
+test('the editor marks lines changed since HEAD and says who last changed the cursor line', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await writeFile(join(repo, 'app.ts'), 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n');
+  await git(repo, 'add', '-A');
+  await git(repo, 'commit', '-q', '-m', 'feat: four constants');
+  // Line 2 changed, a line added after line 3, line 4 removed.
+  await writeFile(join(repo, 'app.ts'), 'const a = 1;\nconst b = 20;\nconst c = 3;\nconst e = 5;\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await openFromFiles(page, 'alpha', 'app.ts');
+    const editor = page.getByTestId('file-editor');
+    await expect.poll(() => editorLines(page)).toEqual(['const a = 1;', 'const b = 20;', 'const c = 3;', 'const e = 5;', '']);
+    await expect(editor.locator('.edi-change-modified')).toHaveCount(2);
+    await expect(editor.locator('.edi-change-added')).toHaveCount(0);
+
+    // A new line above an unchanged one is added.
+    // (Clicking a line number selects the line: the cursor goes to the start of the file instead.)
+    await editor.locator('.view-lines').click();
+    await page.keyboard.press('Meta+ArrowUp');
+    await page.keyboard.type('const z = 0;');
+    await page.keyboard.press('Enter');
+    await expect(editor.locator('.edi-change-added')).toHaveCount(1);
+
+    // The cursor's line: a muted note with the author, when and the commit subject.
+    await clickLine(page, 2);
+    const note = editor.locator('.edi-line-note');
+    // Monaco draws the note's spaces as no-break spaces.
+    const noteText = () => note.evaluate((el) => (el.textContent ?? '').replace(/\u00a0/g, ' ').trim()).catch(() => '');
+    await expect.poll(noteText).toContain('Test, just now · feat: four constants');
+    await clickLine(page, 3);
+    await expect.poll(noteText).toContain('Not committed yet');
+    await clickLine(page, 1);
+    await expect.poll(noteText).toContain('Not committed yet');
+
+    // Clicking the note opens the commit; the file tab stays.
+    await clickLine(page, 2);
+    await expect.poll(noteText).toContain('feat: four constants');
+    await note.click();
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'commit');
+    await expect(page.locator('.commit-title')).toContainText('four constants');
+    await expect(centerTabs(page)).toHaveCount(2);
+  } finally {
+    await app.close();
+  }
+});
+
+/**
+ * Puts the cursor on a line (Monaco doesn't keep its line elements in order). Clicking a line number
+ * selects the line, ending at the next one; Left moves the cursor back to the line's start.
+ */
+async function clickLine(page: Page, line: number) {
+  await page.getByTestId('file-editor').locator('.line-numbers').getByText(String(line), { exact: true }).click();
+  await page.keyboard.press('ArrowLeft');
+}
+
+test('a new untitled file: ⌘N or +, typed, saved through the Save panel into a repo, then a normal file tab', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  const { app, page } = await launch({ openDir: dir });
+  const savePanelReturns = (filePath: string) =>
+    app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = (async () => ({ canceled: false, filePath: path })) as typeof dialog.showSaveDialog;
+    }, filePath);
+  try {
+    // ⌘N works with the center panel closed.
+    await page.locator('body').click();
+    await page.keyboard.press('Meta+n');
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'untitled');
+    await expect(centerTabs(page)).toHaveText(['Untitled-1']);
+    await page.getByTestId('new-untitled').click();
+    await expect(centerTabs(page)).toHaveText(['Untitled-1', 'Untitled-2']);
+
+    const editor = page.getByTestId('file-editor');
+    await editor.locator('.view-lines').click();
+    await page.keyboard.type('# Notes');
+    await expect(centerTabs(page).nth(1)).toHaveAttribute('data-unsaved', 'true');
+
+    // Outside every repo: refused, the text stays.
+    await savePanelReturns(join(dir, 'loose.md'));
+    await page.keyboard.press('Meta+s');
+    await expect(page.locator('.edit-bar')).toContainText('Save it inside one of the repositories in this folder');
+    await expect.poll(() => editorLines(page)).toEqual(['# Notes']);
+
+    await savePanelReturns(join(repo, 'notes.md'));
+    await page.keyboard.press('Meta+s');
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
+    // A new, untracked file: its tab carries the "?" mark.
+    await expect(centerTabs(page)).toHaveText(['Untitled-1', '?notes.md']);
+    await expect(centerTabs(page).nth(1)).not.toHaveAttribute('data-unsaved', 'true');
+    expect(await readFile(join(repo, 'notes.md'), 'utf8')).toBe('# Notes');
+    await expect.poll(() => editorLines(page)).toEqual(['# Notes']);
+
+    // An empty untitled tab closes without asking.
+    await centerTabs(page).first().click();
+    await centerTabs(page).first().getByRole('button', { name: 'Close tab' }).click();
+    await expect(centerTabs(page)).toHaveText(['?notes.md']);
+  } finally {
     await app.close();
   }
 });

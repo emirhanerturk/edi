@@ -1,5 +1,5 @@
 // Lists and reads files in the working tree. Read-only; doesn't depend on Electron.
-import { constants } from 'node:fs';
+import { type Dirent, constants } from 'node:fs';
 import { chmod, open, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { mediaOf } from '../shared/media.js';
@@ -16,17 +16,49 @@ const split = (stdout: string) => stdout.split('\0').filter((path) => path !== '
  * folder is a single entry ending in `/`, and its contents aren't listed (e.g. `node_modules/`).
  */
 export async function listFiles(repo: string): Promise<FileList> {
-  const [present, deleted, ignored] = await Promise.all([
+  const [present, deleted, ignored, untrackedDirs] = await Promise.all([
     runGit(repo, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']),
     runGit(repo, ['ls-files', '-z', '--deleted']),
     runGit(repo, ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory']),
+    runGit(repo, ['ls-files', '-z', '--others', '--exclude-standard', '--directory']),
   ]);
   if (!present.ok) return { ok: false, error: present.error };
   if (!deleted.ok) return { ok: false, error: deleted.error };
   if (!ignored.ok) return { ok: false, error: ignored.error };
   const gone = new Set(split(deleted.stdout));
   const files = [...new Set(split(present.stdout))].filter((path) => !gone.has(path));
-  return { ok: true, files: files.sort(), ignored: split(ignored.stdout).sort() };
+  const ignoredList = split(ignored.stdout).sort();
+  const dirs = untrackedDirs.ok ? await emptyDirs(repo, split(untrackedDirs.stdout), files, ignoredList) : [];
+  return { ok: true, files: files.sort(), ignored: ignoredList, dirs };
+}
+
+/** At most this many empty folders are looked for: they are only there to show a just-made folder. */
+const MAX_EMPTY_DIRS = 200;
+
+/**
+ * Untracked folders (`dir/` from `ls-files --directory`) with no listed file inside them, and the
+ * folders below them: git collapses `a/b/` into `a/`.
+ */
+async function emptyDirs(repo: string, untracked: string[], files: string[], ignored: string[]): Promise<string[]> {
+  const result: string[] = [];
+  const holdsFiles = (dir: string) => [...files, ...ignored].some((path) => path.startsWith(`${dir}/`));
+  const walk = async (dir: string): Promise<void> => {
+    if (result.length >= MAX_EMPTY_DIRS) return;
+    result.push(dir);
+    let entries: Dirent[];
+    try {
+      entries = await readdir(join(repo, dir), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) if (entry.isDirectory() && !isGitDir(entry.name)) await walk(`${dir}/${entry.name}`);
+  };
+  for (const entry of untracked) {
+    if (!entry.endsWith('/')) continue;
+    const dir = entry.slice(0, -1);
+    if (!holdsFiles(dir)) await walk(dir);
+  }
+  return result.sort();
 }
 
 /** Files larger than this aren't shown. */
@@ -36,10 +68,10 @@ const SNIFF_BYTES = 8000;
 
 export const OUTSIDE = 'File is outside the repository';
 
-const isGitDir = (segment: string | undefined) => segment?.toLowerCase() === '.git';
+export const isGitDir = (segment: string | undefined) => segment?.toLowerCase() === '.git';
 
 /** Whether the path is syntactically inside the repo: relative, no `..`, not into `.git`. Doesn't check the disk. */
-function staysInside(relPath: unknown): relPath is string {
+export function staysInside(relPath: unknown): relPath is string {
   if (typeof relPath !== 'string' || relPath === '' || relPath.includes('\0') || isAbsolute(relPath)) return false;
   const segments = relPath.split('/');
   // A nested repo's .git folder (vendor/tool/.git/config) is off-limits too.

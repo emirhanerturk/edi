@@ -163,3 +163,47 @@ test('the branch menu is not clipped at the panel edge; New branch stays visible
     await app.close();
   }
 });
+
+test('unpushed commits are listed under the repo; one opens in the commit view, the newest can be undone', async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  await addRemote(alpha);
+  await git(alpha, 'push', '-q', '-u', 'origin', 'main');
+  for (const name of ['one', 'two']) {
+    await writeFile(join(alpha, `${name}.txt`), `${name}\n`);
+    await git(alpha, 'add', '-A');
+    await git(alpha, 'commit', '-q', '-m', `feat: ${name}`);
+  }
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await page.getByTestId('repo-toggle').click();
+    const rows = page.getByTestId('unpushed-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('feat: two');
+    await expect(page.getByTestId('undo-commit')).toHaveCount(1);
+
+    await rows.nth(1).click();
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'commit');
+    await expect(page.locator('.commit-title')).toContainText('feat: one');
+
+    // Cancel at the question: nothing happens.
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = (async () => ({ response: 1, checkboxChecked: false })) as typeof dialog.showMessageBox;
+    });
+    await page.getByTestId('undo-commit').click();
+    await page.waitForTimeout(300);
+    expect((await git(alpha, 'log', '-1', '--format=%s')).trim()).toBe('feat: two');
+
+    // Confirm: the commit is gone, its file is staged again.
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as typeof dialog.showMessageBox;
+    });
+    await page.getByTestId('undo-commit').click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('feat: one');
+    expect((await git(alpha, 'log', '-1', '--format=%s')).trim()).toBe('feat: one');
+    await expect(page.locator('[data-testid="file-row"][data-group="staged"][data-path="two.txt"]')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});

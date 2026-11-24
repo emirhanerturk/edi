@@ -187,4 +187,15 @@ describe('initiallyCollapsed', () => {
     expect([...initiallyCollapsed([play, big, edge])]).toEqual(['lib/big.ts']);
     expect([...initiallyCollapsed(many)]).toEqual(['f7.ts', 'f8.ts', 'f9.ts']);
   });
+
+  it("each file's header has a button that opens the file, without folding it; a deleted file has none", () => {
+    const gone = file('lib/old.ts', '@@ -1,1 +0,0 @@\n-old\n', { letter: 'D' });
+    const { onOpenFile } = renderPane({ ok: true, commit: detail({ files: [play, gone] }) }, { onOpenFile: vi.fn() });
+    const [first, second] = sections();
+    const head = within(first!).getByTestId('commit-file-head');
+    fireEvent.click(within(first!).getByRole('button', { name: 'Open play.tsx' }));
+    expect(onOpenFile).toHaveBeenCalledWith('app/game/[gameId]/play.tsx');
+    expect(head.getAttribute('aria-expanded')).toBe('true');
+    expect(within(second!).queryByRole('button', { name: /^Open / })).toBeNull();
+  });
 });

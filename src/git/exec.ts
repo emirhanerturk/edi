@@ -1,4 +1,5 @@
 import { type ChildProcessByStdio, spawn } from 'node:child_process';
+import type { Writable } from 'node:stream';
 import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -14,6 +15,8 @@ export interface RunGitOptions {
   maxOutput?: number;
   /** Extra environment variables (e.g. `GIT_NO_LAZY_FETCH`). */
   env?: Record<string, string>;
+  /** Written to git's stdin (e.g. `blame --contents -`); without it stdin is closed. */
+  input?: string;
 }
 
 export const OUTPUT_TOO_LARGE = 'Output too large';
@@ -50,7 +53,7 @@ function gitEnv(cwd: string, extra: Record<string, string> = {}): NodeJS.Process
  * the terminal to ask for a password, so they fail instead of asking.
  */
 export async function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): Promise<GitResult> {
-  const { timeoutMs = 15000, okCodes = [0], maxOutput = Infinity, env: extraEnv } = opts;
+  const { timeoutMs = 15000, okCodes = [0], maxOutput = Infinity, env: extraEnv, input } = opts;
 
   // With a missing cwd, spawn reports "spawn git ENOENT", which reads as if git weren't installed.
   const isDir = await stat(cwd).then((s) => s.isDirectory(), () => false);
@@ -74,9 +77,18 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
       resolve(result);
     };
 
-    let child: ChildProcessByStdio<null, Readable, Readable>;
+    let child: ChildProcessByStdio<Writable | null, Readable, Readable>;
     try {
-      child = spawn('git', args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: gitEnv(cwd, extraEnv) });
+      child = spawn('git', args, { cwd, detached: true, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], env: gitEnv(cwd, extraEnv) }) as ChildProcessByStdio<
+        Writable | null,
+        Readable,
+        Readable
+      >;
+      if (input !== undefined && child.stdin) {
+        // git may exit before reading everything (an error): a broken pipe isn't an error of its own.
+        child.stdin.on('error', () => undefined);
+        child.stdin.end(input);
+      }
     } catch (err) {
       // E.g. an argument containing NUL: spawn throws synchronously.
       finish({ ok: false, error: err instanceof Error ? err.message : String(err), stdout: '' });

@@ -1,15 +1,16 @@
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
 import { basename, resolve } from 'node:path';
-import { type BrowserWindow, dialog, ipcMain, protocol } from 'electron';
+import { type BrowserWindow, Menu, dialog, ipcMain, protocol, shell } from 'electron';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
 import { serveMedia } from './media.js';
-import { type BusyKind, type Question, busyQuestion, discardQuestion } from './questions.js';
+import { type BusyKind, type Question, busyQuestion, discardQuestion, undoCommitQuestion } from './questions.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, ClaudeUsage, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
+import type { AppState, ClaudeUsage, EdiEvents, FilesMenuAction, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
+import { FileOps, type MenuItem } from './fileOps.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
@@ -35,6 +36,7 @@ export class AppCore {
   readonly ptys: PtyManager;
   readonly gitOps: GitOps;
   readonly viewOps: ViewOps;
+  private readonly fileOps: FileOps;
   readonly historyOps: HistoryOps;
   private state: Persisted;
   /** Open files with unsaved edits, as the page last reported. */
@@ -58,6 +60,18 @@ export class AppCore {
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
     this.gitOps = new GitOps(this.workspace);
     this.viewOps = new ViewOps(this.workspace);
+    this.fileOps = new FileOps(this.workspace, {
+      ask: (question) => this.ask(question),
+      trash: (target) => shell.trashItem(target),
+      reveal: (target) => shell.showItemInFolder(target),
+      menu: (items) => this.popup(items),
+      choosePath: async (defaultPath) => {
+        const win = this.getWindow();
+        const options = { defaultPath, properties: ['createDirectory' as const, 'showOverwriteConfirmation' as const] };
+        const result = await (win && !win.isDestroyed() ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options));
+        return result.canceled || !result.filePath ? null : result.filePath;
+      },
+    });
     this.historyOps = new HistoryOps(this.workspace);
     this.ptys = new PtyManager({
       shell: process.env.EDI_SHELL,
@@ -119,6 +133,31 @@ export class AppCore {
     const busy = await this.busyTerminals().catch(() => 0);
     const question = busyQuestion(kind, busy, this.unsavedFiles);
     return question === null || (await this.ask(question));
+  }
+
+  /** A native context menu at the mouse; resolves with the picked item's id, or null when it closes without one. */
+  private popup(items: MenuItem[]): Promise<FilesMenuAction | null> {
+    return new Promise((resolve) => {
+      let picked = false;
+      const menu = Menu.buildFromTemplate(
+        items.map((item) =>
+          item.id === null
+            ? { type: 'separator' as const }
+            : {
+                label: item.label,
+                click: () => {
+                  picked = true;
+                  resolve(item.id);
+                },
+              },
+        ),
+      );
+      const win = this.getWindow();
+      // The click handler can run just after the close callback: wait a moment before reporting "nothing".
+      const callback = () => setTimeout(() => !picked && resolve(null), 100);
+      if (win && !win.isDestroyed()) menu.popup({ window: win, callback });
+      else resolve(null);
+    });
   }
 
   /** Shows a native question; true if the first (confirm) button was picked. */
@@ -193,13 +232,25 @@ export class AppCore {
     ipcMain.handle('git:run', (_event, repoPath: unknown, op: unknown) => this.gitOps.run(repoPath as string, op as GitOp));
     ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
+    ipcMain.handle('git:unpushed', (_event, repoPath: unknown) => this.gitOps.unpushed(repoPath));
     // Read-only view operations: paths are validated in ViewOps.
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
     ipcMain.on('edits:unsaved', (_event, count: unknown) => {
       this.unsavedFiles = typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : 0;
     });
+    ipcMain.handle('git:confirmUndo', (_event, subject: unknown) => this.ask(undoCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
+    ipcMain.handle('files:create', (_event, repoPath: unknown, path: unknown, kind: unknown) => this.fileOps.create(repoPath, path, kind));
+    ipcMain.handle('files:rename', (_event, repoPath: unknown, path: unknown, name: unknown, unsaved: unknown) =>
+      this.fileOps.rename(repoPath, path, name, unsaved),
+    );
+    ipcMain.handle('files:trash', (_event, repoPath: unknown, path: unknown, unsaved: unknown) => this.fileOps.trash(repoPath, path, unsaved));
+    ipcMain.handle('files:reveal', (_event, repoPath: unknown, path: unknown) => this.fileOps.reveal(repoPath, path));
+    ipcMain.handle('files:menu', (_event, kind: unknown) => this.fileOps.menu(kind));
+    ipcMain.handle('files:saveNew', (_event, text: unknown, repoPath: unknown) => this.fileOps.saveNew(text, repoPath));
+    ipcMain.handle('view:headText', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.headText(repoPath, filePath));
+    ipcMain.handle('view:blame', (_event, repoPath: unknown, filePath: unknown, text: unknown) => this.viewOps.blame(repoPath, filePath, text));
     ipcMain.handle('view:write', (_event, repoPath: unknown, filePath: unknown, text: unknown, expected: unknown) =>
       this.viewOps.writeFile(repoPath, filePath, text, expected),
     );

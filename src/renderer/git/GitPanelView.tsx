@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
-import type { FileChange } from '../../git/types';
-import type { BranchList, GitOp, RepoView } from '../../shared/api';
+import { Undo2 } from 'lucide-react';
+import { type ReactNode, useEffect, useState } from 'react';
+import type { CommitSummary, FileChange } from '../../git/types';
+import type { BranchList, GitOp, RepoView, UnpushedResult } from '../../shared/api';
+import { shortAgo } from '../history/time';
 import {
   ArrowDown,
   ArrowUp,
@@ -54,6 +56,12 @@ export interface GitPanelProps {
   onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
   /** The file open in the center panel; its row shows as selected. */
   selected?: { repoPath: string; path: string } | null;
+  /** The branch's commits its upstream doesn't have; read when the repo is ahead. */
+  loadUnpushed?(repoPath: string): Promise<UnpushedResult>;
+  /** An unpushed commit was clicked: a single click previews, a double click opens a permanent tab. */
+  onOpenCommit?(repoPath: string, oid: string, pin: boolean): void;
+  /** "Undo commit" on the newest unpushed commit (the caller asks first). */
+  onUndoCommit?(repoPath: string, commit: CommitSummary): void;
 }
 
 const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
@@ -85,6 +93,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
     openInZed: (file: FileChange) => props.onOpenInZed?.(repo.path, file.path),
+    repoPath: repo.path,
   };
 
   if (!status) {
@@ -203,6 +212,17 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
           <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
           <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
           {count === 0 && <p className="repo-clean">No changes</p>}
+          {repo.status && repo.status.upstream !== null && (repo.status.ahead ?? 0) > 0 && (
+            <UnpushedGroup
+              repoPath={repo.path}
+              headOid={repo.status.headOid}
+              ahead={repo.status.ahead ?? 0}
+              busy={busy}
+              load={props.loadUnpushed}
+              onOpen={(oid, pin) => props.onOpenCommit?.(repo.path, oid, pin)}
+              onUndo={(commit) => props.onUndoCommit?.(repo.path, commit)}
+            />
+          )}
         </div>
       )}
     </div>
@@ -270,16 +290,58 @@ interface FileGroupProps {
   selectedPath: string | null;
   /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
   blocked?: boolean;
+  repoPath: string;
 }
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath }: FileGroupProps) {
+/** Collapsed file groups, by repo and group, for the session: the panel redraws on every status poll. */
+const collapsedGroups = new Set<string>();
+
+/** A section's collapse state, kept for the session in `collapsedGroups`. */
+function useCollapsed(key: string): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => collapsedGroups.has(key));
+  const toggle = () => {
+    if (collapsed) collapsedGroups.delete(key);
+    else collapsedGroups.add(key);
+    setCollapsed(!collapsed);
+  };
+  return [collapsed, toggle];
+}
+
+/** A section header: clicking it (outside its buttons) collapses or expands the section. */
+function GroupHead(props: { title: string; count: number; collapsed: boolean; onToggle(): void; children?: ReactNode }) {
+  const { collapsed, onToggle } = props;
+  return (
+    <div
+      className="file-group-head"
+      data-testid="file-group-head"
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('button')) return;
+        onToggle();
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        onToggle();
+      }}
+    >
+      {collapsed ? <ChevronRight size={11} strokeWidth={1.9} /> : <ChevronDown size={11} strokeWidth={1.9} />}
+      <span>{props.title}</span>
+      <span className="file-group-count">{props.count}</span>
+      <div className="spacer" />
+      {props.children}
+    </div>
+  );
+}
+
+function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath, repoPath }: FileGroupProps) {
+  const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
   return (
     <div className="file-group">
-      <div className="file-group-head">
-        <span>{title}</span>
-        <span className="file-group-count">{files.length}</span>
-        <div className="spacer" />
+      <GroupHead title={title} count={files.length} collapsed={collapsed} onToggle={toggle}>
         {group === 'staged' && (
           <button
             className="icon-button tiny"
@@ -304,10 +366,82 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, s
             <StageIcon size={12} />
           </button>
         )}
-      </div>
-      {files.map((file) => (
+      </GroupHead>
+      {!collapsed && files.map((file) => (
         <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openInZed={openInZed} selected={file.path === selectedPath} />
       ))}
+    </div>
+  );
+}
+
+interface UnpushedGroupProps {
+  repoPath: string;
+  headOid: string | null;
+  ahead: number;
+  busy: boolean;
+  load?(repoPath: string): Promise<UnpushedResult>;
+  onOpen(oid: string, pin: boolean): void;
+  onUndo(commit: CommitSummary): void;
+}
+
+/** Commits made but not pushed yet, newest first; read again whenever HEAD or the count moves. */
+function UnpushedGroup({ repoPath, headOid, ahead, busy, load, onOpen, onUndo }: UnpushedGroupProps) {
+  const [collapsed, toggle] = useCollapsed(`${repoPath}\nunpushed`);
+  const [list, setList] = useState<{ commits: CommitSummary[]; canUndo: boolean } | null>(null);
+  useEffect(() => {
+    if (!load) return;
+    let current = true;
+    load(repoPath).then(
+      (result) => current && setList(result.ok ? { commits: result.commits, canUndo: result.canUndo } : null),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [load, repoPath, headOid, ahead]);
+  const now = Date.now();
+  return (
+    <div className="file-group">
+      <GroupHead title="UNPUSHED" count={ahead} collapsed={collapsed} onToggle={toggle} />
+      {!collapsed &&
+        list?.commits.map((commit, index) => (
+          <div
+            key={commit.oid}
+            className="file-row unpushed-row"
+            data-testid="unpushed-row"
+            title={`${commit.short} ${commit.subject}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(commit.oid, false)}
+            onDoubleClick={() => onOpen(commit.oid, true)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              onOpen(commit.oid, false);
+            }}
+          >
+            <span className="file-name">{commit.subject}</span>
+            <span className="file-dir mono">{commit.short}</span>
+            <span className="unpushed-time">{shortAgo(commit.date, now)}</span>
+            {index === 0 && list.canUndo && (
+              <button
+                className="icon-button tiny"
+                data-testid="undo-commit"
+                aria-label={`Undo commit ${commit.subject}`}
+                title="Undo commit (its changes come back staged)"
+                disabled={busy}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUndo(commit);
+                }}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <Undo2 size={12} strokeWidth={1.8} />
+              </button>
+            )}
+          </div>
+        ))}
     </div>
   );
 }

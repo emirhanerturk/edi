@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FoldIcon } from '../components/icons';
+import { ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -39,10 +39,12 @@ export interface CommitPaneProps {
   onCopy(): void;
   /** Opens the commit's GitHub page in the browser. */
   onOpenUrl(url: string): void;
+  /** Opens a changed file (as it is now) in the file view. Must be stable: the file sections are memoized. */
+  onOpenFile?(path: string): void;
 }
 
 /** A commit: subject, body, details and the diff of every changed file, one below the other. */
-export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl }: CommitPaneProps) {
+export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile }: CommitPaneProps) {
   const commitOrNull = result?.ok ? result.commit : null;
   // Collapsed files are kept here: the "expand/collapse all" button in the header changes them too.
   // Switching to another commit starts over, with those over 400 lines collapsed.
@@ -114,7 +116,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
         </div>
       </header>
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
-      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onToggle={(path) =>
+      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onOpenFile={onOpenFile} onToggle={(path) =>
           setCollapsed((prev) => {
             const next = new Set(prev);
             if (next.has(path)) next.delete(path);
@@ -143,9 +145,10 @@ interface CommitFilesProps {
   countsOnly: boolean;
   collapsed: Set<string>;
   onToggle(path: string): void;
+  onOpenFile?(path: string): void;
 }
 
-function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle }: CommitFilesProps) {
+function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile }: CommitFilesProps) {
   if (files.length === 0) return <ViewNote>No file changes</ViewNote>;
   return (
     <div className="commit-files mono">
@@ -156,6 +159,7 @@ function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle }: CommitF
           open={countsOnly ? null : !collapsed.has(file.path)}
           tokens={tokens.get(file.path) ?? null}
           onToggle={onToggle}
+          onOpenFile={onOpenFile}
         />
       ))}
     </div>
@@ -169,40 +173,50 @@ const CommitFileSection = memo(function CommitFileSection({
   open,
   tokens,
   onToggle,
+  onOpenFile,
 }: {
   file: CommitFile;
   open: boolean | null;
   tokens: DiffTokens | null;
   onToggle(path: string): void;
+  onOpenFile?(path: string): void;
 }) {
   const slash = file.path.lastIndexOf('/');
   const showsLines = !file.diff.binary && (file.diff.hunks.length > 0 || open === null);
   return (
     <section className="commit-file" data-testid="commit-file">
-      <button
-        className="commit-file-head"
-        data-testid="commit-file-head"
-        aria-expanded={open ?? undefined}
-        onClick={open === null ? undefined : () => onToggle(file.path)}
-      >
-        {open === null ? <span className="commit-file-spacer" /> : open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
-        <span className="commit-file-letter" style={{ color: letterColor(file.letter) }}>
-          {file.letter}
-        </span>
-        <span className="commit-file-path">
-          {slash !== -1 && file.path.slice(0, slash + 1)}
-          <span className="commit-file-name">{file.path.slice(slash + 1)}</span>
-        </span>
-        {file.origPath !== null && showsLines && open !== null && <span className="commit-file-from">← {file.origPath}</span>}
-        <div className="spacer" />
-        {showsLines && (
-          <span>
-            {file.diff.added > 0 && <span className="add">+{file.diff.added}</span>}
-            {file.diff.added > 0 && file.diff.removed > 0 && ' '}
-            {file.diff.removed > 0 && <span className="del">−{file.diff.removed}</span>}
+      <div className="commit-file-bar">
+        <button
+          className="commit-file-head"
+          data-testid="commit-file-head"
+          aria-expanded={open ?? undefined}
+          onClick={open === null ? undefined : () => onToggle(file.path)}
+        >
+          {open === null ? <span className="commit-file-spacer" /> : open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
+          <span className="commit-file-letter" style={{ color: letterColor(file.letter) }}>
+            {file.letter}
           </span>
+          <span className="commit-file-path">
+            {slash !== -1 && file.path.slice(0, slash + 1)}
+            <span className="commit-file-name">{file.path.slice(slash + 1)}</span>
+          </span>
+          {file.origPath !== null && showsLines && open !== null && <span className="commit-file-from">← {file.origPath}</span>}
+          <div className="spacer" />
+          {showsLines && (
+            <span>
+              {file.diff.added > 0 && <span className="add">+{file.diff.added}</span>}
+              {file.diff.added > 0 && file.diff.removed > 0 && ' '}
+              {file.diff.removed > 0 && <span className="del">−{file.diff.removed}</span>}
+            </span>
+          )}
+        </button>
+        {/* A file the commit deleted may not be there any more. */}
+        {onOpenFile && file.letter !== 'D' && (
+          <button className="icon-button tiny commit-file-open" aria-label={`Open ${file.path.slice(slash + 1)}`} title="Open file" onClick={() => onOpenFile(file.path)}>
+            <FileIcon size={12} />
+          </button>
         )}
-      </button>
+      </div>
       {open === true && <CommitFileBody file={file} tokens={tokens} />}
     </section>
   );

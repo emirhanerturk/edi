@@ -5,7 +5,10 @@ import {
   EMPTY_CENTER,
   activateCenterTab,
   closeCenterTab,
+  moveFileTabs,
   openTarget,
+  openUntitled,
+  replaceCenterTab,
   pinCenterTab,
   setPanelOpen,
   syncCenter,
@@ -168,5 +171,74 @@ describe('commit tabs', () => {
   it('a commit tab closes too when its repo vanishes', () => {
     const s = openTarget(EMPTY_CENTER, commit('a'.repeat(40), '/w/gone'), true);
     expect(syncCenter(s, '/w', '/w', ['/w/a']).tabs).toEqual([]);
+  });
+});
+
+describe('moveFileTabs', () => {
+  const file = (path: string, repoPath = '/r'): CenterTarget => ({ kind: 'file', repoPath, path });
+  const start = () => {
+    let s = openTarget(EMPTY_CENTER, file('src/a.ts'), true);
+    s = openTarget(s, file('src/deep/b.ts'), true);
+    s = openTarget(s, { kind: 'diff', repoPath: '/r', path: 'src/a.ts' }, true);
+    s = openTarget(s, file('srcx/c.ts'), true);
+    s = openTarget(s, file('src/a.ts', '/other'), true);
+    return activateCenterTab(s, tabId(file('src/deep/b.ts')));
+  };
+
+  it('a renamed folder moves the file tabs inside it, in place; the active one stays active', () => {
+    const s = moveFileTabs(start(), '/r', 'src', 'lib');
+    expect(s.tabs.map((tab) => tab.id)).toEqual([
+      tabId(file('lib/a.ts')),
+      tabId(file('lib/deep/b.ts')),
+      'diff:/r:src/a.ts',
+      tabId(file('srcx/c.ts')),
+      tabId(file('src/a.ts', '/other')),
+    ]);
+    expect(s.tabs[1]).toMatchObject({ path: 'lib/deep/b.ts', pinned: true });
+    expect(s.active).toBe(tabId(file('lib/deep/b.ts')));
+  });
+
+  it('a deleted file or folder closes its file tabs', () => {
+    const s = moveFileTabs(start(), '/r', 'src', null);
+    expect(s.tabs.map((tab) => tab.id)).toEqual(['diff:/r:src/a.ts', tabId(file('srcx/c.ts')), tabId(file('src/a.ts', '/other'))]);
+    expect(s.active).toBe('diff:/r:src/a.ts');
+  });
+
+  it('a rename onto an open tab of the same file keeps one tab', () => {
+    let s = openTarget(EMPTY_CENTER, file('a.ts'), true);
+    s = openTarget(s, file('A.ts'), true);
+    s = moveFileTabs(s, '/r', 'a.ts', 'A.ts');
+    expect(s.tabs.map((tab) => tab.path)).toEqual(['A.ts']);
+  });
+});
+
+describe('untitled tabs', () => {
+  it('each new one takes the lowest free number, pinned; the repo is only a suggestion for saving', () => {
+    let s = openUntitled(EMPTY_CENTER, '/w/a');
+    s = openUntitled(s, null);
+    expect(brief(s)).toEqual(['untitled:Untitled-1*', 'untitled:Untitled-2*<']);
+    expect(s.tabs.map((tab) => tab.repoPath)).toEqual(['/w/a', '']);
+    s = closeCenterTab(s, s.tabs[0]!.id);
+    s = openUntitled(s, null);
+    expect(brief(s)).toEqual(['untitled:Untitled-2*', 'untitled:Untitled-1*<']);
+  });
+
+  it('they survive repos coming and going, not a folder switch', () => {
+    const s = openUntitled(openTarget(EMPTY_CENTER, diff('x.ts'), true), '/w/a');
+    expect(brief(syncCenter(s, '/w', '/w', []))).toEqual(['untitled:Untitled-1*<']);
+    expect(syncCenter(s, '/w', '/v', [])).toEqual(EMPTY_CENTER);
+  });
+
+  it('once saved, it becomes the file tab in the same place', () => {
+    let s = openUntitled(openTarget(EMPTY_CENTER, diff('x.ts'), true), null);
+    s = openTarget(s, diff('y.ts'), true);
+    s = activateCenterTab(s, s.tabs[1]!.id);
+    s = replaceCenterTab(s, s.tabs[1]!.id, file('notes.md'));
+    expect(brief(s)).toEqual(['diff:x.ts*', 'file:notes.md*<', 'diff:y.ts*']);
+    // Already open elsewhere: the untitled tab just closes, and that tab comes forward.
+    let t = openTarget(openUntitled(EMPTY_CENTER, null), file('notes.md'), true);
+    t = activateCenterTab(t, t.tabs[0]!.id);
+    t = replaceCenterTab(t, t.tabs[0]!.id, file('notes.md'));
+    expect(brief(t)).toEqual(['file:notes.md*<']);
   });
 });

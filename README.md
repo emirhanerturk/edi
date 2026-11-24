@@ -17,17 +17,23 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   stops working and waits for you.
 - **Git tab.** Every repository directly under the open folder, refreshed every two seconds.
   A collapsed row shows the branch, the state and one sync button; an open repository lists
-  conflicted, staged and changed files with a commit box. Stage, unstage, commit, commit and
-  push, pull, push, fetch all, switch and create branches.
+  conflicted, staged and changed files with a commit box; each group folds. Stage, unstage,
+  commit, commit and push, pull, push, fetch all, switch and create branches. Commits not
+  pushed yet are listed under the repository; the newest can be undone (its changes come
+  back staged).
 - **Center panel.** Closed until you open something. Clicking a changed file in the Git tab
   shows its whole change against HEAD (staged and unstaged together), side by side or inline,
   with syntax colors; a new file opens with its content. A single click opens a preview tab
   that the next click reuses, a double click keeps the tab. The open view follows the file
-  as it changes on disk. Open file shows the whole file next to its diff.
+  as it changes on disk. Open file shows the whole file next to its diff. ⌘N (or the + in
+  the tab bar) opens a new untitled file; the first ⌘S asks where to save it.
 - **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
   (an ignored folder is read from disk one level at a time when you open it). Changed files carry
-  their status letter, folders that contain changes a dot. Clicking a file opens it in an editor
-  (Monaco, with the same colors as the diff view); ⌘S saves. If an agent changes the file under
+  their status letter, folders that contain changes a dot; files carry an icon by type. Right-click
+  (or the buttons on a folder row) for New File, New Folder, Rename, Move to Trash and Reveal in
+  Finder. Clicking a file opens it in an editor (Monaco, with the same colors as the diff view,
+  and a minimap); ⌘S saves. Bars in the gutter mark lines changed since HEAD, and the cursor's
+  line shows who changed it last; clicking that opens the commit. If an agent changes the file under
   unsaved edits, a bar offers "Load disk version" or "Keep mine"; closing an edited tab, quitting
   or switching folders asks first. Images and videos open as a preview. Other files over 1 MB and binary files are not shown.
 - **History tab.** The recent commits of every repository's current branch in one timeline,
@@ -124,7 +130,11 @@ preferences:
 
 - **Nothing destructive.** The code never runs `reset --hard`, `checkout -- <path>`,
   `restore` on the working tree, `clean`, a force push, `rebase`, `fetch --prune` or anything
-  with `--no-verify`. There is no discard button.
+  with `--no-verify`. There is no discard button. Undoing a commit is `reset --soft HEAD~1`
+  on a commit that isn't pushed, after asking; nothing in the working tree changes.
+- **Files change only on purpose.** Saving writes only if the disk still holds the text the
+  edit started from. New files and folders, and renames, never replace an existing one.
+  Deleting moves to the macOS Trash, after asking.
 - **Nothing automatic.** No background fetch, pull or push. The network is touched only when
   you press Fetch, Pull, Push or Publish.
 - **The page cannot run commands.** The window is sandboxed and talks to the main process
@@ -133,7 +143,8 @@ preferences:
   list, never free text. A commit message is passed to Git as a single argument.
 - **Reading files stays inside the repository.** The page names a file by its path in a
   discovered repository; the main process resolves symlinks and refuses anything that leads
-  outside it or into any `.git` folder. Viewing never writes. A commit is named by its hex id
+  outside it or into any `.git` folder. Viewing never writes; creating, renaming and trashing
+  go through the same check. A commit is named by its hex id
   and must resolve to a commit in that repository before Git reads it.
 - **One operation per repository at a time.** A second one is refused while the first runs.
 - **Conflicts are resolved elsewhere.** edi shows them and blocks committing; it does not

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { BranchList } from '../../shared/api';
+import type { BranchInfo, BranchList } from '../../shared/api';
 import { BranchIcon, CheckIcon, PlusIcon } from '../components/icons';
+import { age } from '../format';
 import { type Placement, placeMenu } from '../components/placeMenu';
 import { usePopover } from '../components/usePopover';
 
@@ -13,12 +14,25 @@ export interface BranchMenuProps {
 }
 
 /** The menu can be wider than the panel so long branch names (claude/…) fit without truncation. */
-const MENU_SIZE = { width: 440, maxHeight: 420 };
+const MENU_SIZE = { width: 500, maxHeight: 420 };
+
+/** The current branch on top, the rest as listed (most recently committed to first). */
+function currentFirst(branches: BranchInfo[], current: string | null): BranchInfo[] {
+  const top = branches.filter((branch) => branch.name === current);
+  return [...top, ...branches.filter((branch) => branch.name !== current)];
+}
+
+function branchTitle(branch: BranchInfo, now: number): string {
+  const counts = [branch.ahead > 0 && `${branch.ahead} to push`, branch.behind > 0 && `${branch.behind} to pull`].filter(Boolean);
+  return [branch.name, ...counts, `last commit ${age(branch.updatedAt, now)}`].join(' · ');
+}
 
 /** Branch button and its menu: local branches and "New branch…". */
 export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
   const menu = usePopover<HTMLDivElement>();
   const [list, setList] = useState<BranchList | null>(null);
+  // The time the list was read: the ages are relative to it.
+  const [readAt, setReadAt] = useState(0);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const button = useRef<HTMLButtonElement>(null);
@@ -55,7 +69,9 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
     setCreating(false);
     setName('');
     void load().then((result) => {
-      if (!stale) setList(result);
+      if (stale) return;
+      setReadAt(Date.now());
+      setList(result);
     });
     return () => {
       stale = true;
@@ -90,16 +106,20 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
             {list === null && <div className="menu-label">Loading…</div>}
             {list && !list.ok && <div className="menu-label menu-error">{list.error}</div>}
             {list?.ok &&
-              list.branches.map((branch) => (
+              currentFirst(list.branches, list.current).map((branch) => (
                 <button
-                  key={branch}
-                  className="menu-item mono"
+                  key={branch.name}
+                  className="menu-item mono branch-item"
+                  data-current={branch.name === list.current}
                   role="menuitem"
-                  title={branch}
-                  onClick={() => pick(() => branch !== list.current && onSwitch(branch))}
+                  title={branchTitle(branch, readAt)}
+                  onClick={() => pick(() => branch.name !== list.current && onSwitch(branch.name))}
                 >
-                  <span className="menu-check">{branch === list.current && <CheckIcon size={12} />}</span>
-                  <span className="menu-item-text">{branch}</span>
+                  <span className="menu-check">{branch.name === list.current && <CheckIcon size={12} />}</span>
+                  <span className="menu-item-text">{branch.name}</span>
+                  {branch.ahead > 0 && <span className="branch-ahead">↑{branch.ahead}</span>}
+                  {branch.behind > 0 && <span className="branch-behind">↓{branch.behind}</span>}
+                  <span className="branch-age">{age(branch.updatedAt, readAt)}</span>
                 </button>
               ))}
           </div>

@@ -7,6 +7,7 @@ import EditorWorker from 'monaco-esm/editor/editor.worker.js?worker';
 import { MAX_LINE_CHARS, THEME, getHighlighter, loadLanguage } from '../../highlight/highlight';
 import { LOADERS, languageOf } from '../../highlight/languages';
 import type { EditDoc } from '../editSession';
+import type { LineChange } from './lineChanges';
 import './contributions.js';
 
 (globalThis as { MonacoEnvironment?: unknown }).MonacoEnvironment = { getWorker: () => new EditorWorker() };
@@ -84,41 +85,113 @@ export async function createDocument(text: string, path: string): Promise<Editor
 export interface EditorHandle {
   dispose(): void;
   focus(): void;
+  /** The cursor's line (1-based). */
+  cursorLine(): number;
+  /** Marks changed lines in the gutter (against HEAD). */
+  setChanges(changes: LineChange[]): void;
+  /** Muted text at the end of a line (who changed it); null hides it. `link`: clicking it calls `onNoteClick`. */
+  setNote(note: { line: number; text: string; link: boolean } | null): void;
 }
+
+export interface EditorOptions {
+  onSave(): void;
+  viewState: unknown;
+  onLeave(viewState: unknown): void;
+  /** The line of the cursor, whenever it moves to another line. */
+  onCursorLine(line: number): void;
+  onNoteClick(): void;
+}
+
+const CHANGE_CLASS: Record<LineChange['kind'], string> = {
+  added: 'edi-change edi-change-added',
+  modified: 'edi-change edi-change-modified',
+  deleted: 'edi-change edi-change-deleted',
+};
 
 /**
  * A code editor on `doc` inside `element`. ⌘S calls `onSave`. `viewState` restores the scroll position
  * and cursor from the last time this file was shown; `onLeave` gets it back when the editor goes away.
  */
-export function mountEditor(
-  element: HTMLElement,
-  doc: EditorDocument,
-  options: { onSave(): void; viewState: unknown; onLeave(viewState: unknown): void },
-): EditorHandle {
+export function mountEditor(element: HTMLElement, doc: EditorDocument, options: EditorOptions): EditorHandle {
   const editor = monaco.editor.create(element, {
     model: doc.model,
     theme: THEME,
     automaticLayout: true,
     fontFamily: "'IBM Plex Mono', ui-monospace, Menlo, monospace",
-    fontSize: 12,
+    // The same size and line height as the diff and commit views.
+    fontSize: 13,
     lineHeight: 22,
     fontLigatures: false,
-    minimap: { enabled: false },
+    minimap: { enabled: true, renderCharacters: false, showSlider: 'mouseover' },
     scrollBeyondLastLine: false,
     renderLineHighlight: 'line',
     tabSize: 2,
     detectIndentation: true,
     padding: { top: 10, bottom: 10 },
     lineNumbersMinChars: 4,
+    lineDecorationsWidth: 12,
     stickyScroll: { enabled: false },
     contextmenu: true,
     fixedOverflowWidgets: true,
   });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => options.onSave());
   if (options.viewState) editor.restoreViewState(options.viewState as monaco.editor.ICodeEditorViewState);
+
+  const changes = editor.createDecorationsCollection();
+  const note = editor.createDecorationsCollection();
+  let noteIsLink = false;
+  let lastLine = 0;
+  const reportLine = () => {
+    const line = editor.getPosition()?.lineNumber ?? 0;
+    if (line !== lastLine) {
+      lastLine = line;
+      options.onCursorLine(line);
+    }
+  };
+  const subscriptions = [
+    editor.onDidChangeCursorPosition(reportLine),
+    editor.onMouseDown((event) => {
+      if (noteIsLink && (event.target.element as HTMLElement | null)?.closest('.edi-line-note')) options.onNoteClick();
+    }),
+  ];
+  queueMicrotask(reportLine);
+
   return {
     focus: () => editor.focus(),
+    cursorLine: () => editor.getPosition()?.lineNumber ?? 0,
+    setChanges(next) {
+      changes.set(
+        next.map((change) => ({
+          range: new monaco.Range(Math.max(change.start, 1), 1, Math.max(change.end, 1), 1),
+          options: {
+            linesDecorationsClassName: change.kind === 'deleted' && change.start === 0 ? `${CHANGE_CLASS.deleted} edi-change-deleted-top` : CHANGE_CLASS[change.kind],
+          },
+        })),
+      );
+    },
+    setNote(next) {
+      noteIsLink = next?.link ?? false;
+      if (!next || next.line > doc.model.getLineCount()) {
+        note.clear();
+        return;
+      }
+      const column = doc.model.getLineMaxColumn(next.line);
+      note.set([
+        {
+          // The whole line: Monaco doesn't draw decorations on an empty range.
+          range: new monaco.Range(next.line, 1, next.line, column),
+          options: {
+            after: {
+              content: `\u2003${next.text}`,
+              inlineClassName: next.link ? 'edi-line-note edi-line-note-link' : 'edi-line-note',
+              cursorStops: monaco.editor.InjectedTextCursorStops.None,
+            },
+          },
+        },
+      ]);
+    },
     dispose() {
+      subscriptions.forEach((subscription) => subscription.dispose());
       options.onLeave(editor.saveViewState());
       editor.dispose();
     },

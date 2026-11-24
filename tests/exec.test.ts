@@ -10,6 +10,11 @@ describe('runGit', () => {
     expect(await runGit(repo, ['rev-parse', '--is-inside-work-tree'])).toEqual({ ok: true, stdout: 'true\n' });
   });
 
+  it('passes `input` on stdin', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a');
+    expect(await runGit(repo, ['hash-object', '--stdin'], { input: 'hello\n' })).toEqual({ ok: true, stdout: 'ce013625030ba8dba906f756967f9e9ca394464a\n' });
+  });
+
   it("returns git's error in a directory that is not a repo", async () => {
     const r = await runGit(await makeTmpDir(), ['status']);
     expect(r.ok).toBe(false);

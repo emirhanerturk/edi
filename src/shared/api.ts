@@ -3,8 +3,10 @@
  * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
+import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 
+export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 
 export interface RepoView {
@@ -61,14 +63,22 @@ export type GitOp =
   | { op: 'pull' }
   | { op: 'fetch' }
   | { op: 'switch'; branch: string }
-  | { op: 'createBranch'; branch: string };
+  | { op: 'createBranch'; branch: string }
+  /** `git reset --soft HEAD~1`, only if HEAD is still `oid` and isn't pushed. */
+  | { op: 'undoCommit'; oid: string };
 
 export type OpResult = { ok: true; message: string } | { ok: false; error: string };
 
-export type BranchList = { ok: true; branches: string[]; current: string | null } | { ok: false; error: string };
-
 /** A file's change against HEAD and its status entry. */
 export type DiffView = { ok: true; diff: ParsedDiff; file: FileChange } | { ok: false; error: string };
+
+/** A file or folder change from the Files tab. `path`: where it is now. `cancelled`: the user said no at the question. */
+export type EntryOpResult = { ok: true; path: string } | { ok: false; error: string; cancelled?: true };
+/** Saving an untitled editor: where the new file is. `cancelled`: the Save panel was closed. */
+export type SaveNewResult = { ok: true; repoPath: string; path: string } | { ok: false; error: string; cancelled?: true };
+/** The kind of Files tab row that was right-clicked, and what was picked from its menu. */
+export type FilesMenuKind = 'repo' | 'dir' | 'file';
+export type FilesMenuAction = 'newFile' | 'newFolder' | 'rename' | 'trash' | 'reveal';
 
 /** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
@@ -146,12 +156,32 @@ export interface EdiApi {
   /** Fetches in every repo that has a remote; returns the result per repo. */
   fetchAll(): Promise<{ repoPath: string; result: OpResult }[]>;
   branches(repoPath: string): Promise<BranchList>;
+  /** The branch's commits its upstream doesn't have (none without an upstream). */
+  unpushed(repoPath: string): Promise<UnpushedResult>;
+  /** Asks (native dialog) before undoing the commit with this subject; true to go ahead. */
+  confirmUndo(subject: string): Promise<boolean>;
   /** A changed file's diff against HEAD (staged and unstaged together). */
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
   /** Saves editor text over an existing file; `expected` is the disk text the edit started from (`null`: overwrite). */
   writeFile(repoPath: string, filePath: string, text: string, expected: string | null): Promise<WriteResult>;
+  /** Files tab: an empty file or a folder at `path` (relative to the repo); never overwrites. */
+  createEntry(repoPath: string, path: string, kind: 'file' | 'dir'): Promise<EntryOpResult>;
+  /** Renames in place. `unsaved`: open tabs under it with unsaved edits (it asks first then). */
+  renameEntry(repoPath: string, path: string, name: string, unsaved: number): Promise<EntryOpResult>;
+  /** Moves to the Trash after asking. */
+  trashEntry(repoPath: string, path: string, unsaved: number): Promise<EntryOpResult>;
+  /** Shows it in Finder; '' is the repo itself. */
+  revealEntry(repoPath: string, path: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Saves an untitled editor's text as a new file through the Save panel, starting in `repoPath` if given. */
+  saveNew(text: string, repoPath: string | null): Promise<SaveNewResult>;
+  /** The native right-click menu of a Files tab row; the picked action, or null. */
+  filesMenu(kind: FilesMenuKind): Promise<FilesMenuAction | null>;
+  /** The file's text at HEAD (null if not in HEAD), to mark the editor's changed lines. */
+  headText(repoPath: string, filePath: string): Promise<HeadText>;
+  /** Who last changed each line of `text` (the editor's current text for the file). */
+  blame(repoPath: string, filePath: string, text: string): Promise<BlameResult>;
   /** Tells the main process how many open files have unsaved edits (asked about on quit and folder switch). */
   setUnsaved(count: number): void;
   /** Asks before closing a tab with unsaved edits; true to discard them. */

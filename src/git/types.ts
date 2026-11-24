@@ -27,8 +27,11 @@ export interface RepoStatus {
   files: FileChange[];
 }
 
-/** `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents). */
-export type FileList = { ok: true; files: string[]; ignored: string[] } | { ok: false; error: string };
+/**
+ * `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents).
+ * `dirs`: folders with nothing git lists inside them (git leaves empty folders out).
+ */
+export type FileList = { ok: true; files: string[]; ignored: string[]; dirs: string[] } | { ok: false; error: string };
 
 /** One entry of a folder listing. */
 export interface DirEntry {
@@ -100,3 +103,32 @@ export interface CommitDetail extends CommitSummary {
 
 /** `webUrl`: the GitHub page if the commit was pushed; null otherwise (the field is absent if it wasn't read). */
 export type CommitResult = { ok: true; commit: CommitDetail; webUrl?: string | null } | { ok: false; error: string };
+
+export type HeadText = { ok: true; text: string | null } | { ok: false; error: string };
+
+export interface BlameCommit {
+  authorName: string;
+  authorEmail: string;
+  /** Author time, ms. */
+  date: number;
+  summary: string;
+}
+
+/** `lines[i]`: the commit oid of line i + 1, or null if it isn't committed yet. */
+export type BlameResult = { ok: true; lines: (string | null)[]; commits: Record<string, BlameCommit> } | { ok: false; error: string };
+
+/** Commits on the branch that its upstream doesn't have, newest first. `canUndo`: the newest can be undone. */
+export type UnpushedResult = { ok: true; commits: CommitSummary[]; canUndo: boolean } | { ok: false; error: string };
+
+/** A local branch in the branch menu. */
+export interface BranchInfo {
+  name: string;
+  /** Commits not on its upstream yet, and upstream commits it doesn't have, as of the last fetch. 0 without an upstream. */
+  ahead: number;
+  behind: number;
+  /** Committer date of its last commit, in ms. */
+  updatedAt: number;
+}
+
+/** Local branches, most recently committed to first. */
+export type BranchList = { ok: true; branches: BranchInfo[]; current: string | null } | { ok: false; error: string };

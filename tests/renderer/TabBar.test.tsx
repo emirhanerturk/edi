@@ -25,3 +25,17 @@ describe('TabBar close button', () => {
     expect(activate).not.toHaveBeenCalled();
   });
 });
+
+describe('TabBar empty space', () => {
+  it('a double click on the empty part of the bar opens a terminal; on a tab or a button it does not', () => {
+    const newTab = vi.fn(async () => undefined);
+    useApp.setState({ tabs: [tab(1, 'zsh')] as never, activeTab: 1, newTab, activate: vi.fn(), closeTab: vi.fn() });
+    render(<TabBar />);
+    fireEvent.doubleClick(screen.getByRole('tablist'));
+    expect(newTab).toHaveBeenCalledTimes(1);
+    expect(newTab).toHaveBeenCalledWith();
+    fireEvent.doubleClick(screen.getByTestId('tab'));
+    fireEvent.doubleClick(screen.getByTestId('new-claude'));
+    expect(newTab).toHaveBeenCalledTimes(1);
+  });
+});

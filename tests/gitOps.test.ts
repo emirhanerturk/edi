@@ -37,6 +37,7 @@ describe('busyLabel', () => {
     expect(busyLabel({ op: 'commit', message: 'x', all: false, push: false })).toBe('Committing…');
     expect(busyLabel({ op: 'switch', branch: 'x' })).toBe('Switching…');
     expect(busyLabel({ op: 'createBranch', branch: 'x' })).toBe('Switching…');
+    expect(busyLabel({ op: 'undoCommit', oid: 'a'.repeat(40) })).toBe('Undoing commit…');
     expect(busyLabel({ op: 'stageAll' })).toBe('Working…');
   });
 });
@@ -176,10 +177,29 @@ describe('GitOps', () => {
     const repo = repos[0]!;
     expect(await ops.run(repo, { op: 'createBranch', branch: 'feat/x' })).toEqual({ ok: true, message: 'Switched to feat/x' });
     expect(ws.repo(repo)?.status?.head).toBe('feat/x');
-    expect(await ops.branches(repo)).toEqual({ ok: true, branches: ['feat/x', 'main'], current: 'feat/x' });
+    const list = await ops.branches(repo);
+    expect(list.ok && { names: list.branches.map((branch) => branch.name).sort(), current: list.current }).toEqual({ names: ['feat/x', 'main'], current: 'feat/x' });
     expect((await ops.run(repo, { op: 'switch', branch: 'main' })).ok).toBe(true);
     expect(ws.repo(repo)?.status?.head).toBe('main');
     expect(await ops.run(repo, { op: 'switch', branch: '--detach' })).toEqual({ ok: false, error: 'Invalid branch name' });
+  });
+
+  it('lists unpushed commits and undoes the newest; a stale oid is refused', async () => {
+    const { repos, ws, ops } = await setup();
+    const repo = repos[0]!;
+    await addBareRemote(repo);
+    await git(repo, 'push', '-q', '-u', 'origin', 'main');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
+    expect((await ops.run(repo, { op: 'commit', message: 'feat: new', all: true, push: false })).ok).toBe(true);
+    const listed = await ops.unpushed(repo);
+    expect(listed.ok && listed.commits.map((c) => c.subject)).toEqual(['feat: new']);
+    expect(listed.ok && listed.canUndo).toBe(true);
+    const oid = listed.ok ? listed.commits[0]!.oid : '';
+    expect(await ops.run(repo, { op: 'undoCommit', oid })).toEqual({ ok: true, message: 'Commit undone; its changes are staged' });
+    expect(await log(repo)).toEqual(['chore: init']);
+    expect(fileOf(ws, repo, 'new.txt').x).toBe('A');
+    expect(await ops.run(repo, { op: 'undoCommit', oid })).toEqual({ ok: false, error: 'This is no longer the latest commit' });
+    expect(await ops.unpushed('/nope')).toEqual({ ok: false, error: 'Unknown repository' });
   });
 
   it('fetchAll runs in every repo with a remote and skips the rest', async () => {

@@ -5,7 +5,7 @@ import type { RepoStatus } from '../../src/git/types';
 import type { RepoView } from '../../src/shared/api';
 
 const bridge = vi.hoisted(() => ({
-  listFiles: vi.fn(async (_repoPath: string) => ({ ok: true, files: ['a.ts'], ignored: ['dist/'] })),
+  listFiles: vi.fn(async (_repoPath: string) => ({ ok: true, files: ['a.ts'], ignored: ['dist/'], dirs: [] })),
   listDir: vi.fn(async (_repoPath: string, _dirPath: string) => ({ ok: true, entries: [{ name: 'app.js', dir: false }], more: 0 })),
 }));
 vi.mock('../../src/renderer/bridge', () => ({ edi: bridge }));

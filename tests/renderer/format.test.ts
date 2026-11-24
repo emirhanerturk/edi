@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, plural, summary, tildify } from '../../src/renderer/format';
+import { age, ago, plural, summary, tildify } from '../../src/renderer/format';
 import type { RepoStatus } from '../../src/git/types';
 import type { RepoView, WorkspaceView } from '../../src/shared/api';
 
@@ -59,6 +59,22 @@ describe('summary', () => {
       ],
     };
     expect(summary(view)).toEqual({ repos: 5, withChanges: 2, toPush: 1 });
+  });
+});
+
+describe('age', () => {
+  it('minutes, hours, days, months, then years', () => {
+    const now = 10_000 * 86_400_000;
+    const before = (ms: number) => age(now - ms, now);
+    expect(before(30_000)).toBe('just now');
+    expect(before(5 * 60_000)).toBe('5m ago');
+    expect(before(3 * 3_600_000 + 59 * 60_000)).toBe('3h ago');
+    expect(before(2 * 86_400_000)).toBe('2d ago');
+    expect(before(29 * 86_400_000)).toBe('29d ago');
+    expect(before(120 * 86_400_000)).toBe('4mo ago');
+    expect(before(800 * 86_400_000)).toBe('2y ago');
+    // A clock that went back reads as now.
+    expect(age(now + 60_000, now)).toBe('just now');
   });
 });
 

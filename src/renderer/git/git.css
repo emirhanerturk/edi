@@ -327,15 +327,22 @@ button.branch-chip:hover {
   height: 26px;
   display: flex;
   align-items: center;
-  padding: 0 8px 0 12px;
+  gap: 5px;
+  padding: 0 8px 0 9px;
+  cursor: pointer;
+  user-select: none;
   color: var(--muted);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.06em;
 }
 
+.file-group-head:hover {
+  color: var(--text-2);
+}
+
 .file-group-count {
-  margin-left: 6px;
+  margin-left: 1px;
   color: var(--text-2);
 }
 
@@ -389,6 +396,20 @@ button.branch-chip:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.unpushed-row .file-dir {
+  flex: none;
+}
+
+.unpushed-row .file-name {
+  flex: 1 1 0;
+}
+
+.unpushed-time {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .spin {
@@ -537,6 +558,37 @@ button.branch-chip:hover {
 .branch-menu .menu-item {
   flex: none;
   font-size: 12px;
+}
+
+/* Counts as of the last fetch, then the last commit's age; they never shrink, the name truncates first. */
+/* The current branch: highlighted, with a green check. */
+.branch-item[data-current='true'] {
+  background: var(--selected);
+}
+
+.branch-item[data-current='true'] .menu-check {
+  color: var(--green);
+}
+
+.branch-ahead,
+.branch-behind,
+.branch-age {
+  flex: none;
+  font-size: 11.5px;
+}
+
+.branch-ahead {
+  color: var(--accent);
+}
+
+.branch-behind {
+  color: var(--yellow);
+}
+
+.branch-age {
+  min-width: 52px;
+  text-align: right;
+  color: var(--muted);
 }
 
 .branch-menu > .menu-item,
