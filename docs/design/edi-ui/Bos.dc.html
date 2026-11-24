@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>edi — open a folder</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:#C678DD}a:hover{color:#D9A0E8}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; background: #282C34; color: #D7DAE0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.4; overflow: hidden">
+
+  <header style="height: 38px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; background: #21252B; border-bottom: 1px solid #181A1F">
+    <div aria-hidden="true" style="display: flex; gap: 8px; width: 60px">
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #F0675C"></span>
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #E9B43C"></span>
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #55B86A"></span>
+    </div>
+    <span style="font-weight: 600; letter-spacing: 0.02em">edi</span>
+  </header>
+
+  <main style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center">
+    <div style="width: 460px; display: flex; flex-direction: column; gap: 28px">
+
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em">Open a folder</h1>
+        <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #ABB2BF">Its git repositories show up in one list on the right. Terminals and Claude Code sessions open in that folder.</p>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px">
+        <button style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 8px; background: {{accent}}; color: #1B1D23; font-weight: 600; font-size: 14px">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></svg>
+          <span>Choose folder</span>
+        </button>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #969DA8; padding: 3px 7px; border-radius: 5px; border: 1px solid #3E4451">⌘O</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; color: #969DA8; padding: 0 2px 4px">RECENT</div>
+
+        <button style="display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px; border-radius: 9px; background: #21252B; border: 1px solid #181A1F; text-align: left">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#ABB2BF" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></svg>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #D7DAE0">~/studios/quizei</span>
+          <div style="flex: 1"></div>
+          <span style="font-size: 12px; color: #969DA8">8 repos</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 4l4 4-4 4"/></svg>
+        </button>
+
+        <button style="display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px; border-radius: 9px; background: #21252B; border: 1px solid #181A1F; text-align: left">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#ABB2BF" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></svg>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #D7DAE0">~/studios/beremo</span>
+          <div style="flex: 1"></div>
+          <span style="font-size: 12px; color: #969DA8">1 repo</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 4l4 4-4 4"/></svg>
+        </button>
+
+        <button style="display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px; border-radius: 9px; background: #21252B; border: 1px solid #181A1F; text-align: left">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#ABB2BF" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></svg>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #D7DAE0">~/studios/edi</span>
+          <div style="flex: 1"></div>
+          <span style="font-size: 12px; color: #969DA8">1 repo</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 20px; padding-top: 4px; border-top: 1px solid #31363F; color: #969DA8; font-size: 12px">
+        <span style="padding-top: 14px"><span style="font-family: 'IBM Plex Mono', monospace; color: #ABB2BF">⌘T</span>  new terminal</span>
+        <span style="padding-top: 14px"><span style="font-family: 'IBM Plex Mono', monospace; color: #ABB2BF">⌘1–9</span>  switch tab</span>
+        <span style="padding-top: 14px"><span style="font-family: 'IBM Plex Mono', monospace; color: #ABB2BF">⌘↵</span>  commit</span>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#D7DAE0","options":["#D7DAE0","#98C379","#56B6C2","#D19A66","#E5C07B"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#D7DAE0' };
+  }
+}
+</script>
+</body>
+</html>

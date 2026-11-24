@@ -1,5 +1,9 @@
 # edi — çoklu repo git TUI'si Implementation Plan
 
+> **Not (2026-11-24):** Bu belgenin arayüz kısmı (Ink TUI) iptal edildi; yerini
+> `docs/superpowers/specs/2026-11-24-edi-desktop-app-design.md` aldı. Git çekirdeğiyle
+> ilgili kısımlar geçerlidir.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bir klasördeki tüm git repolarının durumunu tek terminal ekranında canlı gösteren ve oradan stage/commit/push/pull/fetch/branch/diff yaptıran `edi` komutunu yazmak.

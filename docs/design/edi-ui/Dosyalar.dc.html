@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>edi — Files tab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:#C678DD}a:hover{color:#D9A0E8}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; background: #282C34; color: #D7DAE0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.4; overflow: hidden">
+
+  <header style="height: 38px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; background: #21252B; border-bottom: 1px solid #181A1F">
+    <div aria-hidden="true" style="display: flex; gap: 8px; width: 60px">
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #F0675C"></span>
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #E9B43C"></span>
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #55B86A"></span>
+    </div>
+    <span style="font-weight: 600; letter-spacing: 0.02em">edi</span>
+    <div style="flex: 1; display: flex; justify-content: center">
+      <button style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 10px; border-radius: 6px; background: #2C313A; border: 1px solid #181A1F; color: #ABB2BF; font-family: 'IBM Plex Mono', monospace; font-size: 12px">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></svg>
+        <span style="color: #D7DAE0">~/studios/quizei</span>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+      </button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; color: #ABB2BF; font-size: 12px">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#D97757" stroke-width="1.9" stroke-linecap="round" role="img" aria-label="Claude Code"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>
+      <span>2 sessions</span>
+    </div>
+    <button aria-label="Settings" style="width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #969DA8">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 4.5h7M12.5 4.5H14M2 11.5h2M7.5 11.5H14"/><circle cx="10.8" cy="4.5" r="1.7"/><circle cx="5.8" cy="11.5" r="1.7"/></svg>
+    </button>
+  </header>
+
+  <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 492px minmax(0, 1fr) 372px">
+
+    <!-- SOL: düz kabuk sekmesi açık -->
+    <section aria-label="Terminals" style="min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #181A1F; background: #282C34">
+      <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: #21252B; border-bottom: 1px solid #181A1F">
+        <div style="flex: 0 1 auto; min-width: 0; display: flex; align-items: stretch; overflow: hidden">
+          <button style="flex: 0 1 auto; min-width: 56px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border-right: 1px solid #181A1F; white-space: nowrap; color: #ABB2BF">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#D97757" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis">claude</span>
+          </button>
+          <button style="flex: 0 1 auto; min-width: 56px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border-right: 1px solid #181A1F; white-space: nowrap; color: #ABB2BF">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#D97757" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis">claude</span>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#E5C07B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Needs input" style="flex: none"><path d="M4 11V7.5a4 4 0 0 1 8 0V11l1 1.5H3z"/><path d="M6.8 14.2a1.3 1.3 0 0 0 2.4 0"/></svg>
+          </button>
+          <button style="flex: 0 1 auto; min-width: 56px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border-right: 1px solid #181A1F; white-space: nowrap; color: #ABB2BF">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 4.5l3.5 3.5L3 11.5M8.5 11.5H13"/></svg>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis">npm run dev</span>
+          </button>
+          <button style="flex: 0 1 auto; min-width: 56px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border-right: 1px solid #181A1F; white-space: nowrap; background: #282C34; color: #D7DAE0; box-shadow: inset 0 2px 0 {{accent}}">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 4.5l3.5 3.5L3 11.5M8.5 11.5H13"/></svg>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500">zsh</span>
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.7" stroke-linecap="round" role="img" aria-label="Close tab" style="flex: none"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
+        </div>
+        <div style="flex: 1"></div>
+        <button aria-label="New terminal" title="New terminal" style="flex: none; width: 32px; display: flex; align-items: center; justify-content: center; color: #969DA8; border-left: 1px solid #181A1F">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+        </button>
+        <button aria-label="New Claude Code session" title="New Claude Code session" style="flex: none; display: flex; align-items: center; gap: 2px; padding: 0 9px; color: #969DA8; border-left: 1px solid #181A1F">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#D97757" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="M8 2.5v11M2.5 8h11"/></svg>
+        </button>
+      </div>
+
+      <div style="flex: 1; min-height: 0; padding: 14px 16px 12px; display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #ABB2BF; white-space: pre-wrap; overflow: hidden">
+        <div><span style="color: #56B6C2">~/studios/quizei/quizei-app-next-quiz</span> <span style="color: #C678DD">main</span> <span style="color: #E5C07B">●</span></div>
+        <div><span style="color: #98C379">$</span> npm run typecheck</div>
+        <div style="color: #969DA8; margin-top: 6px">&gt; typecheck</div>
+        <div style="color: #969DA8">&gt; tsc --noEmit</div>
+        <div style="margin-top: 14px"><span style="color: #56B6C2">~/studios/quizei/quizei-app-next-quiz</span> <span style="color: #C678DD">main</span> <span style="color: #E5C07B">●</span></div>
+        <div><span style="color: #98C379">$</span> git log --oneline -4</div>
+        <div><span style="color: #E5C07B">a41c9e2</span> feat(music-quiz): add round timer</div>
+        <div><span style="color: #E5C07B">7be10d4</span> fix(video): keep poster ratio on small screens</div>
+        <div><span style="color: #E5C07B">03f5a8c</span> refactor(play): split answer grid from screen</div>
+        <div><span style="color: #E5C07B">c9d2e17</span> chore: bump expo-router</div>
+        <div style="margin-top: 14px"><span style="color: #56B6C2">~/studios/quizei/quizei-app-next-quiz</span> <span style="color: #C678DD">main</span> <span style="color: #E5C07B">●</span></div>
+        <div style="display: flex; gap: 8px"><span style="color: #98C379">$</span><span style="width: 7px; height: 16px; background: #D7DAE0; margin-top: 2px"></span></div>
+      </div>
+    </section>
+
+    <!-- ORTA: salt okunur dosya -->
+    <section aria-label="File" style="min-width: 0; display: flex; flex-direction: column; background: #282C34">
+      <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: #21252B; border-bottom: 1px solid #181A1F">
+        <button style="flex: none; white-space: nowrap; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: #ABB2BF; border-right: 1px solid #181A1F">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #E5C07B">M</span>
+          <span>play.tsx</span>
+          <span style="color: #969DA8; font-size: 12px">diff</span>
+        </button>
+        <button style="flex: none; white-space: nowrap; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #282C34; color: #D7DAE0; border-right: 1px solid #181A1F; box-shadow: inset 0 2px 0 {{accent}}">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #98C379">?</span>
+          <span style="font-weight: 500">video-poster.tsx</span>
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.7" stroke-linecap="round" role="img" aria-label="Close tab"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+        <div style="flex: 1"></div>
+        <button aria-label="Close panel" title="Close panel" style="width: 36px; display: flex; align-items: center; justify-content: center; color: #969DA8; border-left: 1px solid #181A1F">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+
+      <div style="height: 40px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; border-bottom: 1px solid #181A1F">
+        <span style="color: #969DA8">quizei-app-next-quiz</span>
+        <span style="color: #5C6370">/</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #ABB2BF">components/video/<span style="color: #D7DAE0">video-poster.tsx</span></span>
+        <span style="padding: 1px 8px; border-radius: 9px; background: rgba(152,195,121,0.14); color: #98C379; font-size: 11px">new file</span>
+        <div style="flex: 1"></div>
+        <span style="display: flex; align-items: center; gap: 6px; color: #969DA8; font-size: 12px">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7.5" width="9" height="6" rx="1"/><path d="M5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2"/></svg>
+          Read-only
+        </span>
+        <button style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #3E4451; color: #D7DAE0; font-size: 12px">
+          <span>Open in Zed</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.5v9h9v-3M9.5 2.5h4v4M13.5 2.5l-6 6"/></svg>
+        </button>
+      </div>
+
+      <div style="flex: 1; min-height: 0; overflow: hidden; padding: 10px 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px">
+        <sc-for list="{{ lines }}" as="line" hint-placeholder-count="28">
+          <div style="display: flex; height: 22px; line-height: 22px">
+            <span style="flex: none; width: 48px; text-align: right; padding-right: 18px; color: #969DA8">{{ line.n }}</span>
+            <span style="white-space: pre"><sc-for list="{{ line.toks }}" as="tok" hint-placeholder-count="2"><span style="color: {{ tok.c }}">{{ tok.t }}</span></sc-for></span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- SAĞ: Dosyalar -->
+    <section aria-label="Files" style="min-width: 0; display: flex; flex-direction: column; border-left: 1px solid #181A1F; background: #21252B">
+      <div style="height: 36px; flex: none; display: flex; align-items: stretch; border-bottom: 1px solid #181A1F; padding-left: 4px">
+        <button style="display: flex; align-items: center; gap: 7px; padding: 0 12px; color: #ABB2BF">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.7"/><circle cx="4.5" cy="12.5" r="1.7"/><circle cx="11.5" cy="5.5" r="1.7"/><path d="M4.5 5.2v5.6M11.5 7.2c0 2.6-7 1.4-7 3.6"/></svg>
+          <span>Git</span>
+          <span style="min-width: 16px; padding: 0 5px; border-radius: 8px; background: #3A3F4B; color: #D7DAE0; font-size: 11px; text-align: center">7</span>
+        </button>
+        <button style="display: flex; align-items: center; gap: 7px; padding: 0 12px; color: #ABB2BF">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.6"/><path d="M1.5 8h3.9M10.6 8h3.9"/></svg>
+          <span>History</span>
+        </button>
+        <button style="display: flex; align-items: center; gap: 7px; padding: 0 12px; color: #D7DAE0; font-weight: 500; box-shadow: inset 0 -2px 0 {{accent}}">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></svg>
+          <span>Files</span>
+        </button>
+        <div style="flex: 1"></div>
+        <button aria-label="Collapse all" style="width: 30px; display: flex; align-items: center; justify-content: center; color: #969DA8">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5L8 3l3.5 3.5M4.5 9.5L8 13l3.5-3.5"/></svg>
+        </button>
+      </div>
+
+      <div style="flex: 1; min-height: 0; overflow: hidden; padding: 6px 0">
+        <sc-for list="{{ tree }}" as="node" hint-placeholder-count="24">
+          <div style="height: 26px; display: flex; align-items: center; gap: 6px; padding-right: 12px; padding-left: {{ node.indent }}; background: {{ node.bg }}; box-shadow: {{ node.mark }}">
+            <sc-if value="{{ node.isOpen }}" hint-placeholder-val="{{ false }}">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M4 6l4 4 4-4"/></svg>
+            </sc-if>
+            <sc-if value="{{ node.isClosed }}" hint-placeholder-val="{{ false }}">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 4l4 4-4 4"/></svg>
+            </sc-if>
+            <sc-if value="{{ node.isFile }}" hint-placeholder-val="{{ true }}">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#636D83" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3"/></svg>
+            </sc-if>
+            <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{ node.color }}; font-weight: {{ node.weight }}">{{ node.name }}</span>
+            <span style="flex: none; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: {{ node.badgeColor }}">{{ node.badge }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+
+  <footer style="height: 26px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 12px; background: #21252B; border-top: 1px solid #181A1F; color: #969DA8; font-size: 12px">
+    <span>8 repositories</span>
+    <span><span style="color: #E5C07B">●</span> 1 with changes</span>
+    <span><span style="color: {{accent}}">↑</span> 1 to push</span>
+    <div style="flex: 1"></div>
+    <span>TypeScript JSX · 30 lines</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#D7DAE0","options":["#D7DAE0","#98C379","#56B6C2","#D19A66","#E5C07B"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  hl(line) {
+    const base = '#ABB2BF';
+    const out = [];
+    const re = /(\/\/.*$)|("[^"]*"|'[^']*')|(<\/?[A-Za-z][\w.]*|\/?>)|\b(const|return|export|function|import|from|type)\b|\b(\d+)\b/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(line))) {
+      if (m.index > last) out.push({ t: line.slice(last, m.index), c: base });
+      const c = m[1] ? '#969DA8' : m[2] ? '#98C379' : m[3] ? '#E06C75' : m[4] ? '#C678DD' : '#D19A66';
+      out.push({ t: m[0], c: c });
+      last = re.lastIndex;
+    }
+    if (last < line.length) out.push({ t: line.slice(last), c: base });
+    if (!out.length) out.push({ t: ' ', c: base });
+    return out;
+  }
+
+  renderVals() {
+    const accent = this.props.accent ?? '#D7DAE0';
+    const source = [
+      "import { Image, StyleSheet, View } from 'react-native';",
+      "import { colors } from '@/theme';",
+      '',
+      'type VideoPosterProps = {',
+      '  uri: string;',
+      '  ratio?: number;',
+      '};',
+      '',
+      '// Cover image shown until the video loads.',
+      'export function VideoPoster({ uri, ratio = 16 / 9 }: VideoPosterProps) {',
+      '  const poster = { uri };',
+      '  return (',
+      '    <View style={[styles.frame, { aspectRatio: ratio }]}>',
+      '      <Image source={poster} style={styles.image} resizeMode="cover" />',
+      '    </View>',
+      '  );',
+      '}',
+      '',
+      'const styles = StyleSheet.create({',
+      '  frame: {',
+      "    width: '100%',",
+      '    borderRadius: 12,',
+      "    overflow: 'hidden',",
+      '    backgroundColor: colors.surface,',
+      '  },',
+      '  image: {',
+      "    width: '100%',",
+      "    height: '100%',",
+      '  },',
+      '});',
+    ];
+    const lines = source.map((text, i) => ({ n: String(i + 1), toks: this.hl(text) }));
+
+    const STATUS = { M: '#E5C07B', '?': '#98C379', '●': '#E5C07B' };
+    // [derinlik, tür ('open' | 'closed' | 'file'), ad, rozet, seçili mi]
+    const raw = [
+      [0, 'open', 'quizei-app-next-quiz', '●'],
+      [1, 'open', 'app', '●'],
+      [2, 'open', 'game', '●'],
+      [3, 'open', '[gameId]', '●'],
+      [4, 'file', 'play.tsx', 'M'],
+      [4, 'file', 'result.tsx', ''],
+      [2, 'file', '_layout.tsx', ''],
+      [1, 'open', 'components', '●'],
+      [2, 'closed', 'play', '●'],
+      [2, 'closed', 'ui', '●'],
+      [2, 'open', 'video', '●'],
+      [3, 'file', 'custom-video.tsx', ''],
+      [3, 'file', 'video-player.tsx', 'M'],
+      [3, 'file', 'video-poster.tsx', '?', true],
+      [3, 'file', 'youtube-video.tsx', ''],
+      [1, 'closed', 'models', '●'],
+      [1, 'file', 'package.json', ''],
+      [0, 'closed', 'quizei-app', ''],
+      [0, 'closed', 'quizei-backend', ''],
+      [0, 'closed', 'quizei-frontend', ''],
+      [0, 'closed', 'quizei-admin', ''],
+      [0, 'closed', 'quizei-marketing', ''],
+      [0, 'closed', 'beremo-ad-manager', ''],
+      [0, 'closed', 'ranking-filter-by-quizei', ''],
+    ];
+    const tree = raw.map((r) => {
+      const isFile = r[1] === 'file';
+      const changed = isFile && r[3] !== '';
+      return {
+        isOpen: r[1] === 'open',
+        isClosed: r[1] === 'closed',
+        isFile: isFile,
+        name: r[2],
+        badge: r[3],
+        badgeColor: STATUS[r[3]] || 'transparent',
+        indent: 12 + r[0] * 16 + 'px',
+        color: changed ? STATUS[r[3]] : r[0] === 0 ? '#D7DAE0' : '#ABB2BF',
+        weight: r[0] === 0 ? '600' : '400',
+        bg: r[4] ? '#2F343E' : 'transparent',
+        mark: r[4] ? 'inset 2px 0 0 ' + accent : 'none',
+      };
+    });
+
+    return { accent: accent, lines: lines, tree: tree };
+  }
+}
+</script>
+</body>
+</html>

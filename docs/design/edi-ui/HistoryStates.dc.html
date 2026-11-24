@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>edi — History variations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 836px; height: 900px; box-sizing: border-box; padding: 30px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; background: #282C34; color: #D7DAE0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.4">
+
+  <!-- 1: filtered to one repository -->
+  <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+    <div style="font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: #969DA8">ONE REPOSITORY</div>
+    <div style="flex: 1; min-height: 0; border-radius: 10px; background: #21252B; border: 1px solid #181A1F; overflow: hidden; display: flex; flex-direction: column">
+      <div style="height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid #181A1F">
+        <button style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 6px; background: #2C313A; border: 1px solid {{accent}}; color: #D7DAE0; font-size: 12px; white-space: nowrap">
+          <span>quizei-app</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <span style="display: flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 5px; background: #31363F; color: #ABB2BF; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px">main</span>
+        <div style="flex: 1"></div>
+        <div role="group" aria-label="History layout" style="display: flex; padding: 2px; border-radius: 7px; background: #2C313A; border: 1px solid #181A1F; font-size: 12px; white-space: nowrap">
+          <button style="padding: 2px 10px; border-radius: 5px; background: #3A3F4B; color: #D7DAE0">Timeline</button>
+          <button style="padding: 2px 10px; border-radius: 5px; color: #ABB2BF">By repo</button>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column">
+        <sc-for list="{{ rows }}" as="c" hint-placeholder-count="14">
+          <sc-if value="{{ c.isDay }}" hint-placeholder-val="{{ false }}">
+            <div style="height: 28px; flex: none; display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 500; letter-spacing: 0.06em; color: #969DA8; border-top: 1px solid {{ c.rule }}">{{ c.text }}</div>
+          </sc-if>
+          <sc-if value="{{ c.isCommit }}" hint-placeholder-val="{{ true }}">
+            <div style="height: 46px; flex: none; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 12px">
+              <div style="display: flex; align-items: center; gap: 6px; min-width: 0">
+                <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><span style="color: #969DA8">{{ c.prefix }}</span><span>{{ c.rest }}</span></span>
+                <sc-if value="{{ c.unpushed }}" hint-placeholder-val="{{ false }}">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{accent}}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Not pushed yet" style="flex: none"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+                </sc-if>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #969DA8; white-space: nowrap">
+                <span>{{ c.when }}</span>
+                <div style="flex: 1"></div>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px">{{ c.hash }}</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ c.isRemote }}" hint-placeholder-val="{{ false }}">
+            <div style="height: 26px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 11.5px; color: #969DA8; white-space: nowrap">
+              <div style="flex: 1; height: 1px; background: #3E4451"></div>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M4.5 12.5a3 3 0 0 1-.4-6 4 4 0 0 1 7.7 1 2.5 2.5 0 0 1-.3 5z"/></svg>
+              <span style="font-family: 'IBM Plex Mono', monospace">origin/main</span>
+              <div style="flex: 1; height: 1px; background: #3E4451"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ c.isRelease }}" hint-placeholder-val="{{ false }}">
+            <div style="height: 30px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 12px; font-size: 12px; color: #969DA8; white-space: nowrap">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.6" cy="5.6" r="0.7"/></svg>
+              <span style="padding: 0 6px; border-radius: 5px; border: 1px solid #3E4451; color: #D7DAE0; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px">{{ c.tag }}</span>
+              <span>{{ c.when }}</span>
+              <div style="flex: 1"></div>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px">{{ c.hash }}</span>
+            </div>
+          </sc-if>
+        </sc-for>
+        <div style="flex: 1"></div>
+        <div style="flex: none; padding: 10px; border-top: 1px solid #181A1F">
+          <button style="width: 100%; height: 28px; border-radius: 6px; border: 1px solid #3E4451; color: #D7DAE0; font-size: 12px">Load 50 more</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2: grouped by repository -->
+  <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+    <div style="font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: #969DA8">BY REPO</div>
+    <div style="flex: 1; min-height: 0; border-radius: 10px; background: #21252B; border: 1px solid #181A1F; overflow: hidden; display: flex; flex-direction: column">
+      <div style="height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid #181A1F">
+        <button style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 6px; background: #2C313A; border: 1px solid #3E4451; color: #D7DAE0; font-size: 12px; white-space: nowrap">
+          <span>All repositories</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div style="flex: 1"></div>
+        <div role="group" aria-label="History layout" style="display: flex; padding: 2px; border-radius: 7px; background: #2C313A; border: 1px solid #181A1F; font-size: 12px; white-space: nowrap">
+          <button style="padding: 2px 10px; border-radius: 5px; color: #ABB2BF">Timeline</button>
+          <button style="padding: 2px 10px; border-radius: 5px; background: #3A3F4B; color: #D7DAE0">By repo</button>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column">
+        <sc-for list="{{ groups }}" as="g" hint-placeholder-count="8">
+          <div style="flex: none; border-bottom: 1px solid #181A1F; padding-bottom: {{ g.pad }}">
+            <div style="height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; white-space: nowrap">
+              <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M4 6l4 4 4-4"/></svg>
+              </sc-if>
+              <sc-if value="{{ g.closed }}" hint-placeholder-val="{{ false }}">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#969DA8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M6 4l4 4-4 4"/></svg>
+              </sc-if>
+              <span style="font-weight: {{ g.weight }}; min-width: 0; overflow: hidden; text-overflow: ellipsis">{{ g.name }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: {{accent}}">{{ g.sync }}</span>
+              <div style="flex: 1"></div>
+              <span style="font-size: 12px; color: #969DA8">{{ g.note }}</span>
+            </div>
+            <sc-for list="{{ g.commits }}" as="c" hint-placeholder-count="3">
+              <div style="height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 29px; white-space: nowrap">
+                <sc-if value="{{ c.hasTag }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex: none; padding: 0 6px; border-radius: 5px; border: 1px solid #3E4451; color: #D7DAE0; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px">{{ c.tag }}</span>
+                </sc-if>
+                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"><span style="color: #969DA8">{{ c.prefix }}</span><span>{{ c.rest }}</span></span>
+                <span style="flex: none; width: 30px; text-align: right; font-size: 12px; color: #969DA8">{{ c.when }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#D7DAE0","options":["#D7DAE0","#98C379","#56B6C2","#D19A66","#E5C07B"]},"$preview":{"width":836,"height":900}}'>
+class Component extends DCLogic {
+  split(subject) {
+    const cut = subject.indexOf(': ');
+    const conventional = cut > 0 && cut < 32;
+    return {
+      prefix: conventional ? subject.slice(0, cut + 2) : '',
+      rest: conventional ? subject.slice(cut + 2) : subject,
+    };
+  }
+
+  renderVals() {
+    const base = { isDay: false, isCommit: false, isRelease: false, isRemote: false };
+    const day = (text, first) => ({ ...base, isDay: true, text: text, rule: first ? 'transparent' : '#181A1F' });
+    const commit = (subject, when, hash, unpushed) => ({ ...base, isCommit: true, ...this.split(subject), when: when, hash: hash, unpushed: !!unpushed });
+    const release = (tag, when, hash) => ({ ...base, isRelease: true, tag: tag, when: when, hash: hash });
+    const remote = () => ({ ...base, isRemote: true });
+
+    const line = (subject, when, tag) => ({ ...this.split(subject), when: when, hasTag: !!tag, tag: tag || '' });
+    const group = (name, sync, commits, note) => ({
+      name: name,
+      sync: sync,
+      commits: commits,
+      note: note || '',
+      open: commits.length > 0,
+      closed: commits.length === 0,
+      weight: commits.length > 0 ? '600' : '400',
+      pad: commits.length > 0 ? '6px' : '0',
+    });
+
+    return {
+      accent: this.props.accent ?? '#D7DAE0',
+      rows: [
+        day('TODAY', true),
+        commit('fix(auth): refresh the session before opening the paywall', '25 minutes ago', 'c41e9a2', true),
+        remote(),
+        commit('feat(paywall): show the yearly saving on the plan card', '3 hours ago', '8a2f1d0'),
+        release('v2.14.0', '5 hours ago', '4be7c93'),
+        commit('fix(deeplink): open a shared quiz when logged out', '5 hours ago', 'd10f6a5'),
+        day('YESTERDAY', false),
+        commit('chore(deps): bump expo to 54.0.2', '20 hours ago', '61a9e0c'),
+        commit('feat(profile): let players pick an avatar frame', '22 hours ago', 'f3c8b27'),
+        release('v2.13.1', 'Yesterday', '0a5d4e8'),
+        commit('fix(score): round the streak bonus the same way as the backend', 'Yesterday', 'b79e312'),
+        day('THIS WEEK', false),
+        commit('refactor(nav): move the tab bar config next to the routes', '3 days ago', '2c6f0d9'),
+        commit('test(paywall): cover the restore purchase flow', '4 days ago', '9e41ab6'),
+      ],
+      groups: [
+        group('quizei-app', '↑1', [
+          line('fix(auth): refresh the session before opening the paywall', '25m'),
+          line('feat(paywall): show the yearly saving on the plan card', '3h'),
+          line('fix(deeplink): open a shared quiz when logged out', '5h', 'v2.14.0'),
+        ]),
+        group('quizei-app-next-quiz', '', [
+          line('feat(music-quiz): move the ad manager banner between rounds', '1h'),
+          line('feat(monetization): count a banner as seen once any part is visible', '1h', 'v1.86.0'),
+          line('feat(music-quiz): show the ad manager banner on the result screen', '1h'),
+        ]),
+        group('quizei-backend', '', [
+          line('feat(ranking): add the weekly filter to the leaderboard endpoint', '2h'),
+          line('build(deps): bump fastify from 5.1.0 to 5.2.1', '4h'),
+          line('fix(ranking): break ties by the earlier finish time', '2d'),
+        ]),
+        group('quizei-marketing', '', [
+          line('docs(pricing): update the yearly plan copy', '8h'),
+          line('feat(landing): add the music quiz section', '3d'),
+        ]),
+        group('quizei-admin', '', [
+          line('fix(table): keep the sort order after a refresh', '22h'),
+          line('feat(users): filter by subscription status', '6d'),
+        ]),
+        group('quizei-frontend', '', [], '5 days ago'),
+        group('beremo-ad-manager', '', [], '2 weeks ago'),
+        group('ranking-filter-by-quizei', '', [], 'last month'),
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

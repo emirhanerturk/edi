@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>edi — accent options</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1240px; height: 400px; box-sizing: border-box; padding: 30px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; background: #282C34; color: #D7DAE0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.4">
+  <sc-for list="{{ options }}" as="o" hint-placeholder-count="5">
+    <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span style="flex: none; width: 12px; height: 12px; border-radius: 50%; background: {{ o.hex }}"></span>
+        <span style="font-weight: 600">{{ o.name }}</span>
+        <sc-if value="{{ o.current }}" hint-placeholder-val="{{ false }}">
+          <span style="padding: 1px 7px; border-radius: 8px; background: #3A3F4B; color: #D7DAE0; font-size: 11px">current</span>
+        </sc-if>
+        <div style="flex: 1"></div>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #969DA8">{{ o.hex }}</span>
+      </div>
+
+      <div style="flex: 1; border-radius: 10px; background: #21252B; border: 1px solid #181A1F; overflow: hidden; display: flex; flex-direction: column">
+        <div style="height: 34px; flex: none; display: flex; align-items: stretch; border-bottom: 1px solid #181A1F">
+          <div style="display: flex; align-items: center; gap: 7px; padding: 0 10px; background: #282C34; border-right: 1px solid #181A1F; box-shadow: inset 0 2px 0 {{ o.hex }}">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#D97757" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" style="flex: none"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>
+            <span style="font-weight: 500">claude</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 7px; padding: 0 10px; color: #ABB2BF; border-right: 1px solid #181A1F">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M3 4.5l3.5 3.5L3 11.5M8.5 11.5H13"/></svg>
+            <span>zsh</span>
+          </div>
+        </div>
+
+        <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px">
+          <div style="padding: 7px 9px; border-radius: 7px; background: #1B1D23; border: 1px solid #3E4451; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">feat(music-quiz): move the banner</div>
+          <button style="height: 30px; border-radius: 7px; background: {{ o.hex }}; color: #1B1D23; font-weight: 600">Commit · 3 files</button>
+        </div>
+
+        <div style="height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #2F343E; box-shadow: inset 2px 0 0 {{ o.hex }}">
+          <span style="flex: none; width: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #E5C07B">M</span>
+          <span style="flex: none">play.tsx</span>
+          <span style="min-width: 0; color: #969DA8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">app/game/[gameId]</span>
+        </div>
+        <div style="height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px">
+          <span style="flex: none; width: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #98C379">?</span>
+          <span style="flex: none">video-poster.tsx</span>
+        </div>
+        <div style="height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px">
+          <span style="flex: none; width: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #E06C75">D</span>
+          <span style="flex: none; text-decoration: line-through">app-video.tsx</span>
+        </div>
+
+        <div style="flex: 1"></div>
+        <div style="height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid #181A1F">
+          <span style="white-space: nowrap">quizei-app</span>
+          <div style="flex: 1"></div>
+          <span style="flex: none; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #969DA8">main</span>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#98C379" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Clean" style="flex: none"><path d="M3 8.5l3.2 3.2L13 5"/></svg>
+          <button style="flex: none; display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 6px; background: {{ o.hex }}; color: #1B1D23; font-size: 12px; font-weight: 600">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+            <span>Push 1</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      options: [
+        { name: 'Neutral', hex: '#D7DAE0', current: true },
+        { name: 'Green', hex: '#98C379', current: false },
+        { name: 'Cyan', hex: '#56B6C2', current: false },
+        { name: 'Orange', hex: '#D19A66', current: false },
+        { name: 'Yellow', hex: '#E5C07B', current: false },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

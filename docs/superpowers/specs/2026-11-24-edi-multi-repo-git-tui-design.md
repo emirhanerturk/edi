@@ -1,5 +1,9 @@
 # edi — çoklu repo git TUI'si: tasarım
 
+> **Not (2026-11-24):** Bu belgenin arayüz kısmı (Ink TUI) iptal edildi; yerini
+> `docs/superpowers/specs/2026-11-24-edi-desktop-app-design.md` aldı. Git çekirdeğiyle
+> ilgili kısımlar geçerlidir.
+
 Tarih: 2026-11-24
 
 ## Amaç ve neden

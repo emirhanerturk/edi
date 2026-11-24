@@ -1,0 +1,35 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Accents.dc.html": { "h": 400, "radius": 12, "title": "Accent options", "w": 1240, "x": 2640, "y": 1340 },
+    "Bos.dc.html": { "h": 900, "radius": 12, "title": "Empty state — open a folder", "w": 1440, "x": 4560, "y": 0 },
+    "Collapsed.dc.html": { "h": 900, "radius": 12, "title": "Center panel closed — terminal and Git", "w": 1440, "x": 1520, "y": 0 },
+    "Dosyalar.dc.html": { "h": 900, "radius": 12, "title": "Files tab and file view", "w": 1440, "x": 3040, "y": 0 },
+    "GitPaneli.dc.html": { "h": 900, "radius": 12, "title": "Git panel states", "w": 1240, "x": 0, "y": 1340 },
+    "History.dc.html": { "h": 900, "radius": 12, "title": "History tab and commit view", "w": 1440, "x": 6080, "y": 0 },
+    "HistoryStates.dc.html": { "h": 900, "radius": 12, "title": "History — one repo, and by repo", "w": 836, "x": 3960, "y": 1340 },
+    "Main.dc.html": { "h": 900, "radius": 12, "title": "Main window — terminal, diff and Git", "w": 1440, "x": 0, "y": 0 },
+    "Parcalar.dc.html": { "h": 900, "radius": 12, "title": "Colors, type and parts", "w": 1240, "x": 1320, "y": 1340 }
+  },
+  "createdOnFiles": { "at": "2026-11-24T13:00:00Z", "v": 1 },
+  "designSystems": [],
+  "launch": { "view": "canvas" },
+  "notes": {
+    "ekranlar": { "kind": "title1", "maxW": 7520, "text": "Screens", "w": 240, "x": 0, "y": -300 },
+    "parcalar": { "kind": "title1", "maxW": 4796, "text": "States and parts", "w": 240, "x": 0, "y": 1040 }
+  },
+  "order": [
+    "Main.dc.html",
+    "Collapsed.dc.html",
+    "Dosyalar.dc.html",
+    "Bos.dc.html",
+    "History.dc.html",
+    "GitPaneli.dc.html",
+    "Parcalar.dc.html",
+    "Accents.dc.html",
+    "HistoryStates.dc.html"
+  ],
+  "pages": [],
+  "title": "edi UI design"
+}
