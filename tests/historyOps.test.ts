@@ -23,7 +23,7 @@ const UNKNOWN = { ok: false, error: 'Unknown repository' };
 const INVALID_COMMIT = { ok: false, error: 'Invalid commit' };
 
 describe('HistoryOps', () => {
-  it('keşfedilmemiş repo yolu reddedilir', async () => {
+  it('rejects a repo path that was not discovered', async () => {
     const { dir, repo, ops } = await setup();
     const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
     for (const path of [dir, `${repo}/`, join(repo, '.git'), '', null, 7]) {
@@ -32,7 +32,7 @@ describe('HistoryOps', () => {
     }
   });
 
-  it('adet 50 ile 5000 arasında 50 nin katı bir tam sayı olmalı', async () => {
+  it('requires the count to be a multiple of 50 between 50 and 5000', async () => {
     const { repo, ops } = await setup();
     for (const count of [0, 49, 51, 5050, 1.5, '50', Number.NaN, -50, null]) {
       expect(await ops.log(repo, count), String(count)).toEqual({ ok: false, error: 'Invalid count' });
@@ -42,7 +42,7 @@ describe('HistoryOps', () => {
     expect((await ops.log(repo, 5000)).ok).toBe(true);
   });
 
-  it('hex olmayan, kısa, seçenek gibi ya da commit olmayan kimlikler reddedilir', async () => {
+  it('rejects ids that are not hex, too short, look like options or are not commits', async () => {
     const { repo, ops } = await setup();
     const tree = (await git(repo, 'rev-parse', 'HEAD^{tree}')).trim();
     const blob = (await git(repo, 'rev-parse', 'HEAD:README.md')).trim();
@@ -54,14 +54,14 @@ describe('HistoryOps', () => {
     expect(await ops.commit(repo, 'deadbeef'.repeat(5))).toEqual({ ok: false, error: 'Commit not found' });
   });
 
-  it("kısa kimlik tam commit'e çözülür", async () => {
+  it('resolves a short id to the full commit', async () => {
     const { repo, ops } = await setup();
     await writeFile(join(repo, 'b.txt'), 'b\n');
     await git(repo, 'add', '-A');
     await git(repo, 'commit', '-q', '-m', 'feat: b');
     const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
     expect(await ops.commit(repo, oid.slice(0, 7))).toMatchObject({ ok: true, commit: { oid, subject: 'feat: b', files: [{ path: 'b.txt' }] } });
-    // Uzak repo yok: GitHub bağlantısı da yok.
+    // No remote, so no GitHub link either.
     expect(await ops.commit(repo, oid)).toMatchObject({ ok: true, webUrl: null });
   });
 });

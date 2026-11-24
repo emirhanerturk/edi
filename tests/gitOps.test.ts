@@ -25,12 +25,12 @@ async function setup(names: string[] = ['a']) {
 const log = async (repo: string) => (await git(repo, 'log', '--format=%s')).trim().split('\n');
 const fileOf = (ws: Workspace, repo: string, path: string) => {
   const found = ws.repo(repo)?.status?.files.find((f) => f.path === path);
-  if (!found) throw new Error(`durumda yok: ${path}`);
+  if (!found) throw new Error(`not in status: ${path}`);
   return found;
 };
 
 describe('busyLabel', () => {
-  it('işleme göre etiket verir', () => {
+  it('returns a label for each operation', () => {
     expect(busyLabel({ op: 'push' })).toBe('Pushing…');
     expect(busyLabel({ op: 'pull' })).toBe('Pulling…');
     expect(busyLabel({ op: 'fetch' })).toBe('Fetching…');
@@ -42,10 +42,10 @@ describe('busyLabel', () => {
 });
 
 describe('GitOps', () => {
-  it('keşfedilmemiş repo yolu reddedilir, git çalışmaz', async () => {
+  it('rejects a repo path that was not discovered without running git', async () => {
     const { dir, repos, ops } = await setup();
     const repo = repos[0]!;
-    await writeFile(join(repo, 'yeni.txt'), 'x\n');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
     const commitAll: GitOp = { op: 'commit', message: 'feat: x', all: true, push: false };
     const unknown = { ok: false, error: 'Unknown repository' };
 
@@ -58,7 +58,7 @@ describe('GitOps', () => {
     expect(await log(repo)).toEqual(['chore: init']);
   });
 
-  it('tanınmayan ya da bozuk işlem reddedilir', async () => {
+  it('rejects an unknown or malformed operation', async () => {
     const { repos, ops } = await setup();
     const repo = repos[0]!;
     const invalid = { ok: false, error: 'Invalid operation' };
@@ -72,43 +72,43 @@ describe('GitOps', () => {
     });
   });
 
-  it('aynı repoda ikinci işlem reddedilir, ilki tamamlanır', async () => {
+  it('rejects a second operation on the same repo and lets the first finish', async () => {
     const { repos, ws, ops } = await setup();
     const repo = repos[0]!;
     const hook = join(repo, '.git', 'hooks', 'pre-commit');
     await writeFile(hook, '#!/bin/sh\nsleep 1\n');
     await chmod(hook, 0o755);
-    await writeFile(join(repo, 'yeni.txt'), 'x\n');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
 
-    const first = ops.run(repo, { op: 'commit', message: 'feat: ilk', all: true, push: false });
+    const first = ops.run(repo, { op: 'commit', message: 'feat: first', all: true, push: false });
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(ws.repo(repo)?.busy).toBe('Committing…');
     expect(await ops.run(repo, { op: 'stageAll' })).toEqual({ ok: false, error: 'Another operation is still running' });
-    expect(ws.repo(repo)?.busy).toBe('Committing…'); // reddedilen istek ilkinin etiketini silmez
+    expect(ws.repo(repo)?.busy).toBe('Committing…'); // the rejected request does not clear the first one's label
 
     expect(await first).toEqual({ ok: true, message: 'Committed' });
-    expect(await log(repo)).toEqual(['feat: ilk', 'chore: init']);
+    expect(await log(repo)).toEqual(['feat: first', 'chore: init']);
     expect(ws.repo(repo)?.busy).toBeNull();
   });
 
-  it('bir repodaki işlem diğer repoyu kilitlemez', async () => {
+  it('does not lock other repos while one repo is busy', async () => {
     const { repos, ops } = await setup(['a', 'b']);
     const [a, b] = repos as [string, string];
     const hook = join(a, '.git', 'hooks', 'pre-commit');
     await writeFile(hook, '#!/bin/sh\nsleep 1\n');
     await chmod(hook, 0o755);
-    await writeFile(join(a, 'yeni.txt'), 'x\n');
-    await writeFile(join(b, 'yeni.txt'), 'x\n');
+    await writeFile(join(a, 'new.txt'), 'x\n');
+    await writeFile(join(b, 'new.txt'), 'x\n');
 
     const slow = ops.run(a, { op: 'commit', message: 'feat: a', all: true, push: false });
     expect(await ops.run(b, { op: 'commit', message: 'feat: b', all: true, push: false })).toEqual({ ok: true, message: 'Committed' });
     expect((await slow).ok).toBe(true);
   });
 
-  it('işlemden sonra durum hemen yenilenir ve busy temizlenir', async () => {
+  it('refreshes the status right after an operation and clears busy', async () => {
     const { repos, ws, ops } = await setup();
     const repo = repos[0]!;
-    await writeFile(join(repo, 'README.md'), 'değişti\n');
+    await writeFile(join(repo, 'README.md'), 'changed\n');
     await ws.refresh(repo);
 
     expect(await ops.run(repo, { op: 'stage', file: fileOf(ws, repo, 'README.md') })).toEqual({ ok: true, message: 'Staged' });
@@ -124,7 +124,7 @@ describe('GitOps', () => {
     expect(fileOf(ws, repo, 'README.md')).toMatchObject({ x: '.', y: 'M' });
   });
 
-  it("stage işlemi sayfanın gönderdiği nesneyi değil, reponun kendi durumundaki dosyayı kullanır", async () => {
+  it("stages the file from the repo's own status, not the object sent by the page", async () => {
     const { repos, ws, ops } = await setup();
     const repo = repos[0]!;
     await mkdir(join(repo, 'src'));
@@ -132,46 +132,46 @@ describe('GitOps', () => {
     await writeFile(join(repo, 'b.ts'), 'x\n');
     await ws.refresh(repo);
 
-    // Sayfa yolu doğru, gerisini yanlış gönderse de yalnız o dosya stage edilir.
+    // Even when the page sends the right path with wrong other fields, only that file is staged.
     const forged = { path: 'src/a.ts', origPath: 'b.ts', x: 'R', y: '.', kind: 'changed' as const };
     expect((await ops.run(repo, { op: 'stage', file: forged })).ok).toBe(true);
     expect(ws.repo(repo)?.status?.files.map((f) => `${f.x}${f.y} ${f.path}`).sort()).toEqual(['?? b.ts', 'A. src/a.ts']);
   });
 
-  it('commit ve push tek işlemde', async () => {
+  it('commits and pushes in one operation', async () => {
     const { repos, ws, ops } = await setup();
     const repo = repos[0]!;
     const bare = await addBareRemote(repo);
-    await writeFile(join(repo, 'yeni.txt'), 'x\n');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
 
-    expect(await ops.run(repo, { op: 'commit', message: 'feat: yeni', all: true, push: true })).toEqual({ ok: true, message: 'Pushed' });
-    expect((await git(bare, 'log', '-1', '--format=%s', 'main')).trim()).toBe('feat: yeni');
+    expect(await ops.run(repo, { op: 'commit', message: 'feat: new', all: true, push: true })).toEqual({ ok: true, message: 'Pushed' });
+    expect((await git(bare, 'log', '-1', '--format=%s', 'main')).trim()).toBe('feat: new');
     expect(ws.repo(repo)?.status).toMatchObject({ upstream: 'origin/main', ahead: 0, files: [] });
   });
 
-  it('commit başarısızsa push denenmez', async () => {
+  it('does not try to push when the commit fails', async () => {
     const { repos, ops } = await setup();
     const repo = repos[0]!;
     const bare = await addBareRemote(repo);
 
-    const result = await ops.run(repo, { op: 'commit', message: 'feat: boş', all: true, push: true });
+    const result = await ops.run(repo, { op: 'commit', message: 'feat: empty', all: true, push: true });
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toMatch(/nothing to commit/);
     expect(await git(bare, 'for-each-ref')).toBe('');
   });
 
-  it('commit başarılı, push başarısızsa ikisini de söyler', async () => {
+  it('reports both when the commit succeeds but the push fails', async () => {
     const { repos, ops } = await setup();
-    const repo = repos[0]!; // remote yok
-    await writeFile(join(repo, 'yeni.txt'), 'x\n');
+    const repo = repos[0]!; // no remote
+    await writeFile(join(repo, 'new.txt'), 'x\n');
 
-    const result = await ops.run(repo, { op: 'commit', message: 'feat: yeni', all: true, push: true });
+    const result = await ops.run(repo, { op: 'commit', message: 'feat: new', all: true, push: true });
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toMatch(/^Committed, but the push failed: /);
-    expect(await log(repo)).toEqual(['feat: yeni', 'chore: init']);
+    expect(await log(repo)).toEqual(['feat: new', 'chore: init']);
   });
 
-  it('branch açar, geçer ve listeler', async () => {
+  it('creates, switches to and lists branches', async () => {
     const { repos, ws, ops } = await setup();
     const repo = repos[0]!;
     expect(await ops.run(repo, { op: 'createBranch', branch: 'feat/x' })).toEqual({ ok: true, message: 'Switched to feat/x' });
@@ -182,20 +182,20 @@ describe('GitOps', () => {
     expect(await ops.run(repo, { op: 'switch', branch: '--detach' })).toEqual({ ok: false, error: 'Invalid branch name' });
   });
 
-  it("fetchAll remote'u olan tüm repolarda çalışır, olmayanı atlar", async () => {
+  it('fetchAll runs in every repo with a remote and skips the rest', async () => {
     const { repos, ws, ops } = await setup(['a', 'b', 'c']);
     const [a, b] = repos as [string, string, string];
     for (const repo of [a, b]) {
       const bare = await addBareRemote(repo);
       await git(repo, 'push', '-q', '-u', 'origin', 'main');
-      // Uzakta yeni bir commit: başka bir klondan gönderilir.
+      // A new commit on the remote, pushed from another clone.
       const peer = join(await makeTmpDir(), 'peer');
       await git(repo, 'clone', '-q', bare, peer);
       await git(peer, 'config', 'user.name', 'Peer');
       await git(peer, 'config', 'user.email', 'peer@example.com');
-      await writeFile(join(peer, 'uzak.txt'), 'x\n');
+      await writeFile(join(peer, 'remote.txt'), 'x\n');
       await git(peer, 'add', '-A');
-      await git(peer, 'commit', '-q', '-m', 'feat: uzak');
+      await git(peer, 'commit', '-q', '-m', 'feat: remote');
       await git(peer, 'push', '-q');
     }
     await ws.rescan();
@@ -208,22 +208,22 @@ describe('GitOps', () => {
     expect(ws.view().repos.map((r) => r.status?.behind)).toEqual([1, 1, null]);
   });
 
-  it('çakışma varken unstageAll reddedilir: çakışma kaybolup commit edilebilir hâle gelmez', async () => {
+  it('rejects unstageAll during a conflict so the conflict cannot vanish and become committable', async () => {
     const { repos, ws, ops } = await setup();
     const repo = repos[0]!;
     await git(repo, 'switch', '-q', '-c', 'feat/x');
-    await writeFile(join(repo, 'README.md'), 'feat/x satırı\n');
-    await writeFile(join(repo, 'temiz.txt'), 'x\n');
+    await writeFile(join(repo, 'README.md'), 'feat/x line\n');
+    await writeFile(join(repo, 'clean.txt'), 'x\n');
     await git(repo, 'add', '-A');
     await git(repo, 'commit', '-q', '-m', 'feat: x');
     await git(repo, 'switch', '-q', 'main');
-    await writeFile(join(repo, 'README.md'), 'main satırı\n');
+    await writeFile(join(repo, 'README.md'), 'main line\n');
     await git(repo, 'commit', '-q', '-am', 'feat: main');
-    await git(repo, 'merge', 'feat/x').catch(() => undefined); // çakışmayla biter; temiz.txt stage'li
+    await git(repo, 'merge', 'feat/x').catch(() => undefined); // ends in a conflict; clean.txt is staged
 
     expect(await ops.run(repo, { op: 'unstageAll' })).toEqual({ ok: false, error: 'Conflicted files present; resolve them outside edi' });
-    expect(ws.repo(repo)?.status?.files.map((f) => `${f.kind} ${f.path}`).sort()).toEqual(['changed temiz.txt', 'conflicted README.md']);
-    // Koruma aşılamadığı için çakışma işaretleri commit edilemez.
+    expect(ws.repo(repo)?.status?.files.map((f) => `${f.kind} ${f.path}`).sort()).toEqual(['changed clean.txt', 'conflicted README.md']);
+    // The guard holds, so the conflict markers cannot be committed.
     const committed = await ops.run(repo, { op: 'commit', message: 'feat: x', all: true, push: false });
     expect(committed.ok).toBe(false);
     expect((await git(repo, 'rev-list', '--count', 'HEAD')).trim()).toBe('2');

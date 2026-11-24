@@ -11,8 +11,8 @@ afterEach(cleanup);
 
 const tab = (id: number, title: string) => ({ id, title, claude: false, waiting: false, busy: false, exited: false, claudeUntil: 0, claudeState: null });
 
-describe('TabBar kapatma düğmesi', () => {
-  it('her sekmede yer tutar; etkin olmayanınki üzerine gelince görünür ve sekmeye geçmeden o sekmeyi kapatır', () => {
+describe('TabBar close button', () => {
+  it('every tab reserves room for it; on an inactive tab it shows on hover and closes that tab without switching to it', () => {
     const closeTab = vi.fn();
     const activate = vi.fn();
     useApp.setState({ tabs: [tab(1, 'zsh'), tab(2, 'npm run dev'), tab(3, 'claude')] as never, activeTab: 2, closeTab, activate });

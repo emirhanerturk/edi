@@ -6,7 +6,7 @@ import { listServers, parseListening, readListening, serverCandidates, serversFo
 const row = (pid: number, tty: string, pgid = pid, tpgid = pid, args = 'node'): PsRow => ({ pid, pgid, tpgid, tty, args });
 
 describe('parseListening', () => {
-  it("yalnız localhost'tan erişilebilen dinlemeler, pid başına sıralı ve tekrarsız", () => {
+  it('keeps only listeners reachable from localhost, sorted and deduplicated per pid', () => {
     const out = [
       'p100', 'f20', 'n*:5173', 'f21', 'n[::1]:5173', 'f22', 'n127.0.0.1:24678',
       'p200', 'f5', 'n[::]:8080', 'f6', 'n0.0.0.0:4000', 'f7', 'n127.0.1.1:3001',
@@ -19,8 +19,8 @@ describe('parseListening', () => {
     ]);
   });
 
-  it('işletim sisteminin rastgele verdiği portlar (49152 ve üstü) sunucu sayılmaz', () => {
-    // vite + Cloudflare eklentisi: 5173 asıl adres, diğerleri listen(0) ile alınmış iç portlar.
+  it('does not count OS-assigned ephemeral ports (49152 and up) as servers', () => {
+    // vite + the Cloudflare plugin: 5173 is the real address; the others are internal ports from listen(0).
     const out = ['p100', 'n*:5173', 'n127.0.0.1:54487', 'p101', 'n127.0.0.1:54488', 'n127.0.0.1:49152', 'n127.0.0.1:49151', ''].join('\n');
     expect([...parseListening(out)]).toEqual([
       [100, [5173]],
@@ -28,13 +28,13 @@ describe('parseListening', () => {
     ]);
   });
 
-  it('bozuk satırları atlar', () => {
+  it('skips malformed lines', () => {
     expect([...parseListening('pabc\nn*:1\np5\nn*:\nnfoo\nn*:70000\n')]).toEqual([]);
   });
 });
 
 describe('serverCandidates', () => {
-  it('edi terminallerindeki kabuk dışı süreçler; arka plandakiler de', () => {
+  it('picks non-shell processes in edi terminals, background ones included', () => {
     const ptys = [
       { id: 1, pid: 10, tty: 'ttys001' },
       { id: 2, pid: 20, tty: '' },
@@ -43,10 +43,10 @@ describe('serverCandidates', () => {
       row(10, 'ttys001'),
       row(11, 'ttys001', 11, 11, 'npm run dev'),
       row(12, 'ttys001', 11, 11, 'node vite'),
-      row(13, 'ttys001', 13, 11, 'node server.js'), // `&` ile arka planda
+      row(13, 'ttys001', 13, 11, 'node server.js'), // in the background via `&`
       row(20, 'ttys002'),
       row(21, 'ttys002', 21, 21),
-      row(30, 'ttys009'), // edi dışı terminal
+      row(30, 'ttys009'), // a terminal outside edi
       row(40, ''),
     ];
     expect([...serverCandidates(ptys, ps)]).toEqual([
@@ -57,7 +57,7 @@ describe('serverCandidates', () => {
     ]);
   });
 
-  it('Claude Code sürecinin kendisi aday değil; başlattığı alt süreçler aday', () => {
+  it('excludes the Claude Code process itself but includes the child processes it starts', () => {
     const ptys = [{ id: 1, pid: 10, tty: 'ttys001' }];
     const ps = [
       row(10, 'ttys001'),
@@ -71,7 +71,7 @@ describe('serverCandidates', () => {
 });
 
 describe('serversFor', () => {
-  it('port sırasıyla; aynı sekmede aynı port tek; cwd yoksa null', () => {
+  it('sorts by port, lists a port once per tab and uses null when the cwd is unknown', () => {
     const candidates = new Map([[11, 1], [12, 1], [21, 2]]);
     const listening = new Map([[12, [5173, 24678]], [11, [5173]], [21, [3000]], [99, [1]]]);
     const cwds = new Map([[12, '/w/web']]);
@@ -84,14 +84,14 @@ describe('serversFor', () => {
 });
 
 describe('listServers', () => {
-  it('kabuk dışı süreç yoksa lsof çalışmaz', async () => {
+  it('does not run lsof when there are no non-shell processes', async () => {
     const calls: string[][] = [];
     const run = async (_cmd: string, args: string[]) => (calls.push(args), '');
     expect(await listServers([{ id: 1, pid: 10, tty: 'ttys001' }], [row(10, 'ttys001')], run)).toEqual([]);
     expect(calls).toEqual([]);
   });
 
-  it('adayların portlarını ve çalışma dizinlerini okur', async () => {
+  it("reads the candidates' ports and working directories", async () => {
     const calls: string[][] = [];
     const run = async (_cmd: string, args: string[]) => {
       calls.push(args);
@@ -105,15 +105,15 @@ describe('listServers', () => {
     ]);
   });
 
-  it('lsof hata verirse boş liste', async () => {
-    const run = async () => Promise.reject(new Error('lsof yok'));
+  it('returns an empty list when lsof fails', async () => {
+    const run = async () => Promise.reject(new Error('no lsof'));
     expect(await listServers([{ id: 1, pid: 10, tty: 'ttys001' }], [row(10, 'ttys001'), row(11, 'ttys001', 11, 11)], run)).toEqual([]);
   });
 });
 
 describe('readListening', () => {
-  it('gerçek lsof ile bu sürecin dinlediği portu bulur', async () => {
-    // Rastgele verilen portlar (listen(0)) sayılmadığı için 40000–48999 arasında boş bir port denenir.
+  it('finds the port this process listens on with the real lsof', async () => {
+    // Randomly assigned ports (listen(0)) are not counted, so try a free port between 40000 and 48999.
     const server = createServer();
     let port = 0;
     for (let attempt = 0; attempt < 20 && port === 0; attempt++) {

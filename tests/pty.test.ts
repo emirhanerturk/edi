@@ -22,13 +22,13 @@ function makeManager() {
 async function until(check: () => boolean, ms = 8000): Promise<void> {
   const started = Date.now();
   while (!check()) {
-    if (Date.now() - started > ms) throw new Error('beklenen durum oluşmadı');
+    if (Date.now() - started > ms) throw new Error('the expected state never arrived');
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 }
 
 describe('shellEnv', () => {
-  it('Claude Code ve Electron izlerini siler, terminali tanıtır', () => {
+  it('removes Claude Code and Electron traces and identifies the terminal', () => {
     const env = shellEnv({
       PATH: '/usr/bin',
       HOME: '/Users/x',
@@ -39,12 +39,12 @@ describe('shellEnv', () => {
       EDI_USER_DATA: '/tmp/x',
       VITE_DEV_SERVER_URL: 'http://127.0.0.1:5173',
       CLAUDE_CONFIG_DIR: '/Users/x/.claude-is',
-      BOS: undefined,
+      EMPTY: undefined,
     });
     expect(env).toEqual({
       PATH: '/usr/bin',
       HOME: '/Users/x',
-      CLAUDE_CONFIG_DIR: '/Users/x/.claude-is', // kullanıcının kendi ayarı: dokunulmaz
+      CLAUDE_CONFIG_DIR: '/Users/x/.claude-is', // the user's own setting: left untouched
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       TERM_PROGRAM: 'edi',
@@ -53,7 +53,7 @@ describe('shellEnv', () => {
 });
 
 describe('PtyManager', () => {
-  it('komut çıktısını verir ve çıkışı bildirir', async () => {
+  it('emits command output and reports the exit', async () => {
     const { manager, output, exited } = makeManager();
     const id = manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir() });
     manager.write(id, 'echo edi-$((40+2)); exit\n');
@@ -64,28 +64,28 @@ describe('PtyManager', () => {
     expect(manager.info(id)).toBeNull();
   });
 
-  it('kabuğu verilen klasörde ve temizlenmiş ortamla başlatır', async () => {
+  it('starts the shell in the given folder with a cleaned environment', async () => {
     process.env.CLAUDECODE = '1';
     try {
       const { manager, output } = makeManager();
       const cwd = await makeTmpDir();
       const id = manager.create({ cols: 80, rows: 24, cwd });
-      manager.write(id, 'echo "cwd=$(pwd -P) cc=[${CLAUDECODE-yok}] tp=$TERM_PROGRAM"\n');
+      manager.write(id, 'echo "cwd=$(pwd -P) cc=[${CLAUDECODE-missing}] tp=$TERM_PROGRAM"\n');
       await until(() => (output.get(id) ?? '').includes('tp=edi'));
-      expect(output.get(id)).toContain(`cwd=${cwd} cc=[yok] tp=edi`);
+      expect(output.get(id)).toContain(`cwd=${cwd} cc=[missing] tp=edi`);
     } finally {
       delete process.env.CLAUDECODE;
     }
   });
 
-  it('başlangıç komutunu kabuğun içinde çalıştırır', async () => {
+  it('runs the startup command inside the shell', async () => {
     const { manager, output } = makeManager();
-    const id = manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir(), command: 'echo basla-$((1+1))' });
-    await until(() => (output.get(id) ?? '').includes('basla-2'));
-    expect(manager.ids()).toEqual([id]); // komut bitince kabuk açık kalır
+    const id = manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir(), command: 'echo start-$((1+1))' });
+    await until(() => (output.get(id) ?? '').includes('start-2'));
+    expect(manager.ids()).toEqual([id]); // the shell stays open after the command finishes
   });
 
-  it("ölü ya da bilinmeyen pty'ye yazmak, boyutlandırmak ve kapatmak hata vermez", async () => {
+  it('does not throw when writing to, resizing or killing a dead or unknown pty', async () => {
     const { manager, exited } = makeManager();
     const id = manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir() });
     manager.write(id, 'exit\n');
@@ -101,7 +101,7 @@ describe('PtyManager', () => {
     }).not.toThrow();
   });
 
-  it('bir sekmenin çıkışı diğerini etkilemez', async () => {
+  it('one tab exiting does not affect another', async () => {
     const { manager, output, exited } = makeManager();
     const cwd = await makeTmpDir();
     const a = manager.create({ cols: 80, rows: 24, cwd });
@@ -109,12 +109,12 @@ describe('PtyManager', () => {
     manager.write(a, 'exit\n');
     await until(() => exited.includes(a));
 
-    manager.write(b, 'echo hala-$((2+3))\n');
-    await until(() => (output.get(b) ?? '').includes('hala-5'));
+    manager.write(b, 'echo still-$((2+3))\n');
+    await until(() => (output.get(b) ?? '').includes('still-5'));
     expect(manager.ids()).toEqual([b]);
   });
 
-  it('info tty adını /dev öneki olmadan verir', async () => {
+  it('info returns the tty name without the /dev prefix', async () => {
     const { manager } = makeManager();
     const id = manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir() });
     const info = manager.info(id);
@@ -123,7 +123,7 @@ describe('PtyManager', () => {
     expect(info?.pid).toBeGreaterThan(0);
   });
 
-  it('killAll hepsini kapatır ve çıkış bildirmez', async () => {
+  it('killAll closes them all without reporting exits', async () => {
     const { manager, exited } = makeManager();
     const cwd = await makeTmpDir();
     manager.create({ cols: 80, rows: 24, cwd });
@@ -134,7 +134,7 @@ describe('PtyManager', () => {
     expect(exited).toEqual([]);
   });
 
-  it('geçersiz boyutu en küçük boyuta çeker', async () => {
+  it('clamps an invalid size to the minimum', async () => {
     const { manager } = makeManager();
     const id = manager.create({ cols: 0, rows: Number.NaN, cwd: await makeTmpDir() });
     expect(manager.ids()).toEqual([id]);

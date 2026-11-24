@@ -17,7 +17,7 @@ function renderBox(over: Partial<Parameters<typeof CommitBox>[0]> = {}) {
 }
 
 describe('CommitBox', () => {
-  it('mesaj boşken ya da yalnız boşlukken düğme pasiftir', () => {
+  it('the button is disabled when the message is empty or only whitespace', () => {
     expect(renderBox({ message: '' }).button.disabled).toBe(true);
     cleanup();
     expect(renderBox({ message: '  \n ' }).button.disabled).toBe(true);
@@ -25,7 +25,7 @@ describe('CommitBox', () => {
     expect(renderBox().button.disabled).toBe(false);
   });
 
-  it("stage'li dosya varsa yalnız onları, yoksa hepsini commit edeceğini söyler", () => {
+  it('says it commits only the staged files, or everything when nothing is staged', () => {
     expect(renderBox().button.textContent).toBe('Commit · 2 files');
     expect(screen.queryByText(/Nothing is staged/)).toBeNull();
     cleanup();
@@ -33,31 +33,31 @@ describe('CommitBox', () => {
     expect(screen.getByText('Nothing is staged. This commits every change, new files included.')).toBeTruthy();
   });
 
-  it('düğme ve Cmd+Enter commit eder', () => {
+  it('the button and Cmd+Enter commit', () => {
     const { onCommit, button, input } = renderBox({ target: everything });
     fireEvent.click(button);
     expect(onCommit).toHaveBeenLastCalledWith({ all: true, push: false });
     fireEvent.keyDown(input, { key: 'Enter', metaKey: true });
     expect(onCommit).toHaveBeenCalledTimes(2);
-    fireEvent.keyDown(input, { key: 'Enter' }); // düz Enter yeni satırdır
+    fireEvent.keyDown(input, { key: 'Enter' }); // plain Enter is a new line
     expect(onCommit).toHaveBeenCalledTimes(2);
   });
 
-  it('mesaj boşken Cmd+Enter commit etmez', () => {
+  it('Cmd+Enter does not commit an empty message', () => {
     const { onCommit, input } = renderBox({ message: '' });
     fireEvent.keyDown(input, { key: 'Enter', metaKey: true });
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it('ok menüsündeki Commit and push, push ile commit eder', () => {
+  it('"Commit and push" in the arrow menu commits and pushes', () => {
     const { onCommit } = renderBox();
     fireEvent.click(screen.getByLabelText('Commit options'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Commit and push' }));
     expect(onCommit).toHaveBeenLastCalledWith({ all: false, push: true });
-    expect(screen.queryByRole('menuitem')).toBeNull(); // menü kapandı
+    expect(screen.queryByRole('menuitem')).toBeNull(); // the menu closed
   });
 
-  it('süren işlemde ve commit edilecek şey yokken pasiftir', () => {
+  it('disabled while an operation runs and when there is nothing to commit', () => {
     expect(renderBox({ busy: true }).button.disabled).toBe(true);
     cleanup();
     const { button } = renderBox({ target: { all: false, count: 0, label: 'Commit', enabled: false } });
@@ -65,13 +65,13 @@ describe('CommitBox', () => {
     expect((screen.getByLabelText('Commit options') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("remote'u olmayan repoda Commit and push seçilemez", () => {
+  it('"Commit and push" is disabled in a repo without a remote', () => {
     renderBox({ canPush: false });
     fireEvent.click(screen.getByLabelText('Commit options'));
     expect((screen.getByRole('menuitem', { name: 'Commit and push' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('yazılan metni bildirir', () => {
+  it('reports the typed text', () => {
     const { onChange, input } = renderBox();
     fireEvent.change(input, { target: { value: 'fix: y' } });
     expect(onChange).toHaveBeenCalledWith('fix: y');

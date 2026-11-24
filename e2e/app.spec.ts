@@ -4,12 +4,12 @@ import { basename, join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { launch, makeRepo, tmpDir } from './helpers.js';
 
-test('pencere açılır ve başlıkta edi yazar', async () => {
+test('the window opens with edi in the title bar', async () => {
   const { app, page } = await launch();
   try {
     await expect(page.getByTestId('titlebar')).toContainText('edi');
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(40, 44, 52)');
-    // Sayfa Node'a erişemez; yalnız köprü nesnesi vardır.
+    // The page has no access to Node; only the bridge object exists.
     expect(await page.evaluate(() => typeof (window as unknown as { require?: unknown }).require)).toBe('undefined');
     expect(await page.evaluate(() => typeof (window as unknown as { edi?: unknown }).edi)).toBe('object');
   } finally {
@@ -17,7 +17,7 @@ test('pencere açılır ve başlıkta edi yazar', async () => {
   }
 });
 
-test('boş durumda Open a folder görünür', async () => {
+test('the empty state shows Open a folder', async () => {
   const { app, page } = await launch();
   try {
     await expect(page.getByRole('heading', { name: 'Open a folder' })).toBeVisible();
@@ -28,11 +28,11 @@ test('boş durumda Open a folder görünür', async () => {
   }
 });
 
-test('klasör açılınca repo sayısı durum çubuğunda, adı başlıkta görünür', async () => {
+test('opening a folder shows the repo count in the status bar and its name in the title bar', async () => {
   const dir = await tmpDir();
   await makeRepo(dir, 'alpha');
   const beta = await makeRepo(dir, 'beta');
-  await writeFile(join(beta, 'yeni.txt'), 'x\n');
+  await writeFile(join(beta, 'new.txt'), 'x\n');
 
   const { app, page } = await launch({ openDir: dir });
   try {
@@ -45,7 +45,7 @@ test('klasör açılınca repo sayısı durum çubuğunda, adı başlıkta gör�
   }
 });
 
-test('son açılan klasör yeniden açılışta geri gelir, öncekiler menüde listelenir', async () => {
+test('the last folder comes back on relaunch and earlier ones are listed in the menu', async () => {
   const one = await tmpDir();
   await makeRepo(one, 'alpha');
   const two = await tmpDir();
@@ -60,7 +60,7 @@ test('son açılan klasör yeniden açılışta geri gelir, öncekiler menüde l
   await expect(second.page.getByTestId('statusbar')).toContainText('2 repositories');
   await second.app.close();
 
-  // Klasör verilmeden açılış: son açılan (iki repolu) geri gelir.
+  // Launch without a folder: the last one opened (with two repos) comes back.
   const third = await launch({ userData: first.userData });
   try {
     await expect(third.page.getByTestId('statusbar')).toContainText('2 repositories');
@@ -70,7 +70,7 @@ test('son açılan klasör yeniden açılışta geri gelir, öncekiler menüde l
     await expect(menu).toContainText('1 repo');
     await expect(menu).toContainText('Choose folder…');
 
-    // Menüden önceki klasöre geçilir.
+    // Switch to the earlier folder from the menu.
     await menu.getByRole('menuitem', { name: new RegExp(basename(one)) }).click();
     await expect(third.page.getByTestId('statusbar')).toContainText('1 repository');
     await expect(third.page.getByTestId('folder-button')).toContainText(basename(one));
@@ -79,7 +79,7 @@ test('son açılan klasör yeniden açılışta geri gelir, öncekiler menüde l
   }
 });
 
-/** Claude Code'un yaptığı gibi köprü betiğine durum JSON'u verir. */
+/** Feeds status JSON to the bridge script, as Claude Code does. */
 function bridge(file: string, limits: object): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = execFile('/bin/sh', [join(import.meta.dirname, '..', 'resources', 'edi-statusline')], { env: { PATH: '/usr/bin:/bin', EDI_USAGE_FILE: file } }, (error) =>
@@ -89,7 +89,7 @@ function bridge(file: string, limits: object): Promise<void> {
   });
 }
 
-test('Claude kullanım limitleri köprüden gelir, üst çubukta görünür ve değişince tazelenir', async () => {
+test('Claude usage limits come from the bridge, show in the title bar and refresh when they change', async () => {
   const file = join(await tmpDir(), 'claude-usage.json');
   const soon = Math.floor(Date.now() / 1000) + 2 * 3600;
   const later = Math.floor(Date.now() / 1000) + 3 * 86400;
@@ -109,7 +109,7 @@ test('Claude kullanım limitleri köprüden gelir, üst çubukta görünür ve d
   }
 });
 
-test('köprü kurulmamışsa kullanım göstergesi yoktur', async () => {
+test('without the bridge there is no usage indicator', async () => {
   const { app, page } = await launch();
   try {
     await expect(page.getByTestId('titlebar')).toContainText('edi');

@@ -14,7 +14,7 @@ afterEach(() => {
 async function setup(opts: { commit?: boolean } = { commit: true }) {
   const dir = await makeTmpDir();
   const repo = await initRepo(dir, 'a', opts);
-  await writeFile(join(dir, 'outside.txt'), 'gizli\n');
+  await writeFile(join(dir, 'outside.txt'), 'secret\n');
   const ws = new Workspace({ onChange: () => undefined, statusMs: 60_000 });
   open.push(ws);
   await ws.open(dir);
@@ -29,7 +29,7 @@ async function setup(opts: { commit?: boolean } = { commit: true }) {
 const UNKNOWN = { ok: false, error: 'Unknown repository' };
 
 describe('ViewOps', () => {
-  it('keşfedilmemiş repo yolu dört işlemde de reddedilir', async () => {
+  it('rejects a repo path that was not discovered in all four operations', async () => {
     const { dir, repo, ops, opened } = await setup();
     for (const path of [dir, `${repo}/../a`, `${repo}/`, join(repo, '.git'), '', null, 7, undefined]) {
       expect(await ops.diff(path, 'README.md'), String(path)).toEqual(UNKNOWN);
@@ -40,29 +40,29 @@ describe('ViewOps', () => {
     expect(opened).toEqual([]);
   });
 
-  it('değişen dosyanın diff\'ini ve durum kaydını döner', async () => {
+  it('returns the diff and status entry of a changed file', async () => {
     const { repo, ops } = await setup();
-    await writeFile(join(repo, 'README.md'), 'değişti\n');
+    await writeFile(join(repo, 'README.md'), 'changed\n');
     const view = await ops.diff(repo, 'README.md');
     expect(view).toMatchObject({ ok: true, file: { path: 'README.md', x: '.', y: 'M' }, diff: { added: 1, removed: 1, binary: false } });
     expect(view.ok && view.diff.hunks[0]?.lines).toEqual([
       { kind: 'del', oldNo: 1, text: 'readme' },
-      { kind: 'add', newNo: 1, text: 'değişti' },
+      { kind: 'add', newNo: 1, text: 'changed' },
     ]);
   });
 
-  it("stage'li ve stage'siz değişiklik tek diff'te birlikte gelir", async () => {
+  it('combines staged and unstaged changes in one diff', async () => {
     const { repo, ops } = await setup();
-    await writeFile(join(repo, 'README.md'), 'readme\niki\n');
+    await writeFile(join(repo, 'README.md'), 'readme\ntwo\n');
     await git(repo, 'add', '-A');
-    await writeFile(join(repo, 'README.md'), 'readme\niki\nüç\n');
+    await writeFile(join(repo, 'README.md'), 'readme\ntwo\nthree\n');
     expect(await ops.diff(repo, 'README.md')).toMatchObject({ ok: true, diff: { added: 2, removed: 0 } });
   });
 
-  it('yeni dosya, tuhaf adlar ve silinen dosya', async () => {
+  it('handles a new file, odd names and a deleted file', async () => {
     const { repo, ops } = await setup();
     await mkdir(join(repo, 'boş klasör'));
-    await writeFile(join(repo, 'boş klasör', '-tuhaf ad ö.txt'), 'bir\niki\n');
+    await writeFile(join(repo, 'boş klasör', '-tuhaf ad ö.txt'), 'one\ntwo\n');
     await rm(join(repo, 'README.md'));
 
     expect(await ops.diff(repo, 'boş klasör/-tuhaf ad ö.txt')).toMatchObject({
@@ -73,40 +73,40 @@ describe('ViewOps', () => {
     expect(await ops.diff(repo, 'README.md')).toMatchObject({ ok: true, diff: { added: 0, removed: 1 } });
   });
 
-  it('yeniden adlandırılan dosyada yalnız içerik değişikliği gelir', async () => {
+  it('returns only the content change for a renamed file', async () => {
     const { repo, ops } = await setup();
-    await writeFile(join(repo, 'uzun.txt'), Array.from({ length: 20 }, (_, i) => `satır ${i}`).join('\n') + '\n');
+    await writeFile(join(repo, 'long.txt'), Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n') + '\n');
     await git(repo, 'add', '-A');
-    await git(repo, 'commit', '-q', '-m', 'feat: uzun');
-    await git(repo, 'mv', 'uzun.txt', 'yeni-ad.txt');
-    await writeFile(join(repo, 'yeni-ad.txt'), Array.from({ length: 20 }, (_, i) => (i === 3 ? 'değişti' : `satır ${i}`)).join('\n') + '\n');
+    await git(repo, 'commit', '-q', '-m', 'feat: long');
+    await git(repo, 'mv', 'long.txt', 'new-name.txt');
+    await writeFile(join(repo, 'new-name.txt'), Array.from({ length: 20 }, (_, i) => (i === 3 ? 'changed' : `line ${i}`)).join('\n') + '\n');
     await git(repo, 'add', '-A');
 
-    expect(await ops.diff(repo, 'yeni-ad.txt')).toMatchObject({ ok: true, file: { origPath: 'uzun.txt' }, diff: { added: 1, removed: 1 } });
+    expect(await ops.diff(repo, 'new-name.txt')).toMatchObject({ ok: true, file: { origPath: 'long.txt' }, diff: { added: 1, removed: 1 } });
   });
 
-  it("commit'i olmayan repoda çalışır", async () => {
+  it('works in a repo without commits', async () => {
     const { repo, ops } = await setup({ commit: false });
-    await writeFile(join(repo, 'ilk.txt'), 'x\n');
+    await writeFile(join(repo, 'first.txt'), 'x\n');
     await git(repo, 'add', '-A');
-    expect(await ops.diff(repo, 'ilk.txt')).toMatchObject({ ok: true, diff: { added: 1, removed: 0 } });
+    expect(await ops.diff(repo, 'first.txt')).toMatchObject({ ok: true, diff: { added: 1, removed: 0 } });
   });
 
-  it('çok büyük diff okunmaz, ayrıştırılmaz; anlaşılır not döner', async () => {
+  it('does not read or parse a huge diff and returns a clear note', async () => {
     const { repo, ops } = await setup();
     const line = `${'x'.repeat(99)}\n`;
-    await writeFile(join(repo, 'veri.csv'), 'a\n');
-    await git(repo, 'add', 'veri.csv');
-    await git(repo, 'commit', '-q', '-m', 'chore: veri');
-    await writeFile(join(repo, 'veri.csv'), line.repeat(Math.ceil(MAX_DIFF_BYTES / line.length) + 10));
-    expect(await ops.diff(repo, 'veri.csv')).toEqual({ ok: false, error: DIFF_TOO_LARGE });
-    await writeFile(join(repo, 'yeni.csv'), line.repeat(Math.ceil(MAX_DIFF_BYTES / line.length) + 10));
-    expect(await ops.diff(repo, 'yeni.csv')).toEqual({ ok: false, error: DIFF_TOO_LARGE });
-    await writeFile(join(repo, 'veri.csv'), line.repeat(100));
-    expect(await ops.diff(repo, 'veri.csv')).toMatchObject({ ok: true, diff: { added: 100, removed: 1 } });
+    await writeFile(join(repo, 'data.csv'), 'a\n');
+    await git(repo, 'add', 'data.csv');
+    await git(repo, 'commit', '-q', '-m', 'chore: data');
+    await writeFile(join(repo, 'data.csv'), line.repeat(Math.ceil(MAX_DIFF_BYTES / line.length) + 10));
+    expect(await ops.diff(repo, 'data.csv')).toEqual({ ok: false, error: DIFF_TOO_LARGE });
+    await writeFile(join(repo, 'new.csv'), line.repeat(Math.ceil(MAX_DIFF_BYTES / line.length) + 10));
+    expect(await ops.diff(repo, 'new.csv')).toEqual({ ok: false, error: DIFF_TOO_LARGE });
+    await writeFile(join(repo, 'data.csv'), line.repeat(100));
+    expect(await ops.diff(repo, 'data.csv')).toMatchObject({ ok: true, diff: { added: 100, removed: 1 } });
   });
 
-  it('değişiklik listesinde olmayan yol için diff çalışmaz', async () => {
+  it('does not run diff for a path that is not in the list of changes', async () => {
     const { repo, ops } = await setup();
     const refused = { ok: false, error: 'File is not in the list of changes' };
     expect(await ops.diff(repo, 'README.md')).toEqual(refused);
@@ -115,19 +115,19 @@ describe('ViewOps', () => {
     expect(await ops.diff(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
   });
 
-  it('dosya okur ve listeler', async () => {
+  it('reads and lists files', async () => {
     const { repo, ops } = await setup();
-    await writeFile(join(repo, 'yeni.ts'), 'const a = 1;\n');
-    expect(await ops.readFile(repo, 'yeni.ts')).toEqual({ ok: true, kind: 'text', text: 'const a = 1;\n', size: 13 });
-    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'yeni.ts'], ignored: [] });
+    await writeFile(join(repo, 'new.ts'), 'const a = 1;\n');
+    expect(await ops.readFile(repo, 'new.ts')).toEqual({ ok: true, kind: 'text', text: 'const a = 1;\n', size: 13 });
+    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'new.ts'], ignored: [] });
     await mkdir(join(repo, 'dist'));
     await writeFile(join(repo, 'dist', 'app.js'), 'x\n');
     expect(await ops.listDir(repo, 'dist')).toEqual({ ok: true, entries: [{ name: 'app.js', dir: false }], more: 0 });
     expect(await ops.listDir(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
-    expect(await ops.listDir('/yok', 'dist')).toEqual({ ok: false, error: 'Unknown repository' });
+    expect(await ops.listDir('/missing', 'dist')).toEqual({ ok: false, error: 'Unknown repository' });
   });
 
-  it('repo dışına çıkan dosya yolu okunmaz ve açılmaz', async () => {
+  it('does not read or open a file path that leaves the repo', async () => {
     const { dir, repo, ops, opened } = await setup();
     const outside = { ok: false, error: 'File is outside the repository' };
     for (const path of ['../outside.txt', join(dir, 'outside.txt'), '.git/config', 'a/../../outside.txt']) {
@@ -139,14 +139,14 @@ describe('ViewOps', () => {
     expect(opened).toEqual([]);
   });
 
-  it("Zed'de dosyayı, yol verilmezse repo klasörünü açar", async () => {
+  it('opens the file in Zed, or the repo folder when no path is given', async () => {
     const { repo, ops, opened } = await setup();
     expect(await ops.openInZed(repo, 'README.md')).toEqual({ ok: true, message: 'Opened in Zed' });
     expect(await ops.openInZed(repo, null)).toEqual({ ok: true, message: 'Opened in Zed' });
     expect(opened).toEqual([join(repo, 'README.md'), repo]);
   });
 
-  it('silinmiş dosyada repo klasörü açılır', async () => {
+  it('opens the repo folder for a deleted file', async () => {
     const { repo, ops, opened } = await setup();
     await rm(join(repo, 'README.md'));
     expect((await ops.openInZed(repo, 'README.md')).ok).toBe(true);

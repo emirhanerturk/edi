@@ -41,7 +41,7 @@ function renderPane(result: CommitResult | null, over: Partial<CommitPaneProps> 
 const sections = () => screen.getAllByTestId('commit-file');
 
 describe('CommitPane', () => {
-  it('başlık: sönük ön ek, gövde paragrafları, repo, branch, uzun süre, toplamlar, hash', () => {
+  it('header: dimmed prefix, body paragraphs, repo, branch, long age, totals, hash', () => {
     const { onCopy } = renderPane({ ok: true, commit: detail() });
     const title = screen.getByRole('heading', { level: 1 });
     expect(within(title).getByText('feat(music-quiz):', { exact: false }).className).toContain('prefix');
@@ -49,7 +49,7 @@ describe('CommitPane', () => {
     const paragraphs = screen.getAllByTestId('commit-body');
     expect(paragraphs.map((p) => p.textContent)).toEqual(['The banner sat under the answer grid.\nIt pushed the timer off small screens.', 'It now shows only between rounds.']);
     const meta = screen.getByTestId('commit-meta');
-    // Önce commit'i atan: adı, üzerine gelince e-postası.
+    // The author comes first: the name, with the email on hover.
     const author = within(meta).getByTestId('commit-author');
     expect(author.textContent).toBe('Me');
     expect(author.title).toBe('Me <me@x.dev>');
@@ -64,7 +64,7 @@ describe('CommitPane', () => {
     expect(within(meta).getByRole('button', { name: /Copy hash/ }).textContent).toContain('3ed0fc5');
   });
 
-  it("push edilmiş commit'te GitHub bağlantısı vardır ve tarayıcıda açar; yoksa düğme de yoktur", () => {
+  it('a pushed commit has a GitHub link that opens in the browser; otherwise there is no button', () => {
     const url = `https://github.com/quizei/app/commit/${'3ed0fc5'.padEnd(40, 'a')}`;
     const { onOpenUrl } = renderPane({ ok: true, commit: detail(), webUrl: url });
     const link = within(screen.getByTestId('commit-meta')).getByRole('button', { name: 'Open on GitHub' });
@@ -78,7 +78,7 @@ describe('CommitPane', () => {
     expect(screen.queryByRole('button', { name: 'Open on GitHub' })).toBeNull();
   });
 
-  it('tek düğmeyle bütün dosyalar kapanır, hepsi kapalıyken açılır', () => {
+  it('one button collapses every file, and expands them all once all are collapsed', () => {
     renderPane({ ok: true, commit: detail() });
     const expanded = () => screen.getAllByTestId('commit-file-head').map((head) => head.getAttribute('aria-expanded'));
     expect(expanded()).toContain('true');
@@ -86,12 +86,12 @@ describe('CommitPane', () => {
     expect(expanded()).toEqual(['false', 'false', 'false']);
     fireEvent.click(screen.getByRole('button', { name: 'Expand all files' }));
     expect(expanded()).toEqual(['true', 'true', 'true']);
-    // Tek tek kapatılınca hepsi kapalı olana kadar düğme yine "kapat" der.
+    // Collapsing files one by one, the button still says "collapse" until all are collapsed.
     fireEvent.click(screen.getAllByTestId('commit-file-head')[0]!);
     expect(screen.getByRole('button', { name: 'Collapse all files' })).toBeTruthy();
   });
 
-  it('dosyası olmayan ya da satır satır gösterilemeyecek kadar büyük commit\'te aç/kapat düğmesi yoktur', () => {
+  it('no expand/collapse button for a commit with no files or one too large to show line by line', () => {
     renderPane({ ok: true, commit: detail({ files: [] }) });
     expect(screen.queryByRole('button', { name: /all files/ })).toBeNull();
     cleanup();
@@ -99,12 +99,12 @@ describe('CommitPane', () => {
     expect(screen.queryByRole('button', { name: /all files/ })).toBeNull();
   });
 
-  it('yazarın adı yoksa e-postası gösterilir', () => {
+  it("shows the author's email when there is no name", () => {
     renderPane({ ok: true, commit: detail({ authorName: '', authorEmail: 'bot@ci.dev' }) });
     expect(screen.getByTestId('commit-author').textContent).toBe('bot@ci.dev');
   });
 
-  it('dosyalar alt alta, satırlarıyla; 400 satırı aşan kapalı başlar ve tıklayınca açılır', () => {
+  it('stacks the files with their lines; one over 400 lines starts collapsed and expands on click', () => {
     renderPane({ ok: true, commit: detail() });
     expect(sections()).toHaveLength(3);
     const [first, second, third] = sections();
@@ -127,7 +127,7 @@ describe('CommitPane', () => {
     expect(within(third!).queryAllByTestId('diff-row')).toHaveLength(0);
   });
 
-  it('ikili, yalnız izni değişen ve yeniden adlandırılan dosyalar için not', () => {
+  it('notes for binary, mode-only and renamed files', () => {
     renderPane({
       ok: true,
       commit: detail({
@@ -144,14 +144,14 @@ describe('CommitPane', () => {
     expect(renamed!.textContent).toContain('Renamed from lib/old-name.ts');
   });
 
-  it("boş konu, gövdesiz ve dosyasız commit", () => {
+  it('a commit with an empty subject, no body and no files', () => {
     renderPane({ ok: true, commit: detail({ subject: '', body: '', files: [], added: 0, removed: 0 }) });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('(no subject)');
     expect(screen.queryAllByTestId('commit-body')).toHaveLength(0);
     expect(screen.getByText('No file changes')).toBeTruthy();
   });
 
-  it('hata ve yükleniyor durumu', () => {
+  it('error and loading states', () => {
     renderPane({ ok: false, error: 'Commit not found' });
     expect(screen.getByRole('alert').textContent).toContain('Commit not found');
     cleanup();
@@ -161,8 +161,8 @@ describe('CommitPane', () => {
   });
 });
 
-describe('CommitPane: çok büyük commit', () => {
-  it('diff yerine not; dosyalar sayılarıyla listelenir ve açılmaz', () => {
+describe('CommitPane: a very large commit', () => {
+  it('a note instead of the diff; files are listed with their counts and do not expand', () => {
     const counted = (path: string, added: number, removed: number): CommitFile => ({
       path,
       origPath: null,
@@ -182,7 +182,7 @@ describe('CommitPane: çok büyük commit', () => {
 });
 
 describe('initiallyCollapsed', () => {
-  it("400 satırı aşan dosyalar ve açık satırları 3000'i aşacak olanlar kapalı başlar", () => {
+  it('files over 400 lines, and those that would push the open lines past 3000, start collapsed', () => {
     const many = Array.from({ length: 10 }, (_, i) => file(`f${i}.ts`, lines(400)));
     expect([...initiallyCollapsed([play, big, edge])]).toEqual(['lib/big.ts']);
     expect([...initiallyCollapsed(many)]).toEqual(['f7.ts', 'f8.ts', 'f9.ts']);

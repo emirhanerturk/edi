@@ -9,14 +9,14 @@ function renderPanel(tab: 'git' | 'history' | 'files', badge = 3) {
   const handlers = { onTab: vi.fn(), onFetchAll: vi.fn(), onRescan: vi.fn(), onCollapseAll: vi.fn(), onRefreshHistory: vi.fn() };
   render(
     <RightPanelView tab={tab} badge={badge} canFetch {...handlers}>
-      <p>içerik</p>
+      <p>content</p>
     </RightPanelView>,
   );
   return handlers;
 }
 
 describe('RightPanelView', () => {
-  it('Git, History ve Files sekmeleri; seçili olan işaretli', () => {
+  it('Git, History and Files tabs; the selected one is marked', () => {
     renderPanel('git');
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([
@@ -24,10 +24,10 @@ describe('RightPanelView', () => {
       ['History', 'false'],
       ['Files', 'false'],
     ]);
-    expect(screen.getByText('içerik')).toBeTruthy();
+    expect(screen.getByText('content')).toBeTruthy();
   });
 
-  it('rozet değişen dosya sayısıdır; değişiklik yoksa görünmez', () => {
+  it('the badge is the changed file count; hidden when there are no changes', () => {
     renderPanel('git', 3);
     expect(screen.getByTestId('git-badge').textContent).toBe('3');
     cleanup();
@@ -35,13 +35,13 @@ describe('RightPanelView', () => {
     expect(screen.queryByTestId('git-badge')).toBeNull();
   });
 
-  it('sekmeye tıklamak sekmeyi değiştirir', () => {
+  it('clicking a tab switches tabs', () => {
     const { onTab } = renderPanel('git');
     fireEvent.click(screen.getByRole('tab', { name: /Files/ }));
     expect(onTab).toHaveBeenCalledWith('files');
   });
 
-  it('Git sekmesinde fetch ve yeniden tarama düğmeleri', () => {
+  it('fetch and rescan buttons on the Git tab', () => {
     const { onFetchAll, onRescan } = renderPanel('git');
     fireEvent.click(screen.getByRole('button', { name: 'Fetch all repositories' }));
     fireEvent.click(screen.getByRole('button', { name: 'Rescan repositories' }));
@@ -50,7 +50,7 @@ describe('RightPanelView', () => {
     expect(screen.queryByRole('button', { name: 'Collapse all' })).toBeNull();
   });
 
-  it('History sekmesinde yenileme düğmesi', () => {
+  it('a refresh button on the History tab', () => {
     const { onRefreshHistory, onTab } = renderPanel('history');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh history' }));
     expect(onRefreshHistory).toHaveBeenCalledTimes(1);
@@ -60,7 +60,7 @@ describe('RightPanelView', () => {
     expect(onTab).toHaveBeenCalledWith('git');
   });
 
-  it('Files sekmesinde "Collapse all" düğmesi', () => {
+  it('a "Collapse all" button on the Files tab', () => {
     const { onCollapseAll } = renderPanel('files');
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
     expect(onCollapseAll).toHaveBeenCalledTimes(1);

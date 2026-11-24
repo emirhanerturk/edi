@@ -12,7 +12,7 @@ const bridge = vi.hoisted(() => {
         return () => undefined;
       },
       openInZed: async () => ({ ok: false, error: 'Could not open Zed' }),
-      // Bekleyen ilk durum: test olayları kendisi gönderir.
+      // The initial state never arrives: the test sends the events itself.
       getState: () => new Promise(() => undefined),
       claudeUsage: () => new Promise(() => undefined),
     },
@@ -28,7 +28,7 @@ afterEach(cleanup);
 const workspace = (dir: string) => ({ ...useApp.getState().workspace, dir, repos: [] });
 
 describe('ViewErrorBar', () => {
-  it('orta panel kapalıyken de başarısız "Open in Zed" hatası görünür ve kapatılabilir', async () => {
+  it('shows a failed "Open in Zed" error even with the center panel closed, and it can be dismissed', async () => {
     expect(useApp.getState().center.open).toBe(false);
     render(<ViewErrorBar />);
     expect(screen.queryByRole('alert')).toBeNull();
@@ -38,13 +38,13 @@ describe('ViewErrorBar', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('başka klasöre geçince eski hata silinir', async () => {
+  it('clears the old error when switching to another folder', async () => {
     connect();
     bridge.handlers.workspace!(workspace('/w'));
     await useApp.getState().openInZed('/w/a', 'x.ts');
     bridge.handlers.workspace!(workspace('/w'));
     expect(useApp.getState().centerError).toBe('Could not open Zed');
-    bridge.handlers.workspace!(workspace('/baska'));
+    bridge.handlers.workspace!(workspace('/other'));
     expect(useApp.getState().centerError).toBeNull();
   });
 });

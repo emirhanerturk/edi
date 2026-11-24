@@ -51,31 +51,31 @@ const rows = () => screen.getAllByTestId('tree-row');
 const brief = () => rows().map((row) => `${'-'.repeat(Number(row.dataset.depth))}${row.dataset.name}${row.dataset.badge ? ` ${row.dataset.badge}` : ''}`);
 
 describe('FilesPanelView', () => {
-  it('her repo kapalı bir üst klasördür; değişiklik içeren repo işaretlidir', () => {
+  it('each repo is a collapsed top-level folder; a repo with changes is marked', () => {
     renderView();
     expect(brief()).toEqual(['quizei-app ●', 'quizei-api']);
     expect(rows().map((row) => row.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
   });
 
-  it('açık repo ve klasörlerin içi görünür; değişen dosya harfiyle', () => {
+  it('open repos and folders show their contents; changed files show their letter', () => {
     renderView({ open: { '/w/quizei-app\n': true, '/w/quizei-app\napp': true } });
     expect(brief()).toEqual(['quizei-app ●', '-app ●', '--play.tsx M', '--result.tsx', '-node_modules', '-.env', '-package.json', 'quizei-api']);
   });
 
-  it('dosya listesi yüklenirken bunu söyler; okunamadıysa hatayı', () => {
+  it('says when the file list is loading, and shows the error when it cannot be read', () => {
     renderView({ open: { '/w/quizei-api\n': true } });
     expect(screen.getByText('Loading…')).toBeTruthy();
     cleanup();
-    renderView({ open: { '/w/quizei-api\n': true }, lists: { '/w/quizei-api': { ok: false, error: 'fatal: bozuk' } } });
-    expect(screen.getByText('fatal: bozuk')).toBeTruthy();
+    renderView({ open: { '/w/quizei-api\n': true }, lists: { '/w/quizei-api': { ok: false, error: 'fatal: broken' } } });
+    expect(screen.getByText('fatal: broken')).toBeTruthy();
   });
 
-  it('açık klasör tek bir repoysa ağaç doğrudan onun içeriğiyle başlar', () => {
+  it('when the open folder is a single repo, the tree starts directly with its contents', () => {
     renderView({ repos: [appRepo], single: true });
     expect(brief()).toEqual(['app ●', 'node_modules', '.env', 'package.json']);
   });
 
-  it('klasöre tıklamak açar ya da kapatır', () => {
+  it('clicking a folder expands or collapses it', () => {
     const { onToggle } = renderView({ open: { '/w/quizei-app\n': true } });
     fireEvent.click(rows()[0]!);
     expect(onToggle).toHaveBeenLastCalledWith('/w/quizei-app\n', false);
@@ -83,7 +83,7 @@ describe('FilesPanelView', () => {
     expect(onToggle).toHaveBeenLastCalledWith('/w/quizei-app\napp', true);
   });
 
-  it('dosyaya tek tık önizleme, çift tık kalıcı sekme açar', () => {
+  it('a single click on a file opens a preview, a double-click a pinned tab', () => {
     const { onOpenFile } = renderView({ open: { '/w/quizei-app\n': true } });
     const file = rows().find((row) => row.dataset.name === 'package.json')!;
     fireEvent.click(file);
@@ -92,12 +92,12 @@ describe('FilesPanelView', () => {
     expect(onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', 'package.json', true);
   });
 
-  it('orta panelde açık olan dosya seçili görünür', () => {
+  it('the file open in the center panel shows as selected', () => {
     renderView({ open: { '/w/quizei-app\n': true, '/w/quizei-app\napp': true }, selected: { repoPath: '/w/quizei-app', path: 'app/play.tsx' } });
     expect(rows().filter((row) => row.getAttribute('aria-current') === 'true').map((row) => row.dataset.name)).toEqual(['play.tsx']);
   });
 
-  it('yok sayılan dosya ve klasör soluk görünür; dosya açılır, klasör açılıp kapanır', () => {
+  it('ignored files and folders look faded; the file opens, the folder expands and collapses', () => {
     const props = renderView({ open: { '/w/quizei-app\n': true } });
     const row = (name: string) => rows().find((r) => r.dataset.name === name)!;
     expect(row('.env').dataset.ignored).toBe('true');
@@ -111,7 +111,7 @@ describe('FilesPanelView', () => {
     expect(props.onOpenFile).toHaveBeenCalledWith('/w/quizei-app', '.env', false);
   });
 
-  it('açık yok sayılan klasör yüklenirken bunu söyler, sonra içini soluk gösterir; fazlasını sayar', () => {
+  it('an open ignored folder says when it is loading, then shows its contents faded and counts the rest', () => {
     const open = { '/w/quizei-app\n': true, '/w/quizei-app\nnode_modules': true };
     renderView({ open });
     expect(screen.getByText('Loading…')).toBeTruthy();
@@ -137,12 +137,12 @@ describe('FilesPanelView', () => {
     const more = screen.getByText('1,200 more not shown');
     const last = rows().find((r) => r.dataset.name === '.yarn-integrity')!;
     const next = rows().find((r) => r.dataset.name === 'package.json')!;
-    // Not, klasörün son satırından sonra ve bir sonraki kardeşten önce gelir.
+    // The note comes after the folder's last row and before the next sibling.
     expect(last.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(more.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("çok repolu görünümde her repo, Git sekmesindeki gibi ayrı bir bölümdür; açık olan vurgulanır", () => {
+  it('in a multi-repo view each repo is its own section, as on the Git tab; the open one is highlighted', () => {
     renderView({ open: { '/w/quizei-app\n': true } });
     const groups = screen.getAllByTestId('files-repo');
     expect(groups.map((group) => [group.dataset.repo, group.classList.contains('open')])).toEqual([
@@ -151,7 +151,7 @@ describe('FilesPanelView', () => {
     ]);
   });
 
-  it('repo yoksa bunu söyler', () => {
+  it('says so when there are no repos', () => {
     renderView({ repos: [] });
     expect(screen.getByText('No git repositories in this folder')).toBeTruthy();
   });

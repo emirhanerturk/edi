@@ -7,7 +7,7 @@ import type { RepoView } from '../../src/shared/api';
 const bridge = vi.hoisted(() => ({
   log: vi.fn(async (_repoPath: string, _count: number): Promise<LogResult> => ({
     ok: true,
-    commits: [{ oid: 'f'.repeat(40), short: 'fffffff', subject: 'feat: görünür', authorName: 'a', authorEmail: 'a@x', date: Date.now(), parents: 1, tags: [] }],
+    commits: [{ oid: 'f'.repeat(40), short: 'fffffff', subject: 'feat: visible', authorName: 'a', authorEmail: 'a@x', date: Date.now(), parents: 1, tags: [] }],
     hasMore: false,
     unpushed: [],
     upstream: null,
@@ -36,10 +36,10 @@ const show = (repos: RepoView[]) =>
   });
 
 describe('HistoryPanel', () => {
-  it('her reponun logunu bir kez okur; HEAD ya da ahead değişince yeniden', async () => {
+  it("reads each repo's log once, and again when HEAD or ahead changes", async () => {
     show([repo('/w/a', 'a'.repeat(40)), repo('/w/b', 'b'.repeat(40))]);
     render(<HistoryPanel />);
-    expect((await screen.findAllByText('görünür')).length).toBe(2);
+    expect((await screen.findAllByText('visible')).length).toBe(2);
     expect(bridge.log.mock.calls.map((call) => call[0]).sort()).toEqual(['/w/a', '/w/b']);
     show([repo('/w/a', 'a'.repeat(40)), repo('/w/b', 'b'.repeat(40))]);
     expect(bridge.log).toHaveBeenCalledTimes(2);

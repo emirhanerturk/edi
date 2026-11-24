@@ -21,9 +21,9 @@ const { FilePane } = await import('../../src/renderer/center/FilePane');
 
 afterEach(cleanup);
 
-// Yoklama her 2 sn'de bağlı görünümü yeniden çizer; aynı veriyle gövde yeniden hesaplanmamalı.
-describe('büyük görünümler aynı veriyle yeniden hesaplanmaz', () => {
-  it('diff gövdesi yeni geri çağırmalarla yeniden çizilmez', () => {
+// Polling re-renders the connected view every 2 s; with the same data the body must not be recomputed.
+describe('large views are not recomputed for the same data', () => {
+  it('new callbacks do not rebuild the diff body', () => {
     const view: DiffView = {
       ok: true,
       diff: parseDiff('@@ -1 +1 @@\n-a\n+b\n'),
@@ -36,7 +36,7 @@ describe('büyük görünümler aynı veriyle yeniden hesaplanmaz', () => {
     expect(spies.diffRows).toHaveBeenCalledTimes(1);
   });
 
-  it('dosya gövdesi yeni geri çağırmalarla yeniden bölünmez', () => {
+  it('new callbacks do not re-split the file body', () => {
     const content: FileContent = { ok: true, kind: 'text', text: 'a\nb\n', size: 4 };
     const pane = () => <FilePane repoName="r" repoPath="/w/r" path="a.ts" content={content} isNew={false} tokens={null} onOpenInZed={() => undefined} />;
     const { rerender } = render(pane());

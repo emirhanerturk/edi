@@ -23,7 +23,7 @@ const file = (x: string, y: string, kind: FileChange['kind'] = 'changed'): FileC
 });
 
 describe('parseStatus', () => {
-  it('upstream ve ahead/behind değerlerini okur', () => {
+  it('reads the upstream and ahead/behind counts', () => {
     expect(parseStatus(`${hdr}# branch.upstream origin/main\0# branch.ab +1 -2\0`)).toEqual({
       head: 'main',
       headOid: 'c8be86ca35d2184906225ab667c0025a8abfc51c',
@@ -36,25 +36,25 @@ describe('parseStatus', () => {
     });
   });
 
-  it('upstream yoksa ahead/behind bilinmez', () => {
+  it('leaves ahead/behind unknown without an upstream', () => {
     expect(parseStatus(hdr)).toMatchObject({ upstream: null, ahead: null, behind: null });
   });
 
-  it("upstream silinmişse (branch.ab yok) ahead/behind bilinmez", () => {
-    expect(parseStatus(`${hdr}# branch.upstream origin/gitti\0`)).toMatchObject({
-      upstream: 'origin/gitti',
+  it('leaves ahead/behind unknown when the upstream was deleted (no branch.ab)', () => {
+    expect(parseStatus(`${hdr}# branch.upstream origin/gone\0`)).toMatchObject({
+      upstream: 'origin/gone',
       ahead: null,
       behind: null,
     });
   });
 
-  it('detached HEAD için kısa hash verir', () => {
+  it('returns the short hash for a detached HEAD', () => {
     expect(
       parseStatus('# branch.oid c8be86ca35d2184906225ab667c0025a8abfc51c\0# branch.head (detached)\0'),
     ).toMatchObject({ head: 'c8be86c', detached: true });
   });
 
-  it("commit'i olmayan repoyu tanır", () => {
+  it('recognizes a repo without commits', () => {
     expect(parseStatus('# branch.oid (initial)\0# branch.head main\0')).toMatchObject({
       head: 'main',
       unborn: true,
@@ -62,43 +62,43 @@ describe('parseStatus', () => {
     });
   });
 
-  it('rename kaydının eski yol alanını tüketir', () => {
-    const s = parseStatus(`${hdr}2 R. N... 100644 100644 100644 ${H} ${H} R100 yeni.txt\0boş dosya.txt\0? unt.txt\0`);
+  it('consumes the original path field of a rename entry', () => {
+    const s = parseStatus(`${hdr}2 R. N... 100644 100644 100644 ${H} ${H} R100 new.txt\0boş dosya.txt\0? unt.txt\0`);
     expect(s.files).toEqual([
-      { path: 'yeni.txt', origPath: 'boş dosya.txt', x: 'R', y: '.', kind: 'changed' },
+      { path: 'new.txt', origPath: 'boş dosya.txt', x: 'R', y: '.', kind: 'changed' },
       { path: 'unt.txt', origPath: null, x: '?', y: '?', kind: 'untracked' },
     ]);
   });
 
-  it('kopya kaydında origPath boş, sonraki kayıt yerinde', () => {
-    const s = parseStatus(`${hdr}2 C. N... 100644 100644 100644 ${H} ${H} C100 kopya.txt\0kaynak.txt\0? unt.txt\0`);
+  it('leaves origPath empty for a copy entry and keeps the next entry intact', () => {
+    const s = parseStatus(`${hdr}2 C. N... 100644 100644 100644 ${H} ${H} C100 copy.txt\0source.txt\0? unt.txt\0`);
     expect(s.files).toEqual([
-      { path: 'kopya.txt', origPath: null, x: 'C', y: '.', kind: 'changed' },
+      { path: 'copy.txt', origPath: null, x: 'C', y: '.', kind: 'changed' },
       { path: 'unt.txt', origPath: null, x: '?', y: '?', kind: 'untracked' },
     ]);
   });
 
-  it('boşluklu yolu bölmez', () => {
+  it('does not split a path with spaces', () => {
     const s = parseStatus(`${hdr}1 .M N... 100644 100644 100644 ${H} ${H} a b/c d.txt\0`);
     expect(s.files).toEqual([{ path: 'a b/c d.txt', origPath: null, x: '.', y: 'M', kind: 'changed' }]);
   });
 
-  it('çakışmalı kaydı tanır', () => {
+  it('recognizes a conflicted entry', () => {
     const s = parseStatus(`${hdr}u UU N... 100644 100644 100644 100644 ${H} ${H} ${H} x y.txt\0`);
     expect(s.files).toEqual([{ path: 'x y.txt', origPath: null, x: 'U', y: 'U', kind: 'conflicted' }]);
   });
 
-  it('yok sayılan (!) kayıtları atlar', () => {
+  it('skips ignored (!) entries', () => {
     expect(parseStatus(`${hdr}! node_modules/\0? a.txt\0`).files.map((f) => f.path)).toEqual(['a.txt']);
   });
 
-  it('boş çıktıda çökmez', () => {
+  it('does not crash on empty output', () => {
     expect(parseStatus('')).toMatchObject({ head: '', files: [] });
   });
 });
 
-describe('dosya yardımcıları', () => {
-  it('stage durumunu ayırt eder', () => {
+describe('file helpers', () => {
+  it('tells staged from unstaged', () => {
     expect([isStaged(file('.', 'M')), hasUnstaged(file('.', 'M'))]).toEqual([false, true]);
     expect([isStaged(file('M', '.')), hasUnstaged(file('M', '.'))]).toEqual([true, false]);
     expect([isStaged(file('A', 'M')), hasUnstaged(file('A', 'M'))]).toEqual([true, true]);
@@ -109,14 +109,14 @@ describe('dosya yardımcıları', () => {
     ]);
   });
 
-  it('silinmiş dosyayı tanır', () => {
+  it('recognizes a deleted file', () => {
     expect(isDeleted(file('.', 'D'))).toBe(true);
     expect(isDeleted(file('D', '.'))).toBe(true);
     expect(isDeleted(file('M', '.'))).toBe(false);
     expect(isDeleted(file('?', '?', 'untracked'))).toBe(false);
   });
 
-  it('durum harfini üretir', () => {
+  it('produces the status letter', () => {
     expect(statusLetter(file('.', 'M'))).toBe('M');
     expect(statusLetter(file('M', '.'))).toBe('M');
     expect(statusLetter(file('A', 'M'))).toBe('M');
@@ -124,11 +124,11 @@ describe('dosya yardımcıları', () => {
     expect(statusLetter(file('U', 'U', 'conflicted'))).toBe('U');
   });
 
-  it("commit'siz repoda headOid null", () => {
+  it('has a null headOid in a repo without commits', () => {
     expect(parseStatus('# branch.oid (initial)\0# branch.head main\0')).toMatchObject({ unborn: true, headOid: null });
   });
 
-  it("detached HEAD'de de tam oid'i verir", () => {
+  it('returns the full oid on a detached HEAD too', () => {
     expect(parseStatus('# branch.oid c8be86ca35d2184906225ab667c0025a8abfc51c\0# branch.head (detached)\0')).toMatchObject({
       detached: true,
       head: 'c8be86c',
@@ -138,7 +138,7 @@ describe('dosya yardımcıları', () => {
 });
 
 describe('getStatus', () => {
-  it('yeni dosyaları klasör olarak değil tek tek listeler', async () => {
+  it('lists new files one by one rather than as a folder', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await mkdir(join(repo, 'd'));
     await writeFile(join(repo, 'd', 'n.txt'), 'x\n');
@@ -148,26 +148,26 @@ describe('getStatus', () => {
     expect(r.ok && r.status.files.map((f) => f.path).sort()).toEqual(['boş dosya.txt', 'd/n.txt']);
   });
 
-  it('stage edilmiş, değiştirilmiş ve yeni dosyayı ayırır', async () => {
+  it('tells staged, modified and new files apart', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
-    await writeFile(join(repo, 'README.md'), 'değişti\n');
+    await writeFile(join(repo, 'README.md'), 'changed\n');
     await writeFile(join(repo, 'staged.txt'), 'x\n');
     await git(repo, 'add', 'staged.txt');
-    await writeFile(join(repo, 'yeni.txt'), 'x\n');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
 
     const r = await getStatus(repo);
     const byPath = Object.fromEntries((r.ok ? r.status.files : []).map((f) => [f.path, `${f.x}${f.y}`]));
-    expect(byPath).toEqual({ 'README.md': '.M', 'staged.txt': 'A.', 'yeni.txt': '??' });
+    expect(byPath).toEqual({ 'README.md': '.M', 'staged.txt': 'A.', 'new.txt': '??' });
   });
 
-  it("commit'i olmayan repoda çalışır", async () => {
+  it('works in a repo without commits', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
-    await writeFile(join(repo, 'ilk.txt'), 'x\n');
+    await writeFile(join(repo, 'first.txt'), 'x\n');
     const r = await getStatus(repo);
-    expect(r).toMatchObject({ ok: true, status: { head: 'main', unborn: true, files: [{ path: 'ilk.txt' }] } });
+    expect(r).toMatchObject({ ok: true, status: { head: 'main', unborn: true, files: [{ path: 'first.txt' }] } });
   });
 
-  it('olmayan yolda hata döner', async () => {
-    expect((await getStatus('/yok/boyle/yer')).ok).toBe(false);
+  it('returns an error for a missing path', async () => {
+    expect((await getStatus('/no/such/place')).ok).toBe(false);
   });
 });

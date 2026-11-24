@@ -7,7 +7,7 @@ const DIFF = parseDiff(
 );
 
 describe('diffRows', () => {
-  it('yan yana: hunk başlıkları ve eşleşmiş satırlar', () => {
+  it('split: hunk headers and paired lines', () => {
     const { rows, truncated } = diffRows(DIFF, 'split');
     expect(truncated).toBe(false);
     expect(rows).toEqual([
@@ -21,7 +21,7 @@ describe('diffRows', () => {
     ]);
   });
 
-  it('tek sütun: her satır iki numarasıyla, diff sırasında', () => {
+  it('inline: every line with both numbers, in diff order', () => {
     const { rows } = diffRows(DIFF, 'inline');
     expect(rows.slice(0, 5)).toEqual([
       { type: 'hunk', text: '@@ -1,3 +1,4 @@ function a() {' },
@@ -32,18 +32,18 @@ describe('diffRows', () => {
     ]);
   });
 
-  it('çok uzun diff sınırda kesilir ve bunu bildirir', () => {
+  it('cuts a very long diff at the limit and reports it', () => {
     const inline = diffRows(DIFF, 'inline', 3);
     expect(inline.truncated).toBe(true);
     expect(inline.rows.filter((row) => row.type === 'inline')).toHaveLength(3);
     const split = diffRows(DIFF, 'split', 3);
     expect(split.truncated).toBe(true);
-    // İlk üç diff satırı: bir, -iki, +İKİ.
+    // The first three diff lines: bir, -iki, +İKİ.
     expect(split.rows).toHaveLength(3);
     expect(diffRows(DIFF, 'inline', 7).truncated).toBe(false);
   });
 
-  it('boş diff boş satır listesidir', () => {
+  it('an empty diff gives an empty row list', () => {
     expect(diffRows(parseDiff(''), 'split')).toEqual({ rows: [], truncated: false });
   });
 });

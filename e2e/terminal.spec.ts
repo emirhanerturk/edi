@@ -5,7 +5,7 @@ import { launch, makeRepo, tmpDir } from './helpers.js';
 
 const exists = (path: string) => access(path).then(() => true, () => false);
 
-test('terminalde yazılan komut açık klasörde çalışır', async () => {
+test('a command typed in the terminal runs in the open folder', async () => {
   const dir = await tmpDir();
   await makeRepo(dir, 'alpha');
   const { app, page } = await launch({ openDir: dir });
@@ -19,7 +19,7 @@ test('terminalde yazılan komut açık klasörde çalışır', async () => {
   }
 });
 
-test('Cmd+T yeni sekme açar, Cmd+1 ilkine döner, Cmd+W etkin sekmeyi kapatır', async () => {
+test('Cmd+T opens a new tab, Cmd+1 goes back to the first, Cmd+W closes the active tab', async () => {
   const dir = await tmpDir();
   const { app, page } = await launch({ openDir: dir });
   try {
@@ -34,9 +34,9 @@ test('Cmd+T yeni sekme açar, Cmd+1 ilkine döner, Cmd+W etkin sekmeyi kapatır'
     await page.keyboard.press('Meta+1');
     await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
 
-    // Her sekmenin kendi terminali var: ilkinde yazılan ikincide çalışmaz.
-    await page.keyboard.type('touch ilk-sekme\n');
-    await expect.poll(() => exists(join(dir, 'ilk-sekme'))).toBe(true);
+    // Each tab has its own terminal: what is typed in the first does not run in the second.
+    await page.keyboard.type('touch first-tab\n');
+    await expect.poll(() => exists(join(dir, 'first-tab'))).toBe(true);
 
     await page.keyboard.press('Meta+w');
     await expect(tabs).toHaveCount(1);
@@ -47,7 +47,7 @@ test('Cmd+T yeni sekme açar, Cmd+1 ilkine döner, Cmd+W etkin sekmeyi kapatır'
   }
 });
 
-test('kabuk kapanınca sekme yerinde kalır ve exited yazar', async () => {
+test('when the shell exits, the tab stays and says exited', async () => {
   const dir = await tmpDir();
   const { app, page } = await launch({ openDir: dir });
   try {
@@ -64,7 +64,7 @@ test('kabuk kapanınca sekme yerinde kalır ve exited yazar', async () => {
   }
 });
 
-test('başka klasöre geçince terminaller yeni klasörde yeniden açılır', async () => {
+test('switching to another folder reopens the terminals in the new folder', async () => {
   const one = await tmpDir();
   const two = await tmpDir();
   const first = await launch({ openDir: one });
@@ -80,14 +80,14 @@ test('başka klasöre geçince terminaller yeni klasörde yeniden açılır', as
     await page.getByTestId('folder-menu').getByRole('menuitem').first().click();
     await expect(page.getByTestId('tab')).toHaveCount(1);
     await page.locator('.term-host.active').click();
-    await page.keyboard.type('touch yeni-klasorde\n');
-    await expect.poll(() => exists(join(one, 'yeni-klasorde'))).toBe(true);
+    await page.keyboard.type('touch in-new-folder\n');
+    await expect.poll(() => exists(join(one, 'in-new-folder'))).toBe(true);
   } finally {
     await app.close();
   }
 });
 
-test('sekme önde çalışan komutun adını alır ve kapatılırken sorar', async () => {
+test('a tab takes the name of the foreground command and asks before closing', async () => {
   const dir = await tmpDir();
   const { app, page } = await launch({ openDir: dir });
   try {
@@ -97,7 +97,7 @@ test('sekme önde çalışan komutun adını alır ve kapatılırken sorar', asy
     await page.keyboard.type('sleep 300\n');
     await expect(tab).toContainText('sleep 300', { timeout: 10_000 });
 
-    // İlk soruya hayır: sekme kalır. İkincisine evet: kapanır.
+    // No to the first prompt: the tab stays. Yes to the second: it closes.
     const messages: string[] = [];
     page.once('dialog', (dialog) => {
       messages.push(dialog.message());
@@ -115,9 +115,9 @@ test('sekme önde çalışan komutun adını alır ve kapatılırken sorar', asy
   }
 });
 
-test('arka plandaki Claude sekmesi beklemeye geçince zil görünür, sekmeye dönünce kaybolur', async () => {
+test('a bell shows when a background Claude tab starts waiting, and goes away on returning to the tab', async () => {
   const dir = await tmpDir();
-  // Adı "claude" olan zararsız bir süreç (dash'e sembolik bağ): başlığı önce "çalışıyor", sonra "bekliyor" yapar.
+  // A harmless process named "claude" (a symlink to dash): sets the title to "working", then "waiting".
   const bin = await tmpDir('edi-e2e-bin-');
   await symlink('/bin/dash', join(bin, 'claude'));
   await writeFile(join(bin, 'run.sh'), "printf '\\033]0;◐ Task\\007'\nsleep 6\nprintf '\\033]0;✳ Task\\007'\nsleep 30\n");
@@ -140,7 +140,7 @@ test('arka plandaki Claude sekmesi beklemeye geçince zil görünür, sekmeye d�
   }
 });
 
-test('etkin olmayan sekmenin kapatma düğmesi üzerine gelince görünür ve o sekmeyi kapatır', async () => {
+test('an inactive tab\'s close button shows on hover and closes that tab', async () => {
   const dir = await tmpDir();
   const { app, page } = await launch({ openDir: dir });
   try {
@@ -151,7 +151,7 @@ test('etkin olmayan sekmenin kapatma düğmesi üzerine gelince görünür ve o 
     await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
     const first = tabs.nth(0);
     const close = first.getByRole('button', { name: 'Close tab' });
-    // Yer ayrılmıştır ama görünmez; sekmenin genişliği üzerine gelince değişmez.
+    // Its space is reserved but it is hidden; the tab's width does not change on hover.
     await expect(close).toBeHidden();
     const width = (await first.boundingBox())!.width;
     await first.hover();
