@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { sep } from 'node:path';
 import type { Repo } from './git/discover.js';
+import type { PsRow } from './procs.js';
 
 /** Çıkış kodu ne olursa olsun stdout'u döner; komut hiç çalışamazsa boş metin. */
 function output(cmd: string, args: string[]): Promise<string> {
@@ -9,24 +10,57 @@ function output(cmd: string, args: string[]): Promise<string> {
   });
 }
 
-/** `lsof -Fpn` çıktısındaki yolları ('n' ile başlayan satırlar) çıkarır. */
-export function parseLsofCwd(out: string): string[] {
-  return out
+/** `lsof -Fpn` çıktısından her sürecin çalışma dizinini çıkarır ('p' satırı pid, 'n' satırı yol). */
+export function parseLsofPidCwd(out: string): Map<number, string> {
+  const cwds = new Map<number, string>();
+  let pid: number | null = null;
+  for (const line of out.split('\n')) {
+    if (line.startsWith('p')) pid = Number(line.slice(1));
+    else if (line.startsWith('n') && pid !== null) cwds.set(pid, line.slice(1));
+  }
+  return cwds;
+}
+
+/** Çalışan Claude Code süreçleri. Tespit edilemezse boş dizi. */
+export async function listClaudePids(): Promise<number[]> {
+  // pgrep eşleşme yoksa 1 ile çıkar; stdout yine geçerlidir.
+  return (await output('pgrep', ['-x', 'claude']))
     .split('\n')
-    .filter((line) => line.startsWith('n'))
-    .map((line) => line.slice(1));
+    .filter((pid) => /^\d+$/.test(pid))
+    .map(Number);
+}
+
+export interface ClaudeSession {
+  pid: number;
+  cwd: string;
+  tty: string;
 }
 
 /**
- * Açık Claude Code oturumlarının çalışma dizinleri. Tespit edilemezse boş dizi:
+ * Yalnız bir terminalde çalışan oturumlar sayılır: terminali olmayanlar (ör. bir editörün
+ * arka planda çalıştırdığı) kullanıcının göremediği süreçlerdir.
+ */
+export function joinSessions(pids: number[], cwdByPid: ReadonlyMap<number, string>, ps: PsRow[]): ClaudeSession[] {
+  const ttyByPid = new Map(ps.map((row) => [row.pid, row.tty]));
+  const sessions: ClaudeSession[] = [];
+  for (const pid of pids) {
+    const cwd = cwdByPid.get(pid);
+    const tty = ttyByPid.get(pid);
+    if (cwd && tty) sessions.push({ pid, cwd, tty });
+  }
+  return sessions;
+}
+
+/**
+ * Terminalde açık Claude Code oturumları. Tespit edilemezse boş dizi:
  * gösterge bir kolaylık, hatası kullanıcıyı ilgilendirmez.
  */
-export async function listClaudeCwds(): Promise<string[]> {
-  // pgrep eşleşme yoksa, lsof listelenen süreçlerden biri bu arada kapandıysa 1 ile çıkar;
-  // ikisinde de stdout geçerlidir.
-  const pids = (await output('pgrep', ['-x', 'claude'])).split('\n').filter((pid) => /^\d+$/.test(pid));
-  if (pids.length === 0) return [];
-  return parseLsofCwd(await output('lsof', ['-a', '-d', 'cwd', '-p', pids.join(','), '-Fpn']));
+export async function listClaudeSessions(ps: PsRow[], pids: number[]): Promise<ClaudeSession[]> {
+  const withTty = joinSessions(pids, new Map(pids.map((pid) => [pid, '-'])), ps).map((session) => session.pid);
+  if (withTty.length === 0) return [];
+  // lsof listelenen süreçlerden biri bu arada kapandıysa 1 ile çıkar; stdout yine geçerlidir.
+  const cwds = parseLsofPidCwd(await output('lsof', ['-a', '-d', 'cwd', '-p', withTty.join(','), '-Fpn']));
+  return joinSessions(withTty, cwds, ps);
 }
 
 const isInside = (child: string, parent: string) => child === parent || child.startsWith(parent + sep);

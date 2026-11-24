@@ -1,18 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { assignSessions, listClaudeCwds, parseLsofCwd } from '../src/sessions.js';
+import type { PsRow } from '../src/procs.js';
+import { assignSessions, joinSessions, listClaudePids, listClaudeSessions, parseLsofPidCwd } from '../src/sessions.js';
 
-describe('parseLsofCwd', () => {
-  it('lsof -Fpn çıktısından çalışma dizinlerini çıkarır', () => {
-    expect(parseLsofCwd('p50792\nfcwd\nn/a/quizei\np53467\nfcwd\nn/a/quizei/quizei-app\n')).toEqual([
-      '/a/quizei',
-      '/a/quizei/quizei-app',
-    ]);
+const row = (pid: number, tty: string): PsRow => ({ pid, pgid: pid, tpgid: pid, tty, args: 'claude' });
+
+describe('parseLsofPidCwd', () => {
+  it("lsof -Fpn çıktısından pid'e göre çalışma dizinlerini çıkarır", () => {
+    expect(parseLsofPidCwd('p50792\nfcwd\nn/a/quizei\np53467\nfcwd\nn/a/quizei/quizei-app\n')).toEqual(
+      new Map([
+        [50792, '/a/quizei'],
+        [53467, '/a/quizei/quizei-app'],
+      ]),
+    );
   });
   it('boşluklu yolu korur', () => {
-    expect(parseLsofCwd('p1\nfcwd\nn/a/benim klasör\n')).toEqual(['/a/benim klasör']);
+    expect(parseLsofPidCwd('p1\nfcwd\nn/a/benim klasör\n')).toEqual(new Map([[1, '/a/benim klasör']]));
   });
   it('boş çıktıda boş döner', () => {
-    expect(parseLsofCwd('')).toEqual([]);
+    expect(parseLsofPidCwd('')).toEqual(new Map());
+  });
+});
+
+describe('joinSessions', () => {
+  it("terminali ya da çalışma dizini olmayan oturumları atar", () => {
+    const cwds = new Map([
+      [1, '/a/x'],
+      [2, '/a/y'],
+      [4, '/a/z'],
+    ]);
+    const ps = [row(1, 'ttys001'), row(2, ''), row(3, 'ttys003')];
+    // 1: terminalde. 2: terminalsiz (ör. bir editörün arka plan süreci). 3: dizini okunamadı. 4: ps'te yok.
+    expect(joinSessions([1, 2, 3, 4], cwds, ps)).toEqual([{ pid: 1, cwd: '/a/x', tty: 'ttys001' }]);
   });
 });
 
@@ -49,10 +67,11 @@ describe('assignSessions', () => {
   });
 });
 
-describe('listClaudeCwds', () => {
-  it('hata fırlatmadan mutlak yollar döner', async () => {
-    const cwds = await listClaudeCwds();
-    expect(Array.isArray(cwds)).toBe(true);
-    expect(cwds.every((cwd) => cwd.startsWith('/'))).toBe(true);
+describe('listClaudeSessions', () => {
+  it('hata fırlatmadan terminalli oturumları mutlak yollarla döner', async () => {
+    const sessions = await listClaudeSessions([], await listClaudePids());
+    expect(sessions).toEqual([]); // ps satırı verilmedi: hiçbirinin terminali bilinmiyor
+
+    expect((await listClaudeSessions([], [])).length).toBe(0);
   });
 });
