@@ -15,7 +15,8 @@
     "start": "npm run build && electron .",
     "test": "vitest run",
     "e2e": "npm run build && playwright test",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json",
+    "icon": "electron scripts/make-icon.mjs"
   },
   "dependencies": {
     "node-pty": "^1.1.0",
