@@ -8,7 +8,8 @@ import { _electron } from '@playwright/test';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [out, openDir, wait = '1500'] = process.argv.slice(2);
-const env = { ...process.env, EDI_HIDDEN: '1', EDI_USER_DATA: mkdtempSync(join(tmpdir(), 'edi-shot-')) };
+const userData = mkdtempSync(join(tmpdir(), 'edi-shot-'));
+const env = { ...process.env, EDI_HIDDEN: '1', EDI_USER_DATA: userData, EDI_USAGE_FILE: process.env.EDI_USAGE_FILE ?? join(userData, 'claude-usage.json') };
 delete env.ELECTRON_RUN_AS_NODE;
 if (openDir) env.EDI_OPEN_DIR = openDir;
 

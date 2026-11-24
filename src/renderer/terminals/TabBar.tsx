@@ -63,17 +63,17 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       )}
       {tab.exited && <span className="tab-exited">exited</span>}
       {tab.waiting && !active && <BellIcon size={13} label="Needs input" style={{ flex: 'none', color: 'var(--yellow)' }} />}
-      {active && (
-        <button
-          className="tab-close"
-          aria-label="Close tab"
-          title="Close tab (⌘W)"
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={() => closeTab(tab.id)}
-        >
-          <CloseIcon size={11} />
-        </button>
-      )}
+      {/* Her sekmede yer tutar; etkin olmayanınki üzerine gelince görünür (CSS). */}
+      <button
+        className="tab-close"
+        data-reveal={active ? 'always' : 'hover'}
+        aria-label="Close tab"
+        title={active ? 'Close tab (⌘W)' : 'Close tab'}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={() => closeTab(tab.id)}
+      >
+        <CloseIcon size={11} />
+      </button>
     </div>
   );
 }

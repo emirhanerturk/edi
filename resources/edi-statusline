@@ -1,0 +1,14 @@
+#!/bin/sh
+# Claude Code durum satırı köprüsü: Claude Code bu komuta her durum güncellemesinde oturum
+# bilgisini stdin'den JSON olarak verir. Yalnız kullanım limitleri (`rate_limits`: 5 saatlik ve
+# haftalık yüzde, sıfırlanma anı) edi'nin okuduğu dosyaya yazılır; oturumun geri kalanı yazılmaz.
+# Durum satırına bir şey basılmaz. Ağa çıkmaz.
+file=${EDI_USAGE_FILE:-"$HOME/Library/Application Support/edi/claude-usage.json"}
+limits=$(/usr/bin/plutil -extract rate_limits json -o - - 2>/dev/null) || exit 0
+mkdir -p "$(dirname "$file")" 2>/dev/null || exit 0
+tmp="$file.$$"
+# Yarım dosya okunmasın: önce geçici dosyaya, sonra tek adımda yerine.
+if printf '%s' "$limits" > "$tmp" 2>/dev/null; then
+  mv -f "$tmp" "$file" 2>/dev/null || rm -f "$tmp"
+fi
+exit 0

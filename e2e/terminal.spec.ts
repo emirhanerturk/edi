@@ -139,3 +139,28 @@ test('arka plandaki Claude sekmesi beklemeye geçince zil görünür, sekmeye d�
     await app.close();
   }
 });
+
+test('etkin olmayan sekmenin kapatma düğmesi üzerine gelince görünür ve o sekmeyi kapatır', async () => {
+  const dir = await tmpDir();
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await expect(page.getByTestId('tab')).toHaveCount(1);
+    await page.getByTestId('new-terminal').click();
+    const tabs = page.getByTestId('tab');
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+    const first = tabs.nth(0);
+    const close = first.getByRole('button', { name: 'Close tab' });
+    // Yer ayrılmıştır ama görünmez; sekmenin genişliği üzerine gelince değişmez.
+    await expect(close).toBeHidden();
+    const width = (await first.boundingBox())!.width;
+    await first.hover();
+    await expect(close).toBeVisible();
+    expect((await first.boundingBox())!.width).toBe(width);
+    await close.click();
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+  } finally {
+    await app.close();
+  }
+});

@@ -27,7 +27,15 @@ export interface RepoStatus {
   files: FileChange[];
 }
 
-export type FileList = { ok: true; files: string[] } | { ok: false; error: string };
+/** `ignored`: `.gitignore`'a takılan dosyalar ve klasörler (klasör `/` ile biter, içi yok). */
+export type FileList = { ok: true; files: string[]; ignored: string[] } | { ok: false; error: string };
+
+/** Bir klasörün tek seviyesi; `more`: sınır yüzünden gösterilmeyen kayıt sayısı. */
+export interface DirEntry {
+  name: string;
+  dir: boolean;
+}
+export type DirList = { ok: true; entries: DirEntry[]; more: number } | { ok: false; error: string };
 
 /** Büyük ve ikili dosyaların içeriği sayfaya gönderilmez; yalnız türü ve boyutu döner. */
 export type FileContent =

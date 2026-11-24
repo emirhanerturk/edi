@@ -10,6 +10,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 
 ## What it does today
 
+- **Claude usage.** The 5-hour and weekly limits in the title bar, with reset times (see
+  [Install](#install) for the one-line setup).
 - **Terminals.** Real login shells (`$SHELL -l`) in tabs. A tab is named after the process
   running in front; Claude Code tabs carry a mark, and a bell when a background session
   stops working and waits for you.
@@ -22,7 +24,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   with syntax colors; a new file opens with its content. A single click opens a preview tab
   that the next click reuses, a double click keeps the tab. The open view follows the file
   as it changes on disk.
-- **Files tab.** Each repository's working tree, without ignored files; changed files carry
+- **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
+  (an ignored folder is read from disk one level at a time when you open it). Changed files carry
   their status letter, folders that contain changes a dot. Clicking a file opens it read-only.
   Files over 1 MB and binary files are not shown.
 - **History tab.** The recent commits of every repository's current branch in one timeline,
@@ -79,6 +82,21 @@ to `/Applications/edi.app` and links `~/.local/bin/edi` to the command inside it
 again to update. It stops without changing anything while edi is running, and it never
 overwrites an `edi.app` or an `edi` command that is not edi's. `npm run dist -- --no-install`
 only builds, into `release/`.
+
+### Claude usage in the title bar
+
+edi shows your Claude 5-hour and weekly limits (percent used and when each resets) next to
+the session count. Claude Code hands these numbers only to a status line command, so edi
+ships a small bridge for it. Add this to `~/.claude/settings.json`:
+
+```json
+"statusLine": { "type": "command", "command": "/Applications/edi.app/Contents/Resources/edi-statusline" }
+```
+
+The bridge writes only the `rate_limits` part to
+`~/Library/Application Support/edi/claude-usage.json` and prints nothing, so Claude Code's
+own status line stays empty. The numbers refresh whenever a Claude Code session updates its
+status line; nothing goes over the network.
 
 Opened from the Dock, edi reads your login shell's environment once at startup, so git hooks
 find `node` and other tools from your shell's `PATH`. `npm run icon` regenerates

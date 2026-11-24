@@ -58,6 +58,64 @@
   justify-content: center;
 }
 
+/* Claude kullanım limitleri: oturum sayısının yanında. */
+.usage {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.usage-window {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  cursor: default;
+}
+
+.usage-label {
+  color: var(--muted);
+}
+
+.usage-bar {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--chip-strong);
+  overflow: hidden;
+}
+
+.usage-fill {
+  display: block;
+  height: 100%;
+  background: var(--text-2);
+}
+
+.usage-reset {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.usage-window[data-level='warn'] .usage-fill {
+  background: var(--yellow);
+}
+
+.usage-window[data-level='warn'] .usage-percent {
+  color: var(--yellow);
+}
+
+.usage-window[data-level='high'] .usage-fill {
+  background: var(--red);
+}
+
+.usage-window[data-level='high'] .usage-percent {
+  color: var(--red);
+}
+
 .titlebar-sessions {
   display: flex;
   align-items: center;

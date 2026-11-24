@@ -43,9 +43,11 @@
 }
 
 /* Orta panel açıkken terminaller kayıtlı genişliğinde durur; pencere daralınca önce onlar daralır. */
+/* Sol ve orta panelin zemini aynıdır: aralarındaki ayrımı bu çizgi gösterir (sağ paneldekiyle aynı). */
 .app-body.with-center > .terminals {
   flex: 0 1 var(--left-width, 492px);
   min-width: 320px;
+  border-right: 1px solid var(--line);
 }
 
 .app-body.with-center > .git {

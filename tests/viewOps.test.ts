@@ -119,7 +119,12 @@ describe('ViewOps', () => {
     const { repo, ops } = await setup();
     await writeFile(join(repo, 'yeni.ts'), 'const a = 1;\n');
     expect(await ops.readFile(repo, 'yeni.ts')).toEqual({ ok: true, kind: 'text', text: 'const a = 1;\n', size: 13 });
-    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'yeni.ts'] });
+    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'yeni.ts'], ignored: [] });
+    await mkdir(join(repo, 'dist'));
+    await writeFile(join(repo, 'dist', 'app.js'), 'x\n');
+    expect(await ops.listDir(repo, 'dist')).toEqual({ ok: true, entries: [{ name: 'app.js', dir: false }], more: 0 });
+    expect(await ops.listDir(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
+    expect(await ops.listDir('/yok', 'dist')).toEqual({ ok: false, error: 'Unknown repository' });
   });
 
   it('repo dışına çıkan dosya yolu okunmaz ve açılmaz', async () => {

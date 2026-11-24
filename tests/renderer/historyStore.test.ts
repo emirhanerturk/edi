@@ -14,6 +14,7 @@ const bridge = vi.hoisted(() => {
         return () => undefined;
       },
       getState: () => new Promise(() => undefined),
+      claudeUsage: () => new Promise(() => undefined),
       setLayout: vi.fn(),
       log: (repoPath: string, count: number) => new Promise<LogResult>((resolve) => pending.push({ repoPath, count, resolve })),
     },

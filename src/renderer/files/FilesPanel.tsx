@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FileList } from '../../git/types';
+import type { DirEntry, DirList, FileList } from '../../git/types';
 import type { RepoView } from '../../shared/api';
 import { edi } from '../bridge';
 import { ChevronDown, ChevronRight, FileIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import { useApp } from '../store';
-import { type TreeRow, buildTree, flattenTree } from './tree';
+import { type TreeRow, buildTree, flattenTree, insideIgnored } from './tree';
 import './files.css';
 
 /** Açık klasörlerin anahtarı: repo yolu ve klasörün repoya göre yolu (repo kökü için boş). */
@@ -17,6 +17,8 @@ export interface FilesPanelViewProps {
   single: boolean;
   /** Yüklenmiş dosya listeleri (repo yolu → liste); yüklenmemişse yoktur. */
   lists: Record<string, FileList>;
+  /** Açılıp okunmuş yok sayılan klasörlerin içi (`dirKey` → tek seviye); okunuyorsa yoktur. */
+  dirs: Record<string, DirList>;
   open: Record<string, boolean>;
   /** Orta panelde açık olan dosya. */
   selected: { repoPath: string; path: string } | null;
@@ -30,7 +32,7 @@ type Line =
   | { type: 'note'; key: string; text: string; error: boolean; depth: number };
 
 /** Files sekmesi: her repo bir üst klasör; içinde çalışma ağacı, değişen dosyalar işaretli. */
-export function FilesPanelView({ repos, single, lists, open, selected, onToggle, onOpenFile }: FilesPanelViewProps) {
+export function FilesPanelView({ repos, single, lists, dirs, open, selected, onToggle, onOpenFile }: FilesPanelViewProps) {
   if (repos.length === 0) {
     return (
       <div className="git-list">
@@ -39,77 +41,115 @@ export function FilesPanelView({ repos, single, lists, open, selected, onToggle,
     );
   }
 
-  const lines: Line[] = [];
-  const addTree = (repo: RepoView, depth: number) => {
+  const treeLines = (repo: RepoView, depth: number): Line[] => {
     const list = lists[repo.path];
-    if (!list) lines.push({ type: 'note', key: `${repo.path}:loading`, text: 'Loading…', error: false, depth });
-    else if (!list.ok) lines.push({ type: 'note', key: `${repo.path}:error`, text: list.error, error: true, depth });
-    else {
-      const tree = buildTree(list.files, repo.status?.files ?? []);
-      for (const row of flattenTree(tree, (path) => open[dirKey(repo.path, path)] === true, depth)) lines.push({ type: 'node', repo, row });
+    if (!list) return [{ type: 'note', key: `${repo.path}:loading`, text: 'Loading…', error: false, depth }];
+    if (!list.ok) return [{ type: 'note', key: `${repo.path}:error`, text: list.error, error: true, depth }];
+    const prefix = dirKey(repo.path, '');
+    const loaded: Record<string, DirEntry[]> = {};
+    for (const [key, dir] of Object.entries(dirs)) {
+      if (key.startsWith(prefix) && dir.ok) loaded[key.slice(prefix.length)] = dir.entries;
     }
+    const tree = buildTree(list.files, repo.status?.files ?? [], list.ignored, loaded);
+    const lines: Line[] = [];
+    // "N more not shown" notu, yok sayılan klasörün son satırından sonra gelir.
+    const pending: { depth: number; line: Line }[] = [];
+    const flushTo = (depth: number) => {
+      while (pending.length > 0 && pending[pending.length - 1]!.depth >= depth) lines.push(pending.pop()!.line);
+    };
+    for (const row of flattenTree(tree, (path) => open[dirKey(repo.path, path)] === true, depth)) {
+      flushTo(row.depth);
+      lines.push({ type: 'node', repo, row });
+      const { node } = row;
+      if (node.kind !== 'dir' || !row.open || !insideIgnored(node.path, list.ignored)) continue;
+      // Yok sayılan klasörün içi açılınca okunur: okunurken, okunamazsa ve sınırı aşınca not.
+      const key = dirKey(repo.path, node.path);
+      const dir = dirs[key];
+      const noteDepth = row.depth + 1;
+      if (!dir) lines.push({ type: 'note', key: `${key}:loading`, text: 'Loading…', error: false, depth: noteDepth });
+      else if (!dir.ok) lines.push({ type: 'note', key: `${key}:error`, text: dir.error, error: true, depth: noteDepth });
+      else if (dir.more > 0) {
+        const text = `${dir.more.toLocaleString('en-US')} more not shown`;
+        pending.push({ depth: row.depth, line: { type: 'note', key: `${key}:more`, text, error: false, depth: noteDepth } });
+      }
+    }
+    flushTo(-1);
+    return lines;
   };
-  if (single) addTree(repos[0]!, 0);
-  else {
-    for (const repo of repos) {
-      const isOpen = open[dirKey(repo.path, '')] === true;
-      lines.push({ type: 'repo', repo, open: isOpen });
-      if (isOpen) addTree(repo, 1);
+
+  const renderLine = (line: Line) => {
+    if (line.type === 'note') {
+      return (
+        <p key={line.key} className={`tree-note${line.error ? ' error' : ''}`} style={{ paddingLeft: indent(line.depth) + 17 }}>
+          {line.text}
+        </p>
+      );
     }
+    if (line.type === 'repo') {
+      const { repo } = line;
+      const dirty = (repo.status?.files.length ?? 0) > 0;
+      return (
+        <TreeItem
+          key={repo.path}
+          name={repo.name}
+          depth={0}
+          kind="repo"
+          open={line.open}
+          badge={dirty ? '●' : ''}
+          onClick={() => onToggle(dirKey(repo.path, ''), !line.open)}
+        />
+      );
+    }
+    const { repo, row } = line;
+    const { node } = row;
+    if (node.kind === 'dir') {
+      return (
+        <TreeItem
+          key={`${repo.path}\n${node.path}`}
+          name={node.name}
+          depth={row.depth}
+          kind="dir"
+          open={row.open}
+          ignored={node.ignored}
+          badge={node.dirty ? '●' : ''}
+          onClick={() => onToggle(dirKey(repo.path, node.path), !row.open)}
+        />
+      );
+    }
+    return (
+      <TreeItem
+        key={`${repo.path}\n${node.path}`}
+        name={node.name}
+        title={node.path}
+        depth={row.depth}
+        kind="file"
+        ignored={node.ignored}
+        badge={node.letter ?? ''}
+        selected={selected?.repoPath === repo.path && selected.path === node.path}
+        onClick={() => onOpenFile(repo.path, node.path, false)}
+        onDoubleClick={() => onOpenFile(repo.path, node.path, true)}
+      />
+    );
+  };
+
+  if (single) {
+    return (
+      <div className="git-list files-tree single" role="tree" aria-label="Files">
+        {treeLines(repos[0]!, 0).map(renderLine)}
+      </div>
+    );
   }
 
+  // Çok repolu görünüm: her repo, Git sekmesindeki gibi kendi bölümü; açık olan vurgulu.
   return (
     <div className="git-list files-tree" role="tree" aria-label="Files">
-      {lines.map((line) => {
-        if (line.type === 'note') {
-          return (
-            <p key={line.key} className={`tree-note${line.error ? ' error' : ''}`} style={{ paddingLeft: indent(line.depth) + 17 }}>
-              {line.text}
-            </p>
-          );
-        }
-        if (line.type === 'repo') {
-          const { repo } = line;
-          const dirty = (repo.status?.files.length ?? 0) > 0;
-          return (
-            <TreeItem
-              key={repo.path}
-              name={repo.name}
-              depth={0}
-              kind="repo"
-              open={line.open}
-              badge={dirty ? '●' : ''}
-              onClick={() => onToggle(dirKey(repo.path, ''), !line.open)}
-            />
-          );
-        }
-        const { repo, row } = line;
-        const { node } = row;
-        if (node.kind === 'dir') {
-          return (
-            <TreeItem
-              key={`${repo.path}\n${node.path}`}
-              name={node.name}
-              depth={row.depth}
-              kind="dir"
-              open={row.open}
-              badge={node.dirty ? '●' : ''}
-              onClick={() => onToggle(dirKey(repo.path, node.path), !row.open)}
-            />
-          );
-        }
+      {repos.map((repo) => {
+        const isOpen = open[dirKey(repo.path, '')] === true;
         return (
-          <TreeItem
-            key={`${repo.path}\n${node.path}`}
-            name={node.name}
-            title={node.path}
-            depth={row.depth}
-            kind="file"
-            badge={node.letter ?? ''}
-            selected={selected?.repoPath === repo.path && selected.path === node.path}
-            onClick={() => onOpenFile(repo.path, node.path, false)}
-            onDoubleClick={() => onOpenFile(repo.path, node.path, true)}
-          />
+          <div key={repo.path} className={`files-repo${isOpen ? ' open' : ''}`} data-testid="files-repo" data-repo={repo.name}>
+            {renderLine({ type: 'repo', repo, open: isOpen })}
+            {isOpen && treeLines(repo, 1).map(renderLine)}
+          </div>
         );
       })}
     </div>
@@ -124,6 +164,8 @@ interface TreeItemProps {
   depth: number;
   kind: 'repo' | 'dir' | 'file';
   open?: boolean;
+  /** `.gitignore`'a takılıyor: soluk. */
+  ignored?: boolean;
   /** Dosyada durum harfi, klasörde "●"; yoksa boş. */
   badge: string;
   selected?: boolean;
@@ -131,23 +173,24 @@ interface TreeItemProps {
   onDoubleClick?(): void;
 }
 
-function TreeItem({ name, title, depth, kind, open, badge, selected, onClick, onDoubleClick }: TreeItemProps) {
+function TreeItem({ name, title, depth, kind, open, ignored = false, badge, selected, onClick, onDoubleClick }: TreeItemProps) {
   const isFile = kind === 'file';
   const color = isFile && badge !== '' ? letterColor(badge) : undefined;
   return (
     <div
-      className={`tree-row ${kind}${selected ? ' selected' : ''}`}
+      className={`tree-row ${kind}${selected ? ' selected' : ''}${ignored ? ' ignored' : ''}`}
       data-testid="tree-row"
       data-depth={depth}
       data-name={name}
       data-badge={badge}
+      data-ignored={ignored ? 'true' : undefined}
       role="treeitem"
       tabIndex={0}
       aria-expanded={isFile ? undefined : open}
       aria-current={selected ? 'true' : undefined}
       aria-selected={isFile ? selected === true : undefined}
-      title={title ?? name}
-      style={{ paddingLeft: indent(depth) }}
+      title={ignored ? `${title ?? name} (ignored by git)` : (title ?? name)}
+      style={{ paddingLeft: kind === 'repo' ? 10 : indent(depth) }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onKeyDown={(event) => {
@@ -192,6 +235,9 @@ export function FilesPanel() {
   const center = useApp((s) => s.center);
   const [lists, setLists] = useState<Record<string, FileList>>({});
   const loaded = useRef(new Map<string, string>());
+  const [dirs, setDirs] = useState<Record<string, DirList>>({});
+  /** Okunan ya da okunmakta olan yok sayılan klasörler (`dirKey`); kapanınca silinir. */
+  const dirsRead = useRef(new Set<string>());
   const { repos } = workspace;
   const single = repos.length === 1 && repos[0]!.path === workspace.dir;
 
@@ -202,6 +248,8 @@ export function FilesPanel() {
     setListsDir(workspace.dir);
     setLists({});
     loaded.current.clear();
+    setDirs({});
+    dirsRead.current.clear();
   }
 
   useEffect(() => {
@@ -220,6 +268,33 @@ export function FilesPanel() {
     }
   }, [repos, open, single]);
 
+  // Yok sayılan bir klasör açılınca içi okunur; kapanınca unutulur, yeniden açılınca tazelenir.
+  useEffect(() => {
+    for (const key of [...dirsRead.current]) {
+      if (open[key] === true) continue;
+      dirsRead.current.delete(key);
+      setDirs(({ [key]: _gone, ...rest }) => rest);
+    }
+    for (const repo of repos) {
+      const list = lists[repo.path];
+      if (!list?.ok) continue;
+      const prefix = dirKey(repo.path, '');
+      for (const [key, isOpen] of Object.entries(open)) {
+        if (!isOpen || !key.startsWith(prefix) || dirsRead.current.has(key)) continue;
+        const path = key.slice(prefix.length);
+        if (path === '' || !insideIgnored(path, list.ignored)) continue;
+        dirsRead.current.add(key);
+        void edi.listDir(repo.path, path).then(
+          (dir) => {
+            // Bu arada kapandıysa sonuç atılır.
+            if (dirsRead.current.has(key)) setDirs((prev) => ({ ...prev, [key]: dir }));
+          },
+          () => dirsRead.current.delete(key),
+        );
+      }
+    }
+  }, [repos, lists, open]);
+
   const active = center.open ? (center.tabs.find((tab) => tab.id === center.active) ?? null) : null;
   const { toggleFilesDir, openInCenter } = useApp.getState();
   return (
@@ -227,6 +302,7 @@ export function FilesPanel() {
       repos={repos}
       single={single}
       lists={lists}
+      dirs={dirs}
       open={open}
       selected={active && { repoPath: active.repoPath, path: active.path }}
       onToggle={toggleFilesDir}

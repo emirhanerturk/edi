@@ -35,7 +35,7 @@ const [out] = await packager({
   arch: process.arch,
   // node-pty'nin yerel modülü ve spawn-helper'ı asar arşivinin dışında olmalı.
   asar: { unpack: '**/node_modules/node-pty/**' },
-  extraResource: [join(root, 'resources', 'edi')],
+  extraResource: [join(root, 'resources', 'edi'), join(root, 'resources', 'edi-statusline')],
   // Yalnız derlenmiş kod, package.json ve (packager'ın ayıkladığı) çalışma bağımlılıkları.
   // node_modules içindeki araç önbellekleri (.vite, .vitest-cache, .bin) da alınmaz.
   ignore: (path) =>

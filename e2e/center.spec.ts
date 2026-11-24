@@ -30,6 +30,8 @@ test('değişen dosyaya tıklayınca diff açılır', async () => {
     await fileRow(page, 'README.md').click();
     const view = page.getByTestId('center-view');
     await expect(view).toHaveAttribute('data-kind', 'diff');
+    // Sol panel ile orta panelin zemini aynı: aralarında görünür bir çizgi vardır.
+    expect(await page.locator('.terminals').evaluate((el) => getComputedStyle(el).borderRightWidth)).toBe('1px');
     await expect(centerTabs(page)).toHaveCount(1);
     await expect(centerTabs(page)).toHaveAttribute('data-preview', 'true');
     const header = page.getByTestId('view-header');
@@ -71,7 +73,7 @@ test('değişen dosyaya tıklayınca diff açılır', async () => {
     await expect(centerTabs(page).first()).toHaveAttribute('aria-selected', 'true');
 
     // Son sekme kapanınca panel de kapanır.
-    const closeTab = page.locator('.center').getByRole('button', { name: 'Close tab' });
+    const closeTab = page.locator('.center [role="tab"][aria-selected="true"]').getByRole('button', { name: 'Close tab' });
     await closeTab.click();
     await closeTab.click();
     await expect(view).toHaveCount(0);
@@ -160,8 +162,15 @@ test('Files sekmesinden dosya açılır', async () => {
     await row('alpha').click();
     await expect(row('src')).toHaveAttribute('data-badge', '●');
     await expect(row('README.md')).toHaveAttribute('data-badge', 'M');
-    // .gitignore'a takılan klasör listelenmez.
-    await expect(row('node_modules')).toHaveCount(0);
+    // .gitignore'a takılan klasör soluk görünür; açılınca içi okunur, içindekiler de soluk.
+    await expect(row('node_modules')).toHaveAttribute('data-ignored', 'true');
+    await row('node_modules').click();
+    await row('x').click();
+    await expect(row('index.js')).toHaveAttribute('data-ignored', 'true');
+    await row('index.js').click();
+    await expect(page.getByTestId('center-view').getByTestId('file-line')).toHaveText(['1x']);
+    await row('node_modules').click();
+    await expect(row('index.js')).toHaveCount(0);
     await row('src').click();
     await row('app.ts').click();
 

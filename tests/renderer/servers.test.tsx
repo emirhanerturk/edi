@@ -14,6 +14,7 @@ const bridge = vi.hoisted(() => {
       },
       openUrl: vi.fn(async () => ({ ok: true, message: 'Opened in the browser' })),
       getState: () => new Promise(() => undefined),
+      claudeUsage: () => new Promise(() => undefined),
     },
   };
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FileChange } from '../../src/git/types';
-import { type TreeNode, buildTree, flattenTree } from '../../src/renderer/files/tree';
+import { type TreeNode, buildTree, flattenTree, insideIgnored } from '../../src/renderer/files/tree';
 
 const change = (path: string, x: string, y: string, kind: FileChange['kind'] = 'changed'): FileChange => ({ path, origPath: null, x, y, kind });
 /** Ağacı okunur biçimde: klasör "ad/", değişen dosya "ad M", değişiklik içeren klasör "ad/ ●". */
@@ -16,11 +16,59 @@ describe('buildTree', () => {
     expect(show(tree)).toEqual(['Docs/', '  x.md', 'src/', '  lib/', '    a.ts', '  B.ts', '  z.ts', 'A.md', 'b.ts', 'c.ts']);
   });
 
+  it("yok sayılan dosyalar ve klasörler ağaçta yerini alır, işaretlidir; klasörün içi boştur", () => {
+    const tree = buildTree(['src/a.ts', '.gitignore'], [], ['node_modules/', '.env', 'src/debug.log', 'src/out/']);
+    const flat = (nodes: TreeNode[]): string[] =>
+      nodes.flatMap((node) => [`${node.path}${node.kind === 'dir' ? '/' : ''}${node.ignored ? ' (ignored)' : ''}`, ...flat(node.children)]);
+    expect(flat(tree)).toEqual([
+      'node_modules/ (ignored)',
+      'src/',
+      'src/out/ (ignored)',
+      'src/a.ts',
+      'src/debug.log (ignored)',
+      '.env (ignored)',
+      '.gitignore',
+    ]);
+    expect(tree[0]!.children).toEqual([]);
+  });
+
+  it('yüklenmiş yok sayılan klasörlerin içi ağaca eklenir; içindekiler de yok sayılmış sayılır', () => {
+    const tree = buildTree(['a.ts'], [], ['node_modules/'], {
+      node_modules: [
+        { name: 'react', dir: true },
+        { name: '.package-lock.json', dir: false },
+      ],
+      'node_modules/react': [{ name: 'index.js', dir: false }],
+    });
+    const flat = (nodes: TreeNode[]): string[] =>
+      nodes.flatMap((node) => [`${node.path}${node.kind === 'dir' ? '/' : ''}${node.ignored ? ' (ignored)' : ''}`, ...flat(node.children)]);
+    expect(flat(tree)).toEqual([
+      'node_modules/ (ignored)',
+      'node_modules/react/ (ignored)',
+      'node_modules/react/index.js (ignored)',
+      'node_modules/.package-lock.json (ignored)',
+      'a.ts',
+    ]);
+  });
+
+  it('insideIgnored: yok sayılan klasörün kendisi ve içindekiler', () => {
+    const ignored = ['node_modules/', 'ios/Pods/', '.env'];
+    expect(['node_modules', 'node_modules/react', 'ios/Pods/x', 'ios', 'node_modules2', '.env', 'src'].map((path) => insideIgnored(path, ignored))).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it('yollar ve ad alanları doğru', () => {
     const tree = buildTree(['src/lib/a.ts'], []);
     expect(tree[0]).toMatchObject({ name: 'src', path: 'src', kind: 'dir' });
     expect(tree[0]!.children[0]).toMatchObject({ name: 'lib', path: 'src/lib', kind: 'dir' });
-    expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false });
+    expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false, ignored: false });
   });
 
   it('değişen dosyalar harfini alır, onları içeren klasörler işaretlenir', () => {

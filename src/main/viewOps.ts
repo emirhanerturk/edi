@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { diffFile } from '../git/actions.js';
 import { parseDiff } from '../git/diffParse.js';
 import { OUTPUT_TOO_LARGE } from '../git/exec.js';
-import { type FileContent, type FileList, OUTSIDE, listFiles, locateInRepo, readRepoFile } from '../git/files.js';
+import { type DirList, type FileContent, type FileList, OUTSIDE, listDir, listFiles, locateInRepo, readRepoFile } from '../git/files.js';
 import { getStatus } from '../git/status.js';
 import type { DiffView, OpResult } from '../shared/api.js';
 import { openInZed } from './openInZed.js';
@@ -57,6 +57,14 @@ export class ViewOps {
     const repo = this.repo(repoPath);
     if (!repo) return UNKNOWN_REPO;
     return listFiles(repo.path);
+  }
+
+  /** Repo içindeki bir klasörün tek seviyesi (yok sayılan klasörlerin içi için). */
+  async listDir(repoPath: unknown, dirPath: unknown): Promise<DirList> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    if (typeof dirPath !== 'string') return INVALID_PATH;
+    return listDir(repo.path, dirPath);
   }
 
   /** Dosyayı Zed'de açar; yol verilmezse ya da dosya silinmişse repo klasörünü. */

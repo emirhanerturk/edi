@@ -137,7 +137,8 @@ tty süzgeci kazanır.
 - **Sekme çubuğu:** sekmeler, sağda `+` (yeni terminal) ve Claude simgeli düğme
   (yeni Claude oturumu). Sekme adı öndeki sürecin komutudur (`npm run dev`);
   boşta kabuğun adıdır (`zsh`). Adlar alt satıra geçmez; yer daralınca üç
-  noktayla kısalır. Aktif sekmede kapatma çarpısı vardır.
+  noktayla kısalır. Her sekmede kapatma çarpısının yeri ayrılır: aktif sekmede görünür,
+  diğerlerinde sekmenin üzerine gelince görünür ve tıklanır (2026-11-24, kullanıcı istedi).
 - **Claude sekmesi:** bir sekmenin tty'sinde Claude Code öndeyken sekme adı
   `claude`, simgesi turuncu Claude işareti (`#D97757`) olur; Claude kapanınca
   sekme normale döner. Kullanıcı Claude'u düğmeyle de açsa, düz sekmede `claude`
@@ -299,9 +300,12 @@ belirlemez. (Benim kararım.)
 
 ### Files
 
-Açık klasördeki repolar en üst düzeyde klasör olarak; her birinin altında
-çalışma ağacı. `.gitignore`'a takılan dosyalar (ör. `node_modules`)
-gösterilmez. Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
+Açık klasördeki repolar en üst düzeyde, Git sekmesindeki gibi ayrı bölümler olarak
+(aynı satır yüksekliği; açık repo vurgulu); her birinin altında çalışma ağacı.
+`.gitignore`'a takılan dosyalar ve klasörler soluk gösterilir (2026-11-24, kullanıcı
+istedi). Yok sayılan bir klasörün içi git'ten gelmez; klasör açılınca yalnız o seviye
+diskten okunur (en çok 2.000 kayıt, fazlası "N more not shown"), kapanınca unutulur.
+İçindekiler de soluk ve açılabilir (ör. `node_modules`, `ios`, `dist`). Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
 klasörler nokta ile işaretlenir. Bir dosyaya tıklamak dosya görünümünü açar.
 Sekme başlığındaki düğme tüm klasörleri kapatır. Açık klasörün kendisi tek bir
 repoysa ağaç doğrudan o reponun içeriğiyle başlar.
@@ -441,3 +445,14 @@ Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış �
   - **Ödünleşim:** porta bakarak `https` anlaşılamaz; adres hep `http://` ile açılır.
     HTTPS kullanan dev sunucusuna terminaldeki adrese Option+tık ile ulaşılır.
   - Terminaldeki `http(s)://…` adresleri Option+tık ile tarayıcıda açılır (yapıldı).
+- **Claude kullanım limitleri (2026-11-24, kullanıcı istedi ve köprüyü seçti):** üst çubukta,
+  oturum sayısının yanında 5 saatlik ve haftalık limit: kullanılan yüzde, küçük bir çubuk ve
+  sıfırlanma zamanı (bugünse "15:10", değilse "Fri 28 Nov 09:00", yerel saat). %70'ten itibaren
+  sarı, %90'dan itibaren kırmızı; ipucunda tam metin ve verinin yaşı. Claude Code bu sayıları
+  yalnız durum satırı komutuna verir (`rate_limits.five_hour` / `seven_day`, `used_percentage`,
+  `resets_at`), bu yüzden edi paketin içinde bir köprü taşır (`Resources/edi-statusline`):
+  kullanıcı onu `~/.claude/settings.json`'da `statusLine` olarak kendisi ayarlar (edi bu dosyaya
+  dokunmaz). Köprü yalnız `rate_limits`'i `~/Library/Application Support/edi/claude-usage.json`'a
+  yazar, durum satırına bir şey basmaz; edi dosyayı 5 sn'de bir okur, sıfırlanma anı geçen
+  pencereyi göstermez, dosya yoksa göstergeyi hiç çizmez. Ağa çıkılmaz; Anthropic'e doğrudan
+  sorma seçeneği "ağ yok" kuralı ve giriş anahtarına erişim yüzünden seçilmedi.

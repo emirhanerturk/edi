@@ -85,6 +85,16 @@
   color: var(--muted);
 }
 
+/* Etkin olmayan sekmede düğmenin yeri ayrılır; sekmenin üzerine gelince görünür ve tıklanır. */
+.tab-close[data-reveal='hover'] {
+  visibility: hidden;
+}
+
+.tab:hover .tab-close[data-reveal='hover'],
+.tab-close[data-reveal='hover']:focus-visible {
+  visibility: visible;
+}
+
 .tab-close:hover {
   background: var(--chip-strong);
   color: var(--text);

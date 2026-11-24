@@ -58,18 +58,18 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               )}
               <span className="tab-title">{tab.name}</span>
               {hint !== '' && <span className="tab-hint">{hint}</span>}
-              {isActive && (
-                <button
-                  className="tab-close"
-                  aria-label="Close tab"
-                  title="Close tab"
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onDoubleClick={(event) => event.stopPropagation()}
-                  onClick={() => onClose(tab.id)}
-                >
-                  <CloseIcon size={11} />
-                </button>
-              )}
+              {/* Her sekmede yer tutar; etkin olmayanınki üzerine gelince görünür (CSS). */}
+              <button
+                className="tab-close"
+                data-reveal={isActive ? 'always' : 'hover'}
+                aria-label="Close tab"
+                title="Close tab"
+                onMouseDown={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onClick={() => onClose(tab.id)}
+              >
+                <CloseIcon size={11} />
+              </button>
             </div>
           );
         })}
