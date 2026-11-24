@@ -9,7 +9,6 @@ import {
   isStaged,
   parseStatus,
   statusLetter,
-  statusTag,
 } from '../src/git/status.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
@@ -27,6 +26,7 @@ describe('parseStatus', () => {
   it('upstream ve ahead/behind değerlerini okur', () => {
     expect(parseStatus(`${hdr}# branch.upstream origin/main\0# branch.ab +1 -2\0`)).toEqual({
       head: 'main',
+      headOid: 'c8be86ca35d2184906225ab667c0025a8abfc51c',
       detached: false,
       unborn: false,
       upstream: 'origin/main',
@@ -108,12 +108,24 @@ describe('dosya yardımcıları', () => {
     expect(isDeleted(file('?', '?', 'untracked'))).toBe(false);
   });
 
-  it('harf ve etiket üretir', () => {
-    expect([statusLetter(file('.', 'M')), statusTag(file('.', 'M'))]).toEqual(['M', '']);
-    expect([statusLetter(file('M', '.')), statusTag(file('M', '.'))]).toEqual(['M', '[staged]']);
-    expect([statusLetter(file('A', 'M')), statusTag(file('A', 'M'))]).toEqual(['M', '[kısmen]']);
-    expect([statusLetter(file('?', '?', 'untracked')), statusTag(file('?', '?', 'untracked'))]).toEqual(['?', '']);
-    expect([statusLetter(file('U', 'U', 'conflicted')), statusTag(file('U', 'U', 'conflicted'))]).toEqual(['U', '']);
+  it('durum harfini üretir', () => {
+    expect(statusLetter(file('.', 'M'))).toBe('M');
+    expect(statusLetter(file('M', '.'))).toBe('M');
+    expect(statusLetter(file('A', 'M'))).toBe('M');
+    expect(statusLetter(file('?', '?', 'untracked'))).toBe('?');
+    expect(statusLetter(file('U', 'U', 'conflicted'))).toBe('U');
+  });
+
+  it("commit'siz repoda headOid null", () => {
+    expect(parseStatus('# branch.oid (initial)\0# branch.head main\0')).toMatchObject({ unborn: true, headOid: null });
+  });
+
+  it("detached HEAD'de de tam oid'i verir", () => {
+    expect(parseStatus('# branch.oid c8be86ca35d2184906225ab667c0025a8abfc51c\0# branch.head (detached)\0')).toMatchObject({
+      detached: true,
+      head: 'c8be86c',
+      headOid: 'c8be86ca35d2184906225ab667c0025a8abfc51c',
+    });
   });
 });
 

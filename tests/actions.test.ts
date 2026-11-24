@@ -5,7 +5,6 @@ import {
   commit,
   createBranch,
   diffFile,
-  diffRepo,
   fetchRepo,
   listBranches,
   pull,
@@ -77,12 +76,12 @@ describe('stage / unstage', () => {
     const repo = await newRepo();
     await write(repo, 'boş dosya.txt', 'x\n');
 
-    expect(await stageFile(repo, await fileOf(repo, 'boş dosya.txt'))).toEqual({ ok: true, message: 'stage edildi' });
+    expect(await stageFile(repo, await fileOf(repo, 'boş dosya.txt'))).toEqual({ ok: true, message: 'Staged' });
     expect(await fileOf(repo, 'boş dosya.txt')).toMatchObject({ x: 'A', y: '.' });
 
     expect(await unstageFile(repo, await fileOf(repo, 'boş dosya.txt'))).toEqual({
       ok: true,
-      message: 'unstage edildi',
+      message: 'Unstaged',
     });
     expect(await fileOf(repo, 'boş dosya.txt')).toMatchObject({ kind: 'untracked' });
   });
@@ -141,7 +140,7 @@ describe('commit', () => {
     await write(repo, 'a.txt', 'x\n');
     await git(repo, 'add', 'a.txt');
 
-    expect(await commit(repo, 'feat: x', { addAll: false })).toEqual({ ok: true, message: 'commit edildi' });
+    expect(await commit(repo, 'feat: x', { addAll: false })).toEqual({ ok: true, message: 'Committed' });
     expect(await git(repo, 'log', '-1', '--format=%s')).toBe('feat: x\n');
     expect((await statusOf(repo)).files).toEqual([
       { path: 'README.md', origPath: null, x: '.', y: 'M', kind: 'changed' },
@@ -170,7 +169,7 @@ describe('commit', () => {
     await write(repo, 'a.txt', 'x\n');
     await git(repo, 'add', '-A');
 
-    expect(await commit(repo, '   ', { addAll: false })).toEqual({ ok: false, error: 'commit mesajı boş' });
+    expect(await commit(repo, '   ', { addAll: false })).toEqual({ ok: false, error: 'Commit message is empty' });
     expect(await commitCount(repo)).toBe(1);
   });
 
@@ -214,7 +213,7 @@ describe('push / pull / fetch', () => {
     const bare = await addBareRemote(repo);
     expect((await statusOf(repo)).upstream).toBeNull();
 
-    expect(await push(repo, await statusOf(repo))).toEqual({ ok: true, message: 'push edildi' });
+    expect(await push(repo, await statusOf(repo))).toEqual({ ok: true, message: 'Pushed' });
     expect(await statusOf(repo)).toMatchObject({ upstream: 'origin/main', ahead: 0, behind: 0 });
     expect((await git(bare, 'rev-parse', 'main')).trim()).toBe(await head(repo));
   });
@@ -238,7 +237,7 @@ describe('push / pull / fetch', () => {
     const repo = await newRepo();
     await addBareRemote(repo);
     await git(repo, 'checkout', '-q', '--detach');
-    expect(await push(repo, await statusOf(repo))).toEqual({ ok: false, error: 'detached HEAD: push edilemez' });
+    expect(await push(repo, await statusOf(repo))).toEqual({ ok: false, error: 'Detached HEAD: cannot push' });
   });
 
   it('uzaktaki commit reddedilen push zorlanmaz', async () => {
@@ -258,7 +257,7 @@ describe('push / pull / fetch', () => {
     const { repo, peer } = await repoWithRemoteAndPeer();
     await peerPushes(peer, 'uzak.txt');
 
-    expect(await pull(repo)).toEqual({ ok: true, message: 'pull edildi' });
+    expect(await pull(repo)).toEqual({ ok: true, message: 'Pulled' });
     expect(await head(repo)).toBe(await head(peer));
   });
 
@@ -279,7 +278,7 @@ describe('push / pull / fetch', () => {
     await peerPushes(peer, 'uzak.txt');
     expect((await statusOf(repo)).behind).toBe(0);
 
-    expect(await fetchRepo(repo)).toEqual({ ok: true, message: 'fetch edildi' });
+    expect(await fetchRepo(repo)).toEqual({ ok: true, message: 'Fetched' });
     expect((await statusOf(repo)).behind).toBe(1);
   });
 });
@@ -301,7 +300,7 @@ describe('branch', () => {
     const repo = await newRepo();
     await git(repo, 'branch', 'feat/x');
 
-    expect(await switchBranch(repo, 'feat/x')).toEqual({ ok: true, message: "feat/x branch'ine geçildi" });
+    expect(await switchBranch(repo, 'feat/x')).toEqual({ ok: true, message: 'Switched to feat/x' });
     expect((await statusOf(repo)).head).toBe('feat/x');
 
     expect((await createBranch(repo, 'fix/y')).ok).toBe(true);
@@ -366,30 +365,13 @@ describe('diff', () => {
     expect(r.ok && r.text).toContain('rename from README.md');
   });
 
-  it('repo diff\'i izlenen ve yeni dosyaları birlikte verir', async () => {
-    const repo = await newRepo();
-    await write(repo, 'README.md', 'readme\nyeni satır\n');
-    await write(repo, 'unt.txt', 'yeni dosya\n');
-
-    const r = await diffRepo(repo, await statusOf(repo));
-    expect(r.ok && r.text).toContain('+yeni satır');
-    expect(r.ok && r.text).toContain('+++ b/unt.txt');
-    expect(r.ok && r.text).toContain('+yeni dosya');
-  });
-
-  it('temiz repoda boş metin döner', async () => {
-    const repo = await newRepo();
-    expect(await diffRepo(repo, await statusOf(repo))).toEqual({ ok: true, text: '' });
-  });
-
   it('renk ve harici diff aracı ayarlıyken düz metin verir', async () => {
     const repo = await newRepo();
     await git(repo, 'config', 'color.ui', 'always');
     await git(repo, 'config', 'diff.external', '/usr/bin/false');
     await write(repo, 'README.md', 'readme\nyeni satır\n');
-    await write(repo, 'unt.txt', 'yeni dosya\n');
 
-    const r = await diffRepo(repo, await statusOf(repo));
+    const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'README.md'));
     expect(r.ok && r.text).toContain('+yeni satır');
     expect(r.ok && r.text).not.toContain('\u001B[');
   });
@@ -462,7 +444,7 @@ describe('inceleme bulguları', () => {
 
   it('çakışmalı dosya varken stageAll reddeder, çakışma çözülmüş sayılmaz', async () => {
     const repo = await repoWithConflict();
-    expect(await stageAll(repo)).toEqual({ ok: false, error: "çakışmalı dosya var; edi'de çözülemez" });
+    expect(await stageAll(repo)).toEqual({ ok: false, error: 'Conflicted files present; resolve them outside edi' });
     expect(await fileOf(repo, 'README.md')).toMatchObject({ kind: 'conflicted' });
   });
 
@@ -471,7 +453,7 @@ describe('inceleme bulguları', () => {
     const before = await commitCount(repo);
     expect(await commit(repo, 'feat: x', { addAll: true })).toEqual({
       ok: false,
-      error: "çakışmalı dosya var; edi'de çözülemez",
+      error: 'Conflicted files present; resolve them outside edi',
     });
     expect(await commitCount(repo)).toBe(before);
     expect(await fileOf(repo, 'README.md')).toMatchObject({ kind: 'conflicted' });

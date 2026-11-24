@@ -16,6 +16,22 @@ describe('runGit', () => {
     expect(!r.ok && r.error).toMatch(/^fatal:/);
   });
 
+  it('git çıktısı yerel ayardan bağımsız İngilizce', async () => {
+    const before = { LANG: process.env.LANG, LC_ALL: process.env.LC_ALL };
+    process.env.LANG = 'tr_TR.UTF-8';
+    process.env.LC_ALL = 'tr_TR.UTF-8';
+    try {
+      const env = await runGit(await makeTmpDir(), ['-c', 'alias.env=!env', 'env']);
+      expect(env.ok && env.stdout).toMatch(/^LC_ALL=C$/m);
+      expect(env.ok && env.stdout).toMatch(/^LANG=C$/m);
+    } finally {
+      for (const [key, value] of Object.entries(before)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
   it('olmayan cwd ile throw etmez', async () => {
     expect((await runGit('/yok/boyle/yer', ['status'])).ok).toBe(false);
   });
@@ -38,7 +54,7 @@ describe('runGit', () => {
     const started = Date.now();
     // Sonsuza dek bekleyen bir alias: runGit onu kesmek zorunda.
     const r = await runGit(repo, ['-c', 'alias.bekle=!sleep 30', 'bekle'], { timeoutMs: 200 });
-    expect(r).toMatchObject({ ok: false, error: 'zaman aşımı' });
+    expect(r).toMatchObject({ ok: false, error: 'Timed out' });
     expect(Date.now() - started).toBeLessThan(5000);
   });
 });
@@ -54,7 +70,7 @@ describe('runGit sağlamlığı', () => {
 
     // commit -a hook çalışırken index.lock'u tutar.
     const r = await runGit(repo, ['commit', '-a', '-m', 'feat: x'], { timeoutMs: 1500 });
-    expect(r).toMatchObject({ ok: false, error: 'zaman aşımı' });
+    expect(r).toMatchObject({ ok: false, error: 'Timed out' });
 
     const lockExists = await access(join(repo, '.git', 'index.lock')).then(() => true, () => false);
     expect(lockExists).toBe(false);
@@ -95,6 +111,6 @@ describe('pickErrorLine', () => {
     expect(pickErrorLine('foo\nbar\n')).toBe('bar');
   });
   it('boş çıktıda genel bir mesaj verir', () => {
-    expect(pickErrorLine('')).toBe('git başarısız oldu');
+    expect(pickErrorLine('')).toBe('git failed');
   });
 });

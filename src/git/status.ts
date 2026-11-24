@@ -14,6 +14,8 @@ export interface FileChange {
 export interface RepoStatus {
   /** Branch adı; detached HEAD'de kısa commit hash'i. */
   head: string;
+  /** HEAD commit'inin tam oid'i; henüz commit yoksa null. */
+  headOid: string | null;
   detached: boolean;
   /** Repoda henüz hiç commit yok. */
   unborn: boolean;
@@ -38,6 +40,7 @@ function afterNthSpace(s: string, n: number): string {
 export function parseStatus(raw: string): RepoStatus {
   const status: RepoStatus = {
     head: '',
+    headOid: null,
     detached: false,
     unborn: false,
     upstream: null,
@@ -98,6 +101,7 @@ export function parseStatus(raw: string): RepoStatus {
   }
 
   status.unborn = oid === '(initial)';
+  status.headOid = status.unborn || oid === '' ? null : oid;
   if (status.head === '(detached)') {
     status.detached = true;
     status.head = oid.slice(0, 7);
@@ -137,9 +141,4 @@ export function statusLetter(f: FileChange): string {
   if (f.kind === 'untracked') return '?';
   if (f.kind === 'conflicted') return 'U';
   return f.y !== '.' ? f.y : f.x;
-}
-
-export function statusTag(f: FileChange): '' | '[staged]' | '[kısmen]' {
-  if (!isStaged(f)) return '';
-  return hasUnstaged(f) ? '[kısmen]' : '[staged]';
 }

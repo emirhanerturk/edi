@@ -25,7 +25,8 @@ const REDIRECTING_VARS = [
 ];
 
 function gitEnv(cwd: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  // Yerel ayar sabit: hata satırı seçimi ve arayüz metinleri git'in İngilizce çıktısına dayanır.
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };
   for (const name of REDIRECTING_VARS) delete env[name];
   // git, `cwd` repo değilse üst klasörlerde repo aramaya çıkar. Tavan, bir satırın
   // komutunun yanlışlıkla üstteki başka bir repoda çalışmasını engeller.
@@ -83,7 +84,7 @@ export function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): P
       killGroup('SIGTERM');
       killTimer = setTimeout(() => {
         killGroup('SIGKILL');
-        finish({ ok: false, error: 'zaman aşımı', stdout });
+        finish({ ok: false, error: 'Timed out', stdout });
       }, KILL_GRACE_MS);
     }, timeoutMs);
 
@@ -91,7 +92,7 @@ export function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): P
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
     child.on('error', (err) => finish({ ok: false, error: err.message, stdout }));
     child.on('close', (code) => {
-      if (timedOut) finish({ ok: false, error: 'zaman aşımı', stdout });
+      if (timedOut) finish({ ok: false, error: 'Timed out', stdout });
       else if (code !== null && okCodes.includes(code)) finish({ ok: true, stdout });
       // Bazı git hataları ("nothing to commit" gibi) stderr'e değil stdout'a yazılır.
       else finish({ ok: false, error: pickErrorLine(stderr.trim() === '' ? stdout : stderr), stdout });
@@ -106,5 +107,5 @@ export function pickErrorLine(stderr: string): string {
     .map((line) => line.trim())
     .filter((line) => line !== '');
   const telling = lines.find((line) => /^(fatal|error):/.test(line) || line.includes('[rejected]'));
-  return telling ?? lines.at(-1) ?? 'git başarısız oldu';
+  return telling ?? lines.at(-1) ?? 'git failed';
 }

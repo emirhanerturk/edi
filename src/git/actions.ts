@@ -14,7 +14,7 @@ const FETCH_TIMEOUT_MS = 120_000;
  * hook'ları test koşabilir, yarıda kesilen bir pull ağacı yarım bırakır. Bu yüzden süre uzun.
  */
 const SLOW_TIMEOUT_MS = 600_000;
-const CONFLICT_ERROR = "çakışmalı dosya var; edi'de çözülemez";
+const CONFLICT_ERROR = 'Conflicted files present; resolve them outside edi';
 
 /**
  * Yolu glob olarak değil harfi harfine eşleştirir. `app/[slug]/page.tsx` gibi yollar
@@ -30,13 +30,13 @@ async function act(repo: string, args: string[], message: string, opts?: RunGitO
 }
 
 export function stageFile(repo: string, f: FileChange): Promise<ActionResult> {
-  return act(repo, ['add', '-A', '--', literal(f.path)], 'stage edildi', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
+  return act(repo, ['add', '-A', '--', literal(f.path)], 'Staged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
 /** Yalnız index'e dokunur; çalışma ağacındaki içerik değişmez. */
 export function unstageFile(repo: string, f: FileChange): Promise<ActionResult> {
   const paths = f.origPath === null ? [f.path] : [f.path, f.origPath];
-  return act(repo, ['reset', '-q', '--', ...paths.map(literal)], 'unstage edildi', {
+  return act(repo, ['reset', '-q', '--', ...paths.map(literal)], 'Unstaged', {
     timeoutMs: LOCAL_WRITE_TIMEOUT_MS,
   });
 }
@@ -49,38 +49,38 @@ export async function stageAll(repo: string): Promise<ActionResult> {
   const current = await getStatus(repo);
   if (!current.ok) return { ok: false, error: current.error };
   if (current.status.files.some((f) => f.kind === 'conflicted')) return { ok: false, error: CONFLICT_ERROR };
-  return act(repo, ['add', '-A'], 'stage edildi', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
+  return act(repo, ['add', '-A'], 'Staged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
 /** Yalnız index'e dokunur; çalışma ağacındaki içerik değişmez. */
 export function unstageAll(repo: string): Promise<ActionResult> {
   // Yol verilmeden `git reset` yarıda kalmış merge/cherry-pick durumunu (MERGE_HEAD) da siler;
   // `-- .` ile yalnız index sıfırlanır.
-  return act(repo, ['reset', '-q', '--', '.'], 'unstage edildi', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
+  return act(repo, ['reset', '-q', '--', '.'], 'Unstaged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
 export async function commit(repo: string, message: string, opts: { addAll: boolean }): Promise<ActionResult> {
   const trimmed = message.trim();
-  if (trimmed === '') return { ok: false, error: 'commit mesajı boş' };
+  if (trimmed === '') return { ok: false, error: 'Commit message is empty' };
   if (opts.addAll) {
     const added = await stageAll(repo);
     if (!added.ok) return added;
   }
-  return act(repo, ['commit', '-m', trimmed], 'commit edildi', { timeoutMs: SLOW_TIMEOUT_MS });
+  return act(repo, ['commit', '-m', trimmed], 'Committed', { timeoutMs: SLOW_TIMEOUT_MS });
 }
 
 export function push(repo: string, status: RepoStatus): Promise<ActionResult> {
-  if (status.detached) return Promise.resolve({ ok: false, error: 'detached HEAD: push edilemez' });
+  if (status.detached) return Promise.resolve({ ok: false, error: 'Detached HEAD: cannot push' });
   const args = status.upstream === null ? ['push', '-u', 'origin', status.head] : ['push'];
-  return act(repo, args, 'push edildi', { timeoutMs: SLOW_TIMEOUT_MS });
+  return act(repo, args, 'Pushed', { timeoutMs: SLOW_TIMEOUT_MS });
 }
 
 export function pull(repo: string): Promise<ActionResult> {
-  return act(repo, ['pull', '--ff-only'], 'pull edildi', { timeoutMs: SLOW_TIMEOUT_MS });
+  return act(repo, ['pull', '--ff-only'], 'Pulled', { timeoutMs: SLOW_TIMEOUT_MS });
 }
 
 export function fetchRepo(repo: string): Promise<ActionResult> {
-  return act(repo, ['fetch'], 'fetch edildi', { timeoutMs: FETCH_TIMEOUT_MS });
+  return act(repo, ['fetch'], 'Fetched', { timeoutMs: FETCH_TIMEOUT_MS });
 }
 
 export async function listBranches(
@@ -99,11 +99,11 @@ export async function listBranches(
 }
 
 export function switchBranch(repo: string, name: string): Promise<ActionResult> {
-  return act(repo, ['switch', '-q', name], `${name} branch'ine geçildi`, { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
+  return act(repo, ['switch', '-q', name], `Switched to ${name}`, { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
 export function createBranch(repo: string, name: string): Promise<ActionResult> {
-  return act(repo, ['switch', '-q', '-c', name], `${name} branch'ine geçildi`, {
+  return act(repo, ['switch', '-q', '-c', name], `Switched to ${name}`, {
     timeoutMs: LOCAL_WRITE_TIMEOUT_MS,
   });
 }
@@ -123,19 +123,4 @@ export async function diffFile(repo: string, status: RepoStatus, f: FileChange):
       ? await untrackedDiff(repo, f.path)
       : await runGit(repo, [...DIFF_ARGS, '-M', diffBase(status), '--', ...paths.map(literal)]);
   return result.ok ? { ok: true, text: result.stdout } : { ok: false, error: result.error };
-}
-
-/** Repodaki tüm değişikliklerin diff'i, yeni dosyalar dahil. */
-export async function diffRepo(repo: string, status: RepoStatus): Promise<DiffResult> {
-  const tracked = await runGit(repo, [...DIFF_ARGS, '-M', diffBase(status)]);
-  if (!tracked.ok) return { ok: false, error: tracked.error };
-
-  let text = tracked.stdout;
-  for (const f of status.files) {
-    if (f.kind !== 'untracked') continue;
-    const result = await untrackedDiff(repo, f.path);
-    if (!result.ok) return { ok: false, error: result.error };
-    text += result.stdout;
-  }
-  return { ok: true, text };
 }
