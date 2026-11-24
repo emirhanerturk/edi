@@ -71,7 +71,8 @@ export async function commit(repo: string, message: string, opts: { addAll: bool
 
 export function push(repo: string, status: RepoStatus): Promise<ActionResult> {
   if (status.detached) return Promise.resolve({ ok: false, error: 'Detached HEAD: cannot push' });
-  const args = status.upstream === null ? ['push', '-u', 'origin', status.head] : ['push'];
+  // Tam ref adı: aynı adlı bir etiket varsa kısa ad belirsiz kalır.
+  const args = status.upstream === null ? ['push', '-u', 'origin', `refs/heads/${status.head}`] : ['push'];
   return act(repo, args, 'Pushed', { timeoutMs: SLOW_TIMEOUT_MS });
 }
 
@@ -86,23 +87,31 @@ export function fetchRepo(repo: string): Promise<ActionResult> {
 export async function listBranches(
   repo: string,
 ): Promise<{ ok: true; branches: string[]; current: string | null } | { ok: false; error: string }> {
-  const refs = await runGit(repo, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']);
+  const refs = await runGit(repo, ['for-each-ref', '--format=%(refname:lstrip=2)', 'refs/heads']);
   if (!refs.ok) return { ok: false, error: refs.error };
   // Detached HEAD'de 1 ile çıkar; bu hata değil, "geçerli branch yok" demek.
-  const currentRef = await runGit(repo, ['symbolic-ref', '--short', '-q', 'HEAD'], { okCodes: [0, 1] });
+  const currentRef = await runGit(repo, ['symbolic-ref', '-q', 'HEAD'], { okCodes: [0, 1] });
   if (!currentRef.ok) return { ok: false, error: currentRef.error };
   return {
     ok: true,
     branches: refs.stdout.split('\n').filter((name) => name !== ''),
-    current: currentRef.stdout.trim() || null,
+    current: currentRef.stdout.trim().replace(/^refs\/heads\//, '') || null,
   };
 }
 
-export function switchBranch(repo: string, name: string): Promise<ActionResult> {
+/** `-` ile başlayan ad git'e seçenek olarak geçer (`--detach` gibi); boş ad da geçersizdir. */
+const invalidBranch = (name: string): ActionResult | null =>
+  name.trim() === '' || name.startsWith('-') ? { ok: false, error: 'Invalid branch name' } : null;
+
+export async function switchBranch(repo: string, name: string): Promise<ActionResult> {
+  const invalid = invalidBranch(name);
+  if (invalid) return invalid;
   return act(repo, ['switch', '-q', name], `Switched to ${name}`, { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
-export function createBranch(repo: string, name: string): Promise<ActionResult> {
+export async function createBranch(repo: string, name: string): Promise<ActionResult> {
+  const invalid = invalidBranch(name);
+  if (invalid) return invalid;
   return act(repo, ['switch', '-q', '-c', name], `Switched to ${name}`, {
     timeoutMs: LOCAL_WRITE_TIMEOUT_MS,
   });

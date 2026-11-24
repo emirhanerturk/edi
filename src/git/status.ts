@@ -2,7 +2,7 @@ import { runGit } from './exec.js';
 
 export interface FileChange {
   path: string;
-  /** Rename/kopya kaydında dosyanın eski yolu. */
+  /** Rename kaydında dosyanın eski yolu. */
   origPath: string | null;
   /** Index (stage) durumu; değişiklik yoksa '.'. */
   x: string;
@@ -77,11 +77,13 @@ export function parseStatus(raw: string): RepoStatus {
         kind: 'changed',
       });
     } else if (type === '2') {
-      // Rename kaydının eski yolu ayrı bir NUL alanında gelir.
+      // Rename/kopya kaydının kaynak yolu ayrı bir NUL alanında gelir.
       i++;
+      // Kopyada kaynak dosya yerinde durur ve bu değişikliğin parçası değildir; yalnız rename'de eski yol tutulur.
+      const renamed = record[2] === 'R' || record[3] === 'R';
       status.files.push({
         path: afterNthSpace(record, 9),
-        origPath: records[i] ?? null,
+        origPath: renamed ? (records[i] ?? null) : null,
         x: record[2] ?? '.',
         y: record[3] ?? '.',
         kind: 'changed',

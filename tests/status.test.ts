@@ -70,6 +70,14 @@ describe('parseStatus', () => {
     ]);
   });
 
+  it('kopya kaydında origPath boş, sonraki kayıt yerinde', () => {
+    const s = parseStatus(`${hdr}2 C. N... 100644 100644 100644 ${H} ${H} C100 kopya.txt\0kaynak.txt\0? unt.txt\0`);
+    expect(s.files).toEqual([
+      { path: 'kopya.txt', origPath: null, x: 'C', y: '.', kind: 'changed' },
+      { path: 'unt.txt', origPath: null, x: '?', y: '?', kind: 'untracked' },
+    ]);
+  });
+
   it('boşluklu yolu bölmez', () => {
     const s = parseStatus(`${hdr}1 .M N... 100644 100644 100644 ${H} ${H} a b/c d.txt\0`);
     expect(s.files).toEqual([{ path: 'a b/c d.txt', origPath: null, x: '.', y: 'M', kind: 'changed' }]);

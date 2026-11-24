@@ -60,6 +60,25 @@ describe('runGit', () => {
 });
 
 describe('runGit sağlamlığı', () => {
+  it('silinmiş repo klasöründe anlaşılır hata', async () => {
+    const r = await runGit(join(await makeTmpDir(), 'gone'), ['status']);
+    expect(r).toEqual({ ok: false, error: 'Repository folder not found', stdout: '' });
+  });
+
+  it('arka plana süreç atan hook zaman aşımı sayılmaz', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    const hook = join(repo, '.git', 'hooks', 'post-commit');
+    await writeFile(hook, '#!/bin/sh\n(sleep 6) &\n');
+    await chmod(hook, 0o755);
+    await writeFile(join(repo, 'README.md'), 'değişti\n');
+
+    const started = Date.now();
+    const r = await runGit(repo, ['commit', '-am', 'feat: x'], { timeoutMs: 4000 });
+    expect(r.ok).toBe(true);
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(await git(repo, 'log', '-1', '--format=%s')).toBe('feat: x\n');
+  });
+
   it('zaman aşımında kilit dosyası ve alt süreç bırakmaz', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const hook = join(repo, '.git', 'hooks', 'pre-commit');

@@ -459,3 +459,48 @@ describe('inceleme bulguları', () => {
     expect(await fileOf(repo, 'README.md')).toMatchObject({ kind: 'conflicted' });
   });
 });
+
+describe('ertelenen bulgular', () => {
+  it('etiketle aynı adlı branch kısa adıyla listelenir', async () => {
+    const repo = await newRepo();
+    await git(repo, 'tag', 'release');
+    await git(repo, 'switch', '-q', '-c', 'release');
+    expect(await listBranches(repo)).toEqual({ ok: true, branches: ['main', 'release'], current: 'release' });
+  });
+
+  it("upstream'i silinmiş branch'te push branch'i yeniden yayınlar", async () => {
+    const repo = await newRepo();
+    await addBareRemote(repo);
+    await git(repo, 'switch', '-q', '-c', 'feat');
+    await git(repo, 'push', '-q', '-u', 'origin', 'feat');
+    await git(repo, 'push', '-q', 'origin', '--delete', 'feat');
+    await write(repo, 'a.txt', 'x\n');
+    await commit(repo, 'feat: a', { addAll: true });
+    expect(await statusOf(repo)).toMatchObject({ upstream: 'origin/feat', ahead: null });
+
+    expect(await push(repo, await statusOf(repo))).toEqual({ ok: true, message: 'Pushed' });
+    expect((await git(repo, 'ls-remote', 'origin', 'refs/heads/feat')).split('\t')[0]).toBe(await head(repo));
+    expect(await statusOf(repo)).toMatchObject({ upstream: 'origin/feat', ahead: 0 });
+  });
+
+  it('etiketle aynı adlı yeni branch push edilir', async () => {
+    const repo = await newRepo();
+    await addBareRemote(repo);
+    await git(repo, 'tag', 'v1');
+    await git(repo, 'switch', '-q', '-c', 'v1');
+
+    expect(await push(repo, await statusOf(repo))).toEqual({ ok: true, message: 'Pushed' });
+    expect((await git(repo, 'ls-remote', 'origin', 'refs/heads/v1')).split('\t')[0]).toBe(await head(repo));
+    expect(await git(repo, 'ls-remote', 'origin', 'refs/tags/v1')).toBe('');
+  });
+
+  it('tire ile başlayan branch adı reddedilir', async () => {
+    const repo = await newRepo();
+    const invalid = { ok: false, error: 'Invalid branch name' };
+    expect(await switchBranch(repo, '--detach')).toEqual(invalid);
+    expect(await createBranch(repo, '-x')).toEqual(invalid);
+    expect(await switchBranch(repo, '')).toEqual(invalid);
+    expect(await createBranch(repo, '   ')).toEqual(invalid);
+    expect((await git(repo, 'symbolic-ref', 'HEAD')).trim()).toBe('refs/heads/main');
+  });
+});
