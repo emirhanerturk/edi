@@ -5,15 +5,23 @@ const MIN_RIGHT = 300;
 /** Ok tuşuyla bir basışta kayılan mesafe. */
 const KEY_STEP = 16;
 
+const MIN_CENTER = 360;
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(Number.isFinite(value) ? Math.round(value) : min, max));
+
 /**
- * Panel genişliklerini pencereye sığdırır. Orta panel yokken sol panel, sağdan kalan her şeyi
- * alır; sağ panel en az 300, sol en az 320 pikseldir. Pencere ikisine yetmiyorsa sağ panel
- * en küçük genişliğinde kalır.
+ * Panel genişliklerini pencereye sığdırır. Sağ panel en az 300, sol en az 320 pikseldir.
+ * Orta panel yokken sol panel sağdan kalan her şeyi alır. Orta panel açıkken ona en az 360
+ * piksel kalır: önce sol panel daralır, o en küçük genişliğine inince sağ panel. Pencere
+ * hepsine yetmiyorsa paneller en küçük genişliklerinde kalır.
  */
-export function clampWidths(o: { left: number; right: number; total: number }): { left: number; right: number } {
-  const wanted = Number.isFinite(o.right) ? Math.round(o.right) : MIN_RIGHT;
-  const right = Math.max(MIN_RIGHT, Math.min(wanted, o.total - MIN_LEFT));
-  return { left: o.total - right, right };
+export function clampWidths(o: { left: number; right: number; total: number; center?: boolean }): { left: number; right: number } {
+  if (!o.center) {
+    const right = clamp(o.right, MIN_RIGHT, o.total - MIN_LEFT);
+    return { left: o.total - right, right };
+  }
+  const right = clamp(o.right, MIN_RIGHT, o.total - MIN_LEFT - MIN_CENTER);
+  return { left: clamp(o.left, MIN_LEFT, o.total - right - MIN_CENTER), right };
 }
 
 export interface SplitterProps {

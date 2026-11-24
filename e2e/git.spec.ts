@@ -123,3 +123,43 @@ test('git hatası reponun altında gösterilir ve kapatılabilir; yeni branch a�
     await app.close();
   }
 });
+
+test('branch menüsü panelin kenarında kırpılmaz; çok branch olsa da New branch görünür', async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  for (let i = 0; i < 30; i++) await git(alpha, 'branch', `claude/a-rather-long-branch-name-for-clipping-${String(i).padStart(2, '0')}`);
+  await writeFile(join(alpha, 'README.md'), 'değişti\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await page.getByTestId('branch-button').click();
+    const menu = page.locator('.branch-menu');
+    await expect(menu.getByRole('menuitem', { name: 'main' })).toBeVisible();
+
+    // Menünün dört köşesinin hemen içinde en üstteki öğe menünün kendisi olmalı (kırpılmış değil).
+    const corners = await menu.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const points = [
+        [r.left + 3, r.top + 3],
+        [r.right - 3, r.top + 3],
+        [r.left + 3, r.bottom - 3],
+        [r.right - 3, r.bottom - 3],
+      ] as const;
+      return {
+        inside: points.map(([x, y]) => el.contains(document.elementFromPoint(x, y))),
+        inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight,
+      };
+    });
+    expect(corners).toEqual({ inside: [true, true, true, true], inViewport: true });
+
+    // Uzun ad kısaltılmadan sığar.
+    const first = menu.getByRole('menuitem', { name: 'claude/a-rather-long-branch-name-for-clipping-00' }).locator('.menu-item-text');
+    expect(await first.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+    // Liste kaysa da "New branch…" altta sabit durur.
+    await expect(menu.getByRole('menuitem', { name: 'New branch…' })).toBeInViewport();
+    await menu.getByRole('menuitem', { name: 'claude/a-rather-long-branch-name-for-clipping-29' }).scrollIntoViewIfNeeded();
+    await expect(menu.getByRole('menuitem', { name: 'New branch…' })).toBeInViewport();
+  } finally {
+    await app.close();
+  }
+});

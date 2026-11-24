@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BranchList } from '../../shared/api';
 import { BranchIcon, CheckIcon, PlusIcon } from '../components/icons';
+import { type Placement, placeMenu } from '../components/placeMenu';
 import { usePopover } from '../components/usePopover';
 
 export interface BranchMenuProps {
@@ -11,12 +12,41 @@ export interface BranchMenuProps {
   onCreate(branch: string): void;
 }
 
+/** Uzun branch adları (claude/…) kısaltılmadan sığsın diye menü panelden geniş olabilir. */
+const MENU_SIZE = { width: 440, maxHeight: 420 };
+
 /** Branch düğmesi ve menüsü: yerel branch'ler ve "New branch…". */
 export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
   const menu = usePopover<HTMLDivElement>();
   const [list, setList] = useState<BranchList | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const button = useRef<HTMLButtonElement>(null);
+  const [place, setPlace] = useState<Placement | null>(null);
+
+  // Menü pencereye göre sabit konumlanır: Git panelinin kaydırma alanı onu kırpamaz.
+  useLayoutEffect(() => {
+    if (!menu.open) {
+      setPlace(null);
+      return;
+    }
+    const update = () => {
+      const anchor = button.current?.getBoundingClientRect();
+      if (anchor) setPlace(placeMenu(anchor, { width: window.innerWidth, height: window.innerHeight }, MENU_SIZE));
+    };
+    // Repo listesi kayarsa düğme yerinden oynar; menü havada kalmasın diye kapanır.
+    const onScroll = (event: Event) => {
+      if (!(event.target instanceof Node) || !menu.ref.current?.contains(event.target)) menu.setOpen(false);
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu.open]);
 
   useEffect(() => {
     if (!menu.open) return;
@@ -42,6 +72,7 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
   return (
     <div className="branch" ref={menu.ref}>
       <button
+        ref={button}
         className="branch-chip mono"
         data-testid="branch-button"
         title={current}
@@ -53,22 +84,25 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
         <BranchIcon size={11} />
         <span className="branch-name">{current}</span>
       </button>
-      {menu.open && (
-        <div className="menu branch-menu" role="menu">
-          {list === null && <div className="menu-label">Loading…</div>}
-          {list && !list.ok && <div className="menu-label menu-error">{list.error}</div>}
-          {list?.ok &&
-            list.branches.map((branch) => (
-              <button
-                key={branch}
-                className="menu-item mono"
-                role="menuitem"
-                onClick={() => pick(() => branch !== list.current && onSwitch(branch))}
-              >
-                <span className="menu-check">{branch === list.current && <CheckIcon size={12} />}</span>
-                <span className="menu-item-text">{branch}</span>
-              </button>
-            ))}
+      {menu.open && place && (
+        <div className="menu branch-menu" role="menu" style={place}>
+          <div className="branch-list">
+            {list === null && <div className="menu-label">Loading…</div>}
+            {list && !list.ok && <div className="menu-label menu-error">{list.error}</div>}
+            {list?.ok &&
+              list.branches.map((branch) => (
+                <button
+                  key={branch}
+                  className="menu-item mono"
+                  role="menuitem"
+                  title={branch}
+                  onClick={() => pick(() => branch !== list.current && onSwitch(branch))}
+                >
+                  <span className="menu-check">{branch === list.current && <CheckIcon size={12} />}</span>
+                  <span className="menu-item-text">{branch}</span>
+                </button>
+              ))}
+          </div>
           <div className="menu-divider" />
           {creating ? (
             <input

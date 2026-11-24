@@ -126,3 +126,29 @@ export const Spinner = (p: IconProps) => (
     <path d="M8 2.5a5.5 5.5 0 1 1-5.5 5.5" />
   </Icon>
 );
+
+/** Dışarıda (başka uygulamada) aç. */
+export const ExternalIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6.5 3.5H3.5v9h9v-3M9.5 2.5h4v4M13.5 2.5l-6 6" />
+  </Icon>
+);
+
+export const LockIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <rect x="3.5" y="7.5" width="9" height="6" rx="1" />
+    <path d="M5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2" />
+  </Icon>
+);
+export const FileIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.4} {...p}>
+    <path d="M4 1.5h5l3 3v10H4z" />
+    <path d="M9 1.5v3h3" />
+  </Icon>
+);
+/** Hepsini kapat: içe bakan iki ok. */
+export const CollapseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 6.5L8 3l3.5 3.5M4.5 9.5L8 13l3.5-3.5" />
+  </Icon>
+);

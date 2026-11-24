@@ -54,7 +54,8 @@ function createWindow(): void {
     width: 1440,
     height: 900,
     ...savedBounds(),
-    minWidth: 900,
+    // Üç panelin en küçük genişlikleri: 320 + 360 + 300.
+    minWidth: 980,
     minHeight: 560,
     show: false,
     title: 'edi',

@@ -38,6 +38,11 @@ export function isPartlyStaged(f: FileChange): boolean {
   return isStaged(f) && hasUnstaged(f);
 }
 
+/** Tüm repolarda değişen tekil dosya sayısı: Git sekmesinin rozeti. */
+export function changeTotal(repos: { status: RepoStatus | null }[]): number {
+  return repos.reduce((sum, repo) => sum + (repo.status ? changeCount(repo.status) : 0), 0);
+}
+
 /** Değişen tekil dosya sayısı. */
 export function changeCount(s: RepoStatus): number {
   return s.files.length;
@@ -48,6 +53,13 @@ export function letter(f: FileChange, group: Group): string {
   if (f.kind === 'untracked') return '?';
   if (f.kind === 'conflicted') return 'U';
   return group === 'staged' ? f.x : f.y;
+}
+
+/** Dosyanın, grup ayrımı olmayan yerlerdeki (sekme, dosya ağacı) harfi: çalışma ağacı durumu, yoksa stage durumu. */
+export function fileLetter(f: FileChange): string {
+  if (f.kind === 'untracked') return '?';
+  if (f.kind === 'conflicted') return 'U';
+  return f.y !== '.' ? f.y : f.x;
 }
 
 export function letterColor(l: string): string {

@@ -20,12 +20,21 @@
   border-bottom: 1px solid var(--line);
 }
 
+.git-tablist {
+  display: flex;
+  align-items: stretch;
+}
+
 .git-tab {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 0 12px;
   color: var(--text-2);
+}
+
+.git-tab:hover {
+  color: var(--text);
 }
 
 .git-tab.active {
@@ -334,6 +343,17 @@ button.branch-chip:hover {
   background: var(--selected);
 }
 
+/* Orta panelde açık olan dosya. */
+.file-row[aria-current='true'] {
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.file-row:focus-visible {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
 .file-letter {
   flex: none;
   width: 12px;
@@ -490,18 +510,31 @@ button.branch-chip:hover {
   max-width: 150px;
 }
 
+/* Konumu ve ölçüsü BranchMenu'de hesaplanır: pencereye göre sabit, panelin kaydırma alanından bağımsız. */
 .branch-menu {
-  top: 26px;
-  right: 0;
-  min-width: 230px;
-  max-width: 320px;
-  max-height: 320px;
+  position: fixed;
+  z-index: 50;
+  min-width: 0;
+}
+
+/* Yalnız liste kayar; "New branch…" altta sabit kalır. */
+.branch-list {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .branch-menu .menu-item {
   flex: none;
   font-size: 12px;
+}
+
+.branch-menu > .menu-item,
+.branch-menu > .menu-divider,
+.branch-menu > .menu-input {
+  flex: none;
 }
 
 .menu-check {

@@ -1,0 +1,68 @@
+/* Sağ panel: Files sekmesi. */
+.files-tree {
+  padding: 6px 0;
+}
+
+.tree-row {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 12px;
+  color: var(--text-2);
+  cursor: default;
+}
+
+.tree-row:hover {
+  background: var(--panel-open);
+}
+
+.tree-row:focus-visible {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
+.tree-row.selected {
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tree-row.repo .tree-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tree-row .tree-icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.tree-row.file .tree-icon {
+  color: #636d83;
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-badge {
+  flex: none;
+  font-size: 12px;
+}
+
+.tree-note {
+  margin: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tree-note.error {
+  color: var(--red);
+}

@@ -17,9 +17,19 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   A collapsed row shows the branch, the state and one sync button; an open repository lists
   conflicted, staged and changed files with a commit box. Stage, unstage, commit, commit and
   push, pull, push, fetch all, switch and create branches.
-- **Remembers** the last folder, recent folders, the window position and the panel width.
+- **Center panel.** Closed until you open something. Clicking a changed file in the Git tab
+  shows its whole change against HEAD (staged and unstaged together), side by side or inline,
+  with syntax colors; a new file opens with its content. A single click opens a preview tab
+  that the next click reuses, a double click keeps the tab. The open view follows the file
+  as it changes on disk.
+- **Files tab.** Each repository's working tree, without ignored files; changed files carry
+  their status letter, folders that contain changes a dot. Clicking a file opens it read-only.
+  Files over 1 MB and binary files are not shown.
+- **Open in Zed** from the file and diff views, and for conflicted files in the Git tab.
+- **Remembers** the last folder, recent folders, the window position, the panel widths and
+  the diff layout.
 
-The file and diff view, history and packaging are planned next; see `docs/superpowers/`.
+History and packaging are planned next; see `docs/superpowers/`.
 
 ## Setup
 
@@ -67,6 +77,9 @@ preferences:
   through a small typed bridge. A Git operation names a repository by path, and the main
   process accepts only the exact paths it discovered itself; an operation is one of a fixed
   list, never free text. A commit message is passed to Git as a single argument.
+- **Reading files stays inside the repository.** The page names a file by its path in a
+  discovered repository; the main process resolves symlinks and refuses anything that leads
+  outside it or into `.git`. Viewing never writes.
 - **One operation per repository at a time.** A second one is refused while the first runs.
 - **Conflicts are resolved elsewhere.** edi shows them and blocks committing; it does not
   try to resolve them.
@@ -80,7 +93,7 @@ preferences:
 ## Layout
 
 ```
-src/git/        Git commands and status parsing (no Electron)
+src/git/        Git commands, status and diff parsing, file listing (no Electron)
 src/main/       main process: workspace polling, Git operations, terminals, saved state
 src/preload/    the bridge exposed to the page
 src/renderer/   the React interface
