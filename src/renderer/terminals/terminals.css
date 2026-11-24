@@ -57,6 +57,16 @@
   font-weight: 500;
 }
 
+.tab-port {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--chip);
+  color: var(--green);
+  font-size: 10.5px;
+  line-height: 16px;
+}
+
 .tab-exited {
   flex: none;
   font-size: 11px;

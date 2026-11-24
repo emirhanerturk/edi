@@ -1,4 +1,5 @@
 import { BellIcon, ClaudeMark, CloseIcon, PlusIcon, TerminalIcon } from '../components/icons';
+import { tabPorts } from '../servers/model';
 import { type Tab, useApp } from '../store';
 
 export function TabBar() {
@@ -34,6 +35,7 @@ export function TabBar() {
 function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
   const activate = useApp((s) => s.activate);
   const closeTab = useApp((s) => s.closeTab);
+  const ports = useApp((s) => tabPorts(s.servers, tab.id));
 
   return (
     <div
@@ -54,6 +56,11 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
     >
       {tab.claude ? <ClaudeMark size={13} /> : <TerminalIcon size={13} />}
       <span className="tab-title">{tab.title}</span>
+      {ports !== null && (
+        <span className="tab-port mono" data-testid="tab-port" title="Listening on localhost">
+          {ports}
+        </span>
+      )}
       {tab.exited && <span className="tab-exited">exited</span>}
       {tab.waiting && !active && <BellIcon size={13} label="Needs input" style={{ flex: 'none', color: 'var(--yellow)' }} />}
       {active && (

@@ -1,0 +1,104 @@
+// @vitest-environment jsdom
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ServerInfo } from '../../src/shared/api';
+
+const bridge = vi.hoisted(() => {
+  const handlers: Record<string, (...args: unknown[]) => void> = {};
+  return {
+    handlers,
+    edi: {
+      on: (channel: string, handler: (...args: unknown[]) => void) => {
+        handlers[channel] = handler;
+        return () => undefined;
+      },
+      openUrl: vi.fn(async () => ({ ok: true, message: 'Opened in the browser' })),
+      getState: () => new Promise(() => undefined),
+    },
+  };
+});
+vi.mock('../../src/renderer/bridge', () => ({ edi: bridge.edi }));
+
+const { useApp, connect } = await import('../../src/renderer/store');
+const { serverRows, tabPorts } = await import('../../src/renderer/servers/model');
+const { ServersMenu } = await import('../../src/renderer/servers/ServersMenu');
+const { TabBar } = await import('../../src/renderer/terminals/TabBar');
+
+afterEach(cleanup);
+
+const server = (tabId: number, port: number, cwd: string | null = null): ServerInfo => ({ tabId, port, pid: port, cwd });
+
+describe('serverRows', () => {
+  it('repo, çalışma dizinini içeren en uzun repo yolu; sekme başlığı; localhost adresi', () => {
+    const repos = [
+      { name: 'web', path: '/w/web' },
+      { name: 'web-admin', path: '/w/web/admin' },
+      { name: 'api', path: '/w/api' },
+    ];
+    const tabs = [
+      { id: 1, title: 'npm run dev' },
+      { id: 2, title: 'zsh' },
+    ];
+    expect(serverRows([server(1, 3000, '/w/web/admin/src'), server(2, 5173, '/w/webx'), server(9, 8080, '/w/api')], tabs, repos)).toEqual([
+      { port: 3000, url: 'http://localhost:3000/', repoName: 'web-admin', tabTitle: 'npm run dev', tabId: 1 },
+      { port: 5173, url: 'http://localhost:5173/', repoName: null, tabTitle: 'zsh', tabId: 2 },
+      { port: 8080, url: 'http://localhost:8080/', repoName: 'api', tabTitle: null, tabId: 9 },
+    ]);
+  });
+});
+
+describe('tabPorts', () => {
+  it('ilk port ve kalanların sayısı', () => {
+    const servers = [server(1, 5173), server(1, 24678), server(1, 9229), server(2, 3000)];
+    expect(tabPorts(servers, 1)).toBe('5173 +2');
+    expect(tabPorts(servers, 2)).toBe('3000');
+    expect(tabPorts(servers, 3)).toBeNull();
+  });
+});
+
+describe('ServersMenu', () => {
+  const rows = serverRows([server(2, 3000), server(1, 5173, '/w/web')], [{ id: 1, title: 'npm run dev' }], [{ name: 'web', path: '/w/web' }]);
+
+  it('sunucu yoksa hiçbir şey çizmez', () => {
+    const { container } = render(<ServersMenu rows={[]} onOpen={() => undefined} />);
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('sayaç; menüde adres, repo ve sekme; satıra tık adresi açar ve menüyü kapatır', () => {
+    const onOpen = vi.fn();
+    render(<ServersMenu rows={rows} onOpen={onOpen} />);
+    const button = screen.getByRole('button', { name: '2 servers' });
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(button);
+    const menu = screen.getByRole('menu');
+    const items = within(menu).getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['localhost:3000', 'localhost:5173web · npm run dev']);
+    fireEvent.click(items[1]!);
+    expect(onOpen).toHaveBeenCalledWith('http://localhost:5173/');
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('tek sunucu tekil yazılır', () => {
+    render(<ServersMenu rows={rows.slice(1)} onOpen={() => undefined} />);
+    expect(screen.getByRole('button', { name: '1 server' })).toBeTruthy();
+  });
+});
+
+describe('store ve sekme etiketi', () => {
+  it('servers olayı store’a yazılır, sekmede port görünür, klasör değişince boşalır', async () => {
+    connect();
+    useApp.setState({
+      tabs: [{ id: 1, title: 'npm run dev', claude: false, waiting: false, busy: true, exited: false, claudeUntil: 0, titleState: null }],
+      activeTab: 1,
+    });
+    render(<TabBar />);
+    expect(screen.queryByTestId('tab-port')).toBeNull();
+    act(() => bridge.handlers.servers!([server(1, 5173), server(1, 24678)]));
+    expect(useApp.getState().servers).toHaveLength(2);
+    expect(screen.getByTestId('tab-port').textContent).toBe('5173 +1');
+
+    act(() => bridge.handlers.workspace!({ ...useApp.getState().workspace, dir: '/w' }));
+    act(() => bridge.handlers.workspace!({ ...useApp.getState().workspace, dir: '/baska' }));
+    expect(useApp.getState().servers).toEqual([]);
+  });
+});

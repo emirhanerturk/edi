@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GitOp, Layout, LogResult, RecentFolder, TabState, WorkspaceView } from '../shared/api';
+import type { GitOp, Layout, LogResult, RecentFolder, ServerInfo, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import { edi } from './bridge';
 import {
@@ -161,6 +161,8 @@ interface AppStore {
   openInZed(repoPath: string, path: string | null): Promise<void>;
 
   tabs: Tab[];
+  /** Terminallerde dinlemeye açılmış localhost portları. */
+  servers: ServerInfo[];
   activeTab: number | null;
   newTab(opts?: { claude?: boolean; repoPath?: string }): Promise<void>;
   closeTab(id: number): void;
@@ -279,6 +281,7 @@ export const useApp = create<AppStore>((set, get) => ({
   dismissOpenError: () => set({ openError: null }),
 
   tabs: [],
+  servers: [],
   activeTab: null,
   async newTab(opts = {}) {
     const dir = get().workspace.dir;
@@ -382,9 +385,12 @@ export function connect(): () => void {
         centerError: workspace.dir === state.workspace.dir ? state.centerError : null,
         // History: başka klasörde baştan; kaybolan repoların logları ve süzgeci atılır.
         ...keepHistory(state, workspace),
+        // Eski klasörün terminalleri kapandı; sunucuları da gider (sonraki yoklama da boş gönderir).
+        servers: workspace.dir === state.workspace.dir ? state.servers : [],
       })),
     ),
     edi.on('recent', (recent) => useApp.setState({ recent })),
+    edi.on('servers', (servers) => useApp.setState({ servers })),
     edi.on('pty:data', (id, data) => writeTerminal(id, data)),
     edi.on('tabs', (states) => useApp.setState((state) => ({ tabs: applyTabStates(state.tabs, states, Date.now()) }))),
     edi.on('pty:exit', (id) =>
