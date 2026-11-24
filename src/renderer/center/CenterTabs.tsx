@@ -1,4 +1,4 @@
-import { CloseIcon } from '../components/icons';
+import { CloseIcon, CommitIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 
 /** Bir sekmenin çubukta görünen hâli. */
@@ -50,6 +50,7 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               }}
               onDoubleClick={() => onPin(tab.id)}
             >
+              {tab.kind === 'commit' && <CommitIcon size={13} className="tab-commit-icon" data-testid="commit-icon" />}
               {tab.letter !== null && (
                 <span className="mono tab-letter" style={{ color: letterColor(tab.letter) }}>
                   {tab.letter}

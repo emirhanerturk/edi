@@ -2,6 +2,7 @@ import type { RepoView } from '../../shared/api';
 import { fileLetter } from '../git/model';
 import { useApp } from '../store';
 import { CenterTabs, type TabLabel } from './CenterTabs';
+import { CommitView } from './CommitView';
 import { DiffView } from './DiffView';
 import { FileView } from './FileView';
 import type { CenterTab } from './tabs';
@@ -15,6 +16,10 @@ export function CenterPanel() {
 
   if (!center.open) return null;
   const labels: TabLabel[] = center.tabs.map((tab) => {
+    if (tab.kind === 'commit') {
+      const repo = repos.find((r) => r.path === tab.repoPath);
+      return { id: tab.id, kind: tab.kind, name: tab.path.slice(0, 7), dir: repo?.name ?? '', letter: null, pinned: tab.pinned };
+    }
     const slash = tab.path.lastIndexOf('/');
     const change = repos.find((repo) => repo.path === tab.repoPath)?.status?.files.find((file) => file.path === tab.path);
     return {
@@ -48,6 +53,5 @@ function CenterView({ tab, repo }: { tab: CenterTab; repo: RepoView | null }) {
   if (!repo) return null;
   if (tab.kind === 'diff') return <DiffView repo={repo} path={tab.path} />;
   if (tab.kind === 'file') return <FileView repo={repo} path={tab.path} />;
-  // Commit görünümü bir sonraki adımda.
-  return null;
+  return <CommitView repo={repo} oid={tab.path} />;
 }
