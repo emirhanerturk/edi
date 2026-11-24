@@ -152,3 +152,30 @@ export const CollapseIcon = (p: IconProps) => (
     <path d="M4.5 6.5L8 3l3.5 3.5M4.5 9.5L8 13l3.5-3.5" />
   </Icon>
 );
+
+export const CommitIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <circle cx="8" cy="8" r="2.6" />
+    <path d="M1.5 8h3.9M10.6 8h3.9" />
+  </Icon>
+);
+
+export const TagIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <path d="M2.5 2.5h5l6 6-5 5-6-6z" />
+    <circle cx="5.6" cy="5.6" r="0.7" />
+  </Icon>
+);
+
+export const RefreshIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" />
+  </Icon>
+);
+
+export const CopyIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+    <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+  </Icon>
+);

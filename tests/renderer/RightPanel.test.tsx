@@ -5,8 +5,8 @@ import { RightPanelView } from '../../src/renderer/right/RightPanel';
 
 afterEach(cleanup);
 
-function renderPanel(tab: 'git' | 'files', badge = 3) {
-  const handlers = { onTab: vi.fn(), onFetchAll: vi.fn(), onRescan: vi.fn(), onCollapseAll: vi.fn() };
+function renderPanel(tab: 'git' | 'history' | 'files', badge = 3) {
+  const handlers = { onTab: vi.fn(), onFetchAll: vi.fn(), onRescan: vi.fn(), onCollapseAll: vi.fn(), onRefreshHistory: vi.fn() };
   render(
     <RightPanelView tab={tab} badge={badge} canFetch {...handlers}>
       <p>içerik</p>
@@ -16,11 +16,12 @@ function renderPanel(tab: 'git' | 'files', badge = 3) {
 }
 
 describe('RightPanelView', () => {
-  it('Git ve Files sekmeleri; seçili olan işaretli', () => {
+  it('Git, History ve Files sekmeleri; seçili olan işaretli', () => {
     renderPanel('git');
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([
       ['Git3', 'true'],
+      ['History', 'false'],
       ['Files', 'false'],
     ]);
     expect(screen.getByText('içerik')).toBeTruthy();
@@ -47,6 +48,16 @@ describe('RightPanelView', () => {
     expect(onFetchAll).toHaveBeenCalledTimes(1);
     expect(onRescan).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Collapse all' })).toBeNull();
+  });
+
+  it('History sekmesinde yenileme düğmesi', () => {
+    const { onRefreshHistory, onTab } = renderPanel('history');
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh history' }));
+    expect(onRefreshHistory).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fetch all repositories' })).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /Git/ }));
+    expect(onTab).toHaveBeenCalledWith('git');
   });
 
   it('Files sekmesinde "Collapse all" düğmesi', () => {

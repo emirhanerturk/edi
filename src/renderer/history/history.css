@@ -1,0 +1,336 @@
+/* History sekmesi: History.dc.html ve HistoryStates.dc.html çizimlerine göre. */
+.history {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-toolbar {
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-filter {
+  position: relative;
+  min-width: 0;
+  display: flex;
+}
+
+.history-filter-button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: var(--chip-quiet);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.history-filter-button.filtered {
+  border-color: var(--accent);
+}
+
+.history-filter-button svg {
+  color: var(--muted);
+}
+
+.history-filter-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-filter-menu {
+  top: 30px;
+  left: 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.history-filter-menu .menu-item {
+  flex: none;
+  font-size: 12px;
+}
+
+.history-filter-menu .menu-item[aria-checked='true'] {
+  background: var(--selected);
+}
+
+.history-branch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--chip);
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+
+.history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-note {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.history-error {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--red);
+  border-bottom: 1px solid var(--line);
+}
+
+.history-error strong {
+  font-weight: 500;
+}
+
+.history-day {
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.history-day.first {
+  border-top-color: transparent;
+}
+
+.history-commit {
+  height: 46px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 12px;
+  cursor: default;
+}
+
+.history-commit:hover,
+.history-release:hover,
+.history-line:hover {
+  background: var(--selected);
+}
+
+.history-commit[aria-current='true'],
+.history-release[aria-current='true'],
+.history-line[aria-current='true'] {
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.history-commit:focus-visible,
+.history-release:focus-visible,
+.history-line:focus-visible,
+.history-group-head:focus-visible {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
+.history-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-subject {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--accent);
+}
+
+.history-subject .prefix {
+  color: var(--muted);
+}
+
+.history-subject .merge {
+  color: var(--text-2);
+}
+
+.history-unpushed {
+  color: var(--accent);
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.history-repo {
+  color: var(--text-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-hash {
+  flex: none;
+  font-size: 11.5px;
+}
+
+.history-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
+.history-release {
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.history-remote {
+  height: 26px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.history-remote .rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.history-more {
+  flex: none;
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.history-more button {
+  width: 100%;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.history-more button:hover {
+  background: var(--selected);
+}
+
+/* By repo */
+.history-group {
+  flex: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-group-head {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--text-2);
+}
+
+.history-group-head svg {
+  color: var(--muted);
+}
+
+.history-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-group-name.open {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.history-sync {
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
+.history-group-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.history-group:has(.history-line) {
+  padding-bottom: 6px;
+}
+
+.history-line {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 29px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.history-line-when {
+  flex: none;
+  width: 30px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+}

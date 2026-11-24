@@ -3,6 +3,19 @@ import type { CommitSummary, LogResult } from '../../git/types';
 import { dayLabel } from './time';
 
 const DAY = 24 * 60 * 60_000;
+/** Bir sayfada repo başına okunan commit sayısı (ana süreçteki `PAGE` ile aynı). */
+export const HISTORY_PAGE = 50;
+/** Ana sürecin kabul ettiği en büyük adet. */
+export const HISTORY_MAX = 5000;
+
+/**
+ * Değişince reponun logu yeniden okunur: branch, HEAD (commit, pull, branch değişimi), upstream
+ * ve ahead/behind (push ok işaretlerini, fetch upstream çizgisini değiştirir).
+ */
+export function historyKey(repo: { status: { head: string; headOid: string | null; upstream: string | null; ahead: number | null; behind: number | null } | null }): string {
+  const s = repo.status;
+  return s === null ? '' : [s.head, s.headOid, s.upstream, s.ahead, s.behind].join('|');
+}
 /** By repo düzeninde son commiti bundan yeni olan repo açık başlar. */
 export const RECENT_MS = 3 * DAY;
 

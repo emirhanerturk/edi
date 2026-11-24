@@ -4,7 +4,7 @@ import { letterColor } from '../git/model';
 /** Bir sekmenin çubukta görünen hâli. */
 export interface TabLabel {
   id: string;
-  kind: 'diff' | 'file';
+  kind: 'diff' | 'file' | 'commit';
   name: string;
   /** Dosyanın klasörü; kökteyse boş. */
   dir: string;

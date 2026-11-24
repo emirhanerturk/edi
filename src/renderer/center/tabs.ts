@@ -1,10 +1,10 @@
 // Orta panelin sekme mantığı: saf işlevler, durumu değiştirmez, yenisini döner.
 
-/** Orta panelde açılabilen şey: bir dosyanın diff'i ya da içeriği. */
+/** Orta panelde açılabilen şey: bir dosyanın diff'i, içeriği ya da bir commit. */
 export interface CenterTarget {
-  kind: 'diff' | 'file';
+  kind: 'diff' | 'file' | 'commit';
   repoPath: string;
-  /** Repoya göre göreli yol. */
+  /** Repoya göre göreli yol; commit için tam commit kimliği. */
   path: string;
 }
 

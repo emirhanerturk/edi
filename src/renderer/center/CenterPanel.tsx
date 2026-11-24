@@ -46,5 +46,8 @@ export function CenterPanel() {
 function CenterView({ tab, repo }: { tab: CenterTab; repo: RepoView | null }) {
   // Repo kaybolduysa sekme bir sonraki çalışma alanı olayında kapanır.
   if (!repo) return null;
-  return tab.kind === 'diff' ? <DiffView repo={repo} path={tab.path} /> : <FileView repo={repo} path={tab.path} />;
+  if (tab.kind === 'diff') return <DiffView repo={repo} path={tab.path} />;
+  if (tab.kind === 'file') return <FileView repo={repo} path={tab.path} />;
+  // Commit görünümü bir sonraki adımda.
+  return null;
 }

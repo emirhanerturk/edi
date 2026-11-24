@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommitSummary } from '../../src/git/types';
-import { type HistoryRow, type RepoLog, boundary, byRepo, isRelease, timeline } from '../../src/renderer/history/model';
+import { type HistoryRow, type RepoLog, boundary, byRepo, historyKey, isRelease, timeline } from '../../src/renderer/history/model';
 
 const M = 60_000;
 const H = 60 * M;
@@ -149,5 +149,22 @@ describe('byRepo', () => {
       ['az', false, null, 0, []],
       ['bos', false, null, 0, []],
     ]);
+  });
+});
+
+describe('historyKey', () => {
+  it('branch, HEAD, upstream ve ahead/behind değişince değişir', () => {
+    const status = { head: 'main', headOid: 'a'.repeat(40), upstream: 'origin/main', ahead: 0, behind: 0 };
+    const keys = [
+      status,
+      { ...status, head: 'other' },
+      { ...status, headOid: 'b'.repeat(40) },
+      { ...status, upstream: null },
+      { ...status, ahead: 1 },
+      { ...status, behind: 2 },
+    ].map((s) => historyKey({ status: s }));
+    expect(new Set(keys).size).toBe(6);
+    expect(historyKey({ status: { ...status } })).toBe(keys[0]);
+    expect(historyKey({ status: null })).toBe('');
   });
 });
