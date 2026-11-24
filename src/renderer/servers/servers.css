@@ -1,0 +1,49 @@
+/* Durum çubuğundaki çalışan sunucular. */
+.servers {
+  position: relative;
+  display: flex;
+}
+
+.servers-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.servers-button:hover,
+.servers-button[aria-expanded='true'] {
+  color: var(--text-2);
+}
+
+.servers-dot {
+  color: var(--green);
+  font-size: 9px;
+}
+
+.servers-menu {
+  right: 0;
+  bottom: 22px;
+  min-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.servers-item {
+  flex: none;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.servers-address {
+  flex: none;
+  color: var(--accent);
+}
+
+.servers-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}

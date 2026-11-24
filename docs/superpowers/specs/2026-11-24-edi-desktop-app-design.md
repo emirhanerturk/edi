@@ -403,12 +403,32 @@ Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış �
 - **Uygulama ikonu (2026-11-24):** kullanıcı "Wordmark" seçeneğini seçti
   (`docs/design/icon/wordmark.svg`). Plan 4'te `.icns` bundan üretilir.
 
-- **Çalışan sunucular (2026-11-24):** terminallerde ayağa kalkan geliştirme sunucuları
-  (ör. `npm run dev` ile `localhost:5173`) bir yerde listelensin, adrese tıklanınca
-  tarayıcıda açılsın. Önerilen yol: sunucu, terminal çıktısından değil, terminalin süreç
-  ağacında dinlemeye açılmış TCP portlarından bulunur (`lsof -iTCP -sTCP:LISTEN`, süreç
-  listesiyle birlikte yoklanır); böylece çıktı kaydırılıp gitse de görünür, sunucu
-  kapanınca kaybolur. Sekmede küçük bir işaret ve bir liste (durum çubuğunda ya da sağ
-  panelde) gösterilir; tıklamak adresi varsayılan tarayıcıda açar (`shell.openExternal`,
-  yalnız `http://localhost` / `127.0.0.1` adresleri). Uygulama kendisi istek atmaz.
-  Ayrıca terminaldeki `http://…` adresleri tıklanabilir yapılabilir. Henüz planlanmadı.
+- **Çalışan sunucular (2026-11-24, kullanıcı onayladı):** edi'nin terminallerinde ayağa
+  kalkan geliştirme sunucuları (ör. `npm run dev` ile `localhost:5173`) listelenir, adrese
+  tıklanınca varsayılan tarayıcıda açılır. Amaç: terminale dönüp adres aramadan sunucuya
+  ulaşmak.
+  - **Bulma (kullanıcının seçtiği yol):** terminal çıktısından değil, süreç ağacından.
+    3 saniyelik süreç yoklamasında, edi terminallerinin tty'sinde çalışan ve kabuk olmayan
+    süreçlerin dinlemeye açtığı TCP portları `lsof -nP -a -iTCP -sTCP:LISTEN -p <pid'ler>`
+    ile okunur. Böylece çıktı kaydırılıp gitse de görünür, sunucu kapanınca en geç bir
+    yoklamada kaybolur. Hiçbir sekmede kabuk dışında süreç yoksa `lsof` çalıştırılmaz.
+  - Yalnız `localhost`'tan erişilebilen dinlemeler sayılır: `*`, `0.0.0.0`, `[::]`,
+    `127.x.x.x`, `[::1]`. Yalnız belirli bir ağ adresinde dinleyen alınmaz. Aynı port IPv4
+    ve IPv6'da dinlenirse tek sayılır. İşletim sisteminin `listen(0)` isteyene rastgele
+    verdiği aralıktaki portlar (macOS'ta 49152 ve üstü) sayılmaz: bunlar kimsenin yazmadığı
+    iç portlardır (vite eklentileri, workerd). Claude Code sürecinin kendisi de sayılmaz
+    (kendi iç portunu açar); onun başlattığı sunucular sayılır.
+  - Sunucunun reposu, dinleyen sürecin çalışma dizininden bulunur (`lsof -d cwd`); hiçbir
+    repoda değilse repo adı gösterilmez.
+  - Liste yalnız değişince sayfaya gönderilir.
+  - **Gösterim (benim önerim, kullanıcı onayladı):** durum çubuğunun sağında `● N servers`
+    sayacı; sunucu yoksa gizli. Tıklayınca menü: her satırda `localhost:PORT`, repo adı ve
+    sekmenin başlığı (ör. `npm run dev`). Satıra tıklamak `http://localhost:PORT/`
+    adresini varsayılan tarayıcıda açar. Sunucunun çalıştığı terminal sekmesinde port
+    küçük bir etiket olarak görünür (birden çok portta ilki ve `+N`).
+  - **Yapılmayanlar:** edi sunuculara istek atmaz (yoklama, sağlık denetimi yok), sunucu
+    durdurmaz ya da yeniden başlatmaz, terminal çıktısını okumaz. edi dışında başlayan
+    sunucular (Docker, başka terminal uygulaması) görünmez.
+  - **Ödünleşim:** porta bakarak `https` anlaşılamaz; adres hep `http://` ile açılır.
+    HTTPS kullanan dev sunucusuna terminaldeki adrese Option+tık ile ulaşılır.
+  - Terminaldeki `http(s)://…` adresleri Option+tık ile tarayıcıda açılır (yapıldı).
