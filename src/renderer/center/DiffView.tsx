@@ -5,6 +5,7 @@ import { edi } from '../bridge';
 import { type DiffTokens, highlightDiff } from '../highlight/highlight';
 import { useApp } from '../store';
 import { DiffPane } from './DiffPane';
+import { tabId } from './tabs';
 import { useView, useVersion } from './useView';
 
 /** Son renklendirme. Dosya değişince yenisi gelene kadar eskisi kalır; `Code` uyuşmayan satırda onu kullanmaz. */
@@ -47,6 +48,12 @@ export function DiffView({ repo, path }: { repo: RepoView; path: string }) {
       tokens={tokens}
       onMode={(next) => useApp.getState().setDiffMode(next)}
       onOpenInZed={() => void useApp.getState().openInZed(repo.path, path)}
+      onOpenFile={() => {
+        // Yeni sekme önizleme sekmesinin yerine geçer: diff kaybolmasın diye önce o kalıcı olur.
+        const app = useApp.getState();
+        app.pinCenterTab(tabId({ kind: 'diff', repoPath: repo.path, path }));
+        app.openInCenter({ kind: 'file', repoPath: repo.path, path }, false);
+      }}
     />
   );
 }

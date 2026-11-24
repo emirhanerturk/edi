@@ -29,7 +29,7 @@ describe('büyük görünümler aynı veriyle yeniden hesaplanmaz', () => {
       diff: parseDiff('@@ -1 +1 @@\n-a\n+b\n'),
       file: { path: 'a.ts', origPath: null, x: '.', y: 'M', kind: 'changed' },
     };
-    const pane = () => <DiffPane repoName="r" path="a.ts" view={view} mode="split" tokens={null} onMode={() => undefined} onOpenInZed={() => undefined} />;
+    const pane = () => <DiffPane repoName="r" path="a.ts" view={view} mode="split" tokens={null} onMode={() => undefined} onOpenInZed={() => undefined} onOpenFile={() => undefined} />;
     const { rerender } = render(pane());
     rerender(pane());
     rerender(pane());

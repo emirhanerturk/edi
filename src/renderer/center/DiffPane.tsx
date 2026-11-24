@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import type { ParsedDiff } from '../../git/diffParse';
 import type { DiffView } from '../../shared/api';
 import type { DiffTokens, Token } from '../highlight/highlight';
+import { FileIcon } from '../components/icons';
 import { ViewHeader, ViewNote } from './ViewHeader';
 import { type Cell, MAX_DIFF_LINES, type Row, diffRows } from './diffRows';
 
@@ -15,14 +16,18 @@ export interface DiffPaneProps {
   tokens: DiffTokens | null;
   onMode(mode: 'split' | 'inline'): void;
   onOpenInZed(): void;
+  /** Dosyanın tamamını (çalışma ağacındaki hâli) dosya görünümünde açar. */
+  onOpenFile(): void;
 }
 
 const NOT_CHANGED = 'File is not in the list of changes';
 const TOO_LARGE = 'This diff is too large to show';
 
 /** Bir dosyanın HEAD'e göre değişikliği: yan yana ya da tek sütun. */
-export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZed }: DiffPaneProps) {
+export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZed, onOpenFile }: DiffPaneProps) {
   const diff = view?.ok ? view.diff : null;
+  // Çalışma ağacından silinmiş dosyanın açılacak bir hâli yoktur.
+  const onDisk = view?.ok === true && view.file.y !== 'D' && !(view.file.y === '.' && view.file.x === 'D');
   const showsLines = diff !== null && !diff.binary && diff.hunks.length > 0;
 
   return (
@@ -43,6 +48,12 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZ
               Inline
             </button>
           </div>
+        )}
+        {onDisk && (
+          <button className="zed-button" title="Show the whole file" onClick={onOpenFile}>
+            <FileIcon size={12} />
+            <span>Open file</span>
+          </button>
         )}
       </ViewHeader>
       {view === null ? (

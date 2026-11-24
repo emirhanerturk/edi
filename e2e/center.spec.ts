@@ -227,3 +227,22 @@ test('açık klasör tek bir repoysa Files ağacı doğrudan onun içeriğiyle b
     await app.close();
   }
 });
+
+test('diff görünümünden dosyanın tamamı ayrı bir sekmede açılır; diff yerinde kalır', async () => {
+  const dir = await tmpDir();
+  await repoWithChanges(dir);
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await fileRow(page, 'README.md').click();
+    const view = page.getByTestId('center-view');
+    await expect(view).toHaveAttribute('data-kind', 'diff');
+    await page.getByTestId('view-header').getByRole('button', { name: 'Open file' }).click();
+    await expect(view).toHaveAttribute('data-kind', 'file');
+    await expect(view.getByTestId('file-line')).toHaveText(['1yeni readme']);
+    await expect(centerTabs(page)).toHaveCount(2);
+    // Sekmelerin üzerinde el imleci.
+    expect(await centerTabs(page).first().evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
+  } finally {
+    await app.close();
+  }
+});
