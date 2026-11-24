@@ -37,11 +37,11 @@ write our own app.
   its icon and tell apart the one waiting for a reply.
 - See the latest commits of all repos in a single timeline; click a commit to look at
   its contents.
-- Look at a file or a change (read-only) and open it in Zed with one click.
+- Look at a change, look at or make a small edit to a file, and open it in Zed with one click.
 
 ## Non-goals (first version)
 
-- Editing in the center panel. Files are read-only; "Open in Zed" for editing.
+- Language services in the editor (completion, errors, go to definition): Zed is for that.
 - Search (file name or content).
 - Saving terminal sessions when the app closes and restoring them.
 - AI-generated commit messages.
@@ -197,8 +197,12 @@ the last tab closes the panel too.
   stays in place, the file opens in the preview tab; absent for a file deleted from
   the working tree) and "Open in Zed". A new (untracked) file opens in the file view
   with a "new file" badge instead of a diff. Also works in a repo with no commits yet.
-- **File view** (from the Files tab): read-only, with line numbers, syntax
-  highlighted. At the top: the path, a "Read-only" note and "Open in Zed". Images
+- **File view** (from the Files tab): a text file opens in an editor (Monaco, with
+  Shiki's One Dark Pro colors, the same as the diff view); ⌘S saves. Unsaved edits, disk
+  changes under them and saving are described in
+  `2026-11-24-edi-edit-files-design.md` (added 2026-11-24, requested by the user). At the
+  top: the path and "Open in Zed"; "Unsaved" and Save while there are unsaved edits;
+  "Read-only" for files that can't be edited. Images
   (png, jpg, gif, webp, avif, bmp, ico, svg) and videos (mp4, m4v, webm, ogv, mov) are
   previewed, with no size limit: the main process serves them from an `edi-media://`
   address, only from inside the discovered repos (with links resolved), and with byte

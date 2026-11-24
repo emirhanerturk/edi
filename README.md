@@ -26,8 +26,10 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   as it changes on disk. Open file shows the whole file next to its diff.
 - **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
   (an ignored folder is read from disk one level at a time when you open it). Changed files carry
-  their status letter, folders that contain changes a dot. Clicking a file opens it read-only.
-  Images and videos open as a preview. Other files over 1 MB and binary files are not shown.
+  their status letter, folders that contain changes a dot. Clicking a file opens it in an editor
+  (Monaco, with the same colors as the diff view); ⌘S saves. If an agent changes the file under
+  unsaved edits, a bar offers "Load disk version" or "Keep mine"; closing an edited tab, quitting
+  or switching folders asks first. Images and videos open as a preview. Other files over 1 MB and binary files are not shown.
 - **History tab.** The recent commits of every repository's current branch in one timeline,
   under day headers, newest first; or grouped by repository. Commits not pushed yet carry an
   arrow, a version commit shows as a tag line, merges are dimmed. Filter to one repository to
