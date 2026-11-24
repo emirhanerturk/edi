@@ -10,12 +10,10 @@ import '@fontsource/ibm-plex-mono/latin-ext-400.css';
 import '@fontsource/ibm-plex-mono/latin-ext-500.css';
 import './theme.css';
 import './app.css';
-import { StrictMode } from 'react';
+import './terminals/terminals.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// StrictMode kullanılmıyor: geliştirmede etkileri iki kez çalıştırır, bu da her açılışta
+// fazladan bir kabuk süreci başlatıp öldürmek demek.
+createRoot(document.getElementById('root')!).render(<App />);

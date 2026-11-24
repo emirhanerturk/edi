@@ -1,9 +1,11 @@
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
+import { basename } from 'node:path';
 import { type BrowserWindow, dialog, ipcMain } from 'electron';
 import { listPs } from '../procs.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, EdiEvents, OpenResult } from '../shared/api.js';
+import type { AppState, EdiEvents, OpenResult, TerminalCreated } from '../shared/api.js';
+import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, saveState } from './store.js';
 import { Workspace } from './workspace.js';
 
@@ -12,6 +14,7 @@ const SESSIONS_MS = 3000;
 /** Ana sürecin durumu ve sayfayla konuştuğu her şey. */
 export class AppCore {
   readonly workspace: Workspace;
+  readonly ptys: PtyManager;
   private state: Persisted;
   private saving: Promise<void> = Promise.resolve();
   private sessionsTimer: NodeJS.Timeout | null = null;
@@ -24,6 +27,11 @@ export class AppCore {
   ) {
     this.state = state;
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
+    this.ptys = new PtyManager({
+      shell: process.env.EDI_SHELL,
+      onData: (id, data) => this.send('pty:data', id, data),
+      onExit: (id) => this.send('pty:exit', id),
+    });
   }
 
   static async create(stateFile: string, getWindow: () => BrowserWindow | null): Promise<AppCore> {
@@ -52,9 +60,12 @@ export class AppCore {
   }
 
   async openFolder(dir: string): Promise<OpenResult> {
+    const previous = this.workspace.view().dir;
     const result = await this.workspace.open(dir);
     if (!result.ok) return result;
     const opened = this.workspace.view().dir ?? dir;
+    // Terminaller açık klasöre aittir: klasör değişince kapanır, sayfa yenilerini açar.
+    if (opened !== previous) this.ptys.killAll();
     this.update((state) => ({ ...addRecent(state, opened, result.repoCount), lastDir: opened }));
     this.send('workspace', this.workspace.view());
     this.send('recent', this.state.recent);
@@ -93,12 +104,38 @@ export class AppCore {
     );
     ipcMain.handle('workspace:rescan', () => this.workspace.rescan());
 
+    ipcMain.handle('pty:create', (_event, o: unknown): TerminalCreated => {
+      const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;
+      const dir = this.workspace.view().dir;
+      if (dir === null) throw new Error('No folder is open');
+      // Sayfadan gelen yol serbest değildir: yalnız keşfedilmiş bir repo ya da açık klasör.
+      const repo = typeof opts.repoPath === 'string' ? this.workspace.repo(opts.repoPath) : null;
+      if (typeof opts.repoPath === 'string' && !repo) throw new Error('Unknown repository');
+      const id = this.ptys.create({
+        cols: Number(opts.cols),
+        rows: Number(opts.rows),
+        cwd: repo?.path ?? dir,
+        command: opts.claude === true ? 'claude' : undefined,
+      });
+      return { id, title: basename(this.ptys.info(id)?.shell ?? 'shell') };
+    });
+    ipcMain.on('pty:write', (_event, id: unknown, data: unknown) => {
+      if (typeof id === 'number' && typeof data === 'string') this.ptys.write(id, data);
+    });
+    ipcMain.on('pty:resize', (_event, id: unknown, cols: unknown, rows: unknown) => {
+      if (typeof id === 'number' && typeof cols === 'number' && typeof rows === 'number') this.ptys.resize(id, cols, rows);
+    });
+    ipcMain.on('pty:close', (_event, id: unknown) => {
+      if (typeof id === 'number') this.ptys.kill(id);
+    });
+
     this.sessionsTimer = setInterval(() => void this.pollSessions(), SESSIONS_MS);
   }
 
   dispose(): void {
     if (this.sessionsTimer) clearInterval(this.sessionsTimer);
     this.workspace.dispose();
+    this.ptys.killAll();
   }
 
   /** Terminalde açık Claude Code oturumlarını repo satırlarına yazar. */

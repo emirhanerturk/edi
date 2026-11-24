@@ -47,10 +47,27 @@ export interface AppState {
 
 export type OpenResult = { ok: true } | { ok: false; error: string };
 
+export interface NewTerminal {
+  cols: number;
+  rows: number;
+  /** Verilirse terminal bu repoda açılır; yoksa açık klasörde. Keşfedilmiş bir repo yolu olmalıdır. */
+  repoPath?: string;
+  /** Terminalde Claude Code başlatılır. */
+  claude?: boolean;
+}
+
+export interface TerminalCreated {
+  id: number;
+  /** Sekmenin ilk başlığı (kabuğun adı). */
+  title: string;
+}
+
 /** Ana sürecin sayfaya kendiliğinden gönderdiği olaylar. */
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
   recent: [recent: RecentFolder[]];
+  'pty:data': [id: number, data: string];
+  'pty:exit': [id: number];
 }
 
 /** Sayfaya `window.edi` olarak verilen köprü. Görevler ilerledikçe büyür. */
@@ -60,6 +77,13 @@ export interface EdiApi {
   chooseFolder(): Promise<void>;
   openFolder(dir: string): Promise<OpenResult>;
   rescan(): Promise<void>;
+  pty: {
+    create(o: NewTerminal): Promise<TerminalCreated>;
+    write(id: number, data: string): void;
+    resize(id: number, cols: number, rows: number): void;
+    /** Terminali ve içinde çalışanı kapatır. */
+    close(id: number): void;
+  };
   /** Dönen işlev aboneliği kaldırır. */
   on<K extends keyof EdiEvents>(channel: K, listener: (...args: EdiEvents[K]) => void): () => void;
 }

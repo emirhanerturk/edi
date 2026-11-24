@@ -1,0 +1,149 @@
+/* Sol panel: sekme çubuğu ve terminaller. */
+.terminals {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.tabbar {
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.tabbar-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* Sekmeler alan daralınca birlikte küçülür; başlık kısalır, simgeler küçülmez. */
+.tab {
+  flex: 0 1 auto;
+  min-width: 56px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-right: 1px solid var(--line);
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab.active .tab-title {
+  font-weight: 500;
+}
+
+.tab-exited {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tab-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -3px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.tab-close:hover {
+  background: var(--chip-strong);
+  color: var(--text);
+}
+
+.tabbar-add {
+  flex: none;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+}
+
+.tabbar-add:hover {
+  background: var(--panel-open);
+  color: var(--text);
+}
+
+.tabbar-add-claude {
+  width: auto;
+  gap: 2px;
+  padding: 0 9px;
+}
+
+.term-hosts {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.term-host {
+  position: absolute;
+  inset: 8px 0 0 10px;
+  display: none;
+}
+
+.term-host.active {
+  display: block;
+}
+
+.term-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+
+.term-empty p {
+  margin: 0;
+}
+
+.term-empty-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* xterm kaydırma çubuğu: ince ve panelle uyumlu. */
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--chip-strong);
+  border-radius: 5px;
+  border: 2px solid var(--bg);
+}

@@ -50,6 +50,8 @@ export async function launch(opts: { openDir?: string; userData?: string } = {})
   }
   env.EDI_USER_DATA = userData;
   env.EDI_HIDDEN = '1';
+  // Kullanıcının kabuk profili testleri yavaşlatmasın ve değiştirmesin.
+  env.EDI_SHELL = '/bin/sh';
   if (opts.openDir) env.EDI_OPEN_DIR = opts.openDir;
 
   const app = await _electron.launch({ args: [root], env });
