@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileChange, RepoStatus } from '../../src/git/types';
 import { GitPanelView } from '../../src/renderer/git/GitPanelView';
+import { changeTotal } from '../../src/renderer/git/model';
 import type { RepoView } from '../../src/shared/api';
 
 afterEach(cleanup);
@@ -90,11 +91,6 @@ describe('GitPanelView', () => {
     expect(within(app).getByText('feat/banner')).toBeTruthy();
   });
 
-  it('rozet tekil değişen dosya sayısıdır', () => {
-    renderPanel();
-    expect(screen.getByTestId('git-badge').textContent).toBe('3');
-  });
-
   it('okunamayan repo hatasını gösterir', () => {
     renderPanel();
     expect(within(row('broken')).getByText('fatal: not a git repository')).toBeTruthy();
@@ -114,7 +110,6 @@ describe('GitPanelView', () => {
   it('repo yoksa bunu söyler', () => {
     render(<GitPanelView repos={[]} expanded={{}} onToggle={() => undefined} />);
     expect(screen.getByText('No git repositories in this folder')).toBeTruthy();
-    expect(screen.queryByTestId('git-badge')).toBeNull();
   });
 
   it('çakışma varken "Unstage all" kapalıdır: index sıfırlanırsa çakışma kaydı da silinirdi', () => {
@@ -171,5 +166,30 @@ describe('GitPanelView, dosya açma', () => {
   it('başka repodaki aynı yol seçili sayılmaz', () => {
     renderOpen({ repoPath: '/w/quizei-web', path: 'app/play.tsx' });
     expect(screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true')).toHaveLength(0);
+  });
+});
+
+describe('GitPanelView, çakışan dosyalar', () => {
+  it("çakışan dosya Zed'de açılabilir; düğme dosyayı orta panelde açmaz", () => {
+    const merging = repo('merging', { status: status({ files: [file('README.md', 'U', 'U', 'conflicted')] }) });
+    const onOpenInZed = vi.fn();
+    const onOpenFile = vi.fn();
+    render(<GitPanelView repos={[merging]} expanded={{}} onToggle={() => undefined} onOpenInZed={onOpenInZed} onOpenFile={onOpenFile} />);
+    const button = screen.getByRole('button', { name: 'Open README.md in Zed' });
+    fireEvent.click(button);
+    expect(onOpenInZed).toHaveBeenCalledWith('/w/merging', 'README.md');
+    expect(onOpenFile).not.toHaveBeenCalled();
+  });
+
+  it('çakışma olmayan dosyada bu düğme yoktur', () => {
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onOpenInZed={() => undefined} />);
+    expect(screen.queryByRole('button', { name: /in Zed$/ })).toBeNull();
+  });
+});
+
+describe('changeTotal', () => {
+  it('rozet tekil değişen dosya sayısıdır', () => {
+    expect(changeTotal(repos)).toBe(3);
+    expect(changeTotal([])).toBe(0);
   });
 });

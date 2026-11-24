@@ -5,6 +5,8 @@ import { useApp } from '../store';
 export function StatusBar() {
   const workspace = useApp((s) => s.workspace);
   const now = useNow(1000);
+  // Orta panelde açık olanın kısa bilgisi: dosyada dil ve satır sayısı, diff'te toplamlar.
+  const info = useApp((s) => (s.center.open ? s.centerInfo : null));
   const { repos, withChanges, toPush } = summary(workspace);
 
   return (
@@ -21,7 +23,11 @@ export function StatusBar() {
         </span>
       )}
       <div className="spacer" />
-      {workspace.refreshedAt > 0 && <span>refreshed {ago(workspace.refreshedAt, now)}</span>}
+      {info !== null ? (
+        <span data-testid="center-info">{info}</span>
+      ) : (
+        workspace.refreshedAt > 0 && <span>refreshed {ago(workspace.refreshedAt, now)}</span>
+      )}
     </footer>
   );
 }

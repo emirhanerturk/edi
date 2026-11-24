@@ -38,6 +38,11 @@ export function isPartlyStaged(f: FileChange): boolean {
   return isStaged(f) && hasUnstaged(f);
 }
 
+/** Tüm repolarda değişen tekil dosya sayısı: Git sekmesinin rozeti. */
+export function changeTotal(repos: { status: RepoStatus | null }[]): number {
+  return repos.reduce((sum, repo) => sum + (repo.status ? changeCount(repo.status) : 0), 0);
+}
+
 /** Değişen tekil dosya sayısı. */
 export function changeCount(s: RepoStatus): number {
   return s.files.length;

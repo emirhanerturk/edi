@@ -20,12 +20,21 @@
   border-bottom: 1px solid var(--line);
 }
 
+.git-tablist {
+  display: flex;
+  align-items: stretch;
+}
+
 .git-tab {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 0 12px;
   color: var(--text-2);
+}
+
+.git-tab:hover {
+  color: var(--text);
 }
 
 .git-tab.active {

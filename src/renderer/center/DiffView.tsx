@@ -31,6 +31,12 @@ export function DiffView({ repo, path }: { repo: RepoView; path: string }) {
   const version = useVersion(refreshedAt, repo.status);
   const { data } = useView(`${repo.path}\n${path}`, () => edi.diff(repo.path, path), version);
   const tokens = useDiffTokens(data?.ok ? data.diff : null, path);
+  const info = data?.ok && !data.diff.binary && data.diff.hunks.length > 0 ? `+${data.diff.added} −${data.diff.removed}` : null;
+
+  useEffect(() => {
+    useApp.getState().setCenterInfo(info);
+  }, [info]);
+  useEffect(() => () => useApp.getState().setCenterInfo(null), []);
 
   return (
     <DiffPane

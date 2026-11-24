@@ -9,9 +9,8 @@ import {
   ChevronDown,
   ChevronRight,
   ClaudeMark,
-  FetchIcon,
+  ExternalIcon,
   MinusIcon,
-  RescanIcon,
   Spinner,
   StageIcon,
   TerminalIcon,
@@ -40,7 +39,6 @@ export interface GitPanelProps {
   /** Kullanıcının elle açıp kapattığı repolar (yol → açık mı). */
   expanded: Record<string, boolean>;
   onToggle(repoPath: string, open: boolean): void;
-  onRescan?(): void;
   onOpenTerminal?(repoPath: string): void;
   /** Yazılmakta olan commit mesajları (yol → metin). */
   drafts?: Record<string, string>;
@@ -49,7 +47,8 @@ export interface GitPanelProps {
   onDraft?(repoPath: string, message: string): void;
   onOp?(repoPath: string, op: GitOp): void;
   onDismissError?(repoPath: string): void;
-  onFetchAll?(): void;
+  /** Dosyayı (çakışan dosyalar için) Zed'de açar. */
+  onOpenInZed?(repoPath: string, path: string): void;
   loadBranches?(repoPath: string): Promise<BranchList>;
   /** Dosya satırına tıklandı: tek tık önizleme (`pin` false), çift tık kalıcı sekme. */
   onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
@@ -59,45 +58,16 @@ export interface GitPanelProps {
 
 const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
 
-/** Sağ panel, Git sekmesi: tüm repolar alt alta. */
+/** Git sekmesi: tüm repolar alt alta. Sekme başlığı sağ paneldedir. */
 export function GitPanelView(props: GitPanelProps) {
   const { repos } = props;
-  const total = repos.reduce((sum, repo) => sum + (repo.status ? changeCount(repo.status) : 0), 0);
-
   return (
-    <section className="git" aria-label="Git">
-      <div className="git-tabs">
-        <div className="git-tab active">
-          <BranchIcon size={14} strokeWidth={1.5} />
-          <span>Git</span>
-          {total > 0 && (
-            <span className="badge" data-testid="git-badge">
-              {total}
-            </span>
-          )}
-        </div>
-        <div className="spacer" />
-        <button
-          className="icon-button"
-          aria-label="Fetch all repositories"
-          title="Fetch all repositories"
-          disabled={!repos.some((repo) => repo.hasRemote)}
-          onClick={props.onFetchAll}
-        >
-          <FetchIcon size={14} />
-        </button>
-        <button className="icon-button" aria-label="Rescan repositories" title="Rescan repositories" onClick={props.onRescan}>
-          <RescanIcon size={14} />
-        </button>
-      </div>
-
-      <div className="git-list">
-        {repos.length === 0 && <p className="git-empty">No git repositories in this folder</p>}
-        {repos.map((repo) => (
-          <Repo key={repo.path} repo={repo} {...props} />
-        ))}
-      </div>
-    </section>
+    <div className="git-list">
+      {repos.length === 0 && <p className="git-empty">No git repositories in this folder</p>}
+      {repos.map((repo) => (
+        <Repo key={repo.path} repo={repo} {...props} />
+      ))}
+    </div>
   );
 }
 
@@ -114,6 +84,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const fileProps = {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
+    openInZed: (file: FileChange) => props.onOpenInZed?.(repo.path, file.path),
   };
 
   if (!status) {
@@ -286,13 +257,14 @@ interface FileGroupProps {
   busy: boolean;
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
+  openInZed(file: FileChange): void;
   /** Bu repoda, orta panelde açık olan dosyanın yolu. */
   selectedPath: string | null;
   /** Çakışma varken "hepsini stage et / geri al" kapalıdır: ikisi de çakışma kaydını silerdi. */
   blocked?: boolean;
 }
 
-function FileGroup({ title, group, files, busy, run, blocked, open, selectedPath }: FileGroupProps) {
+function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath }: FileGroupProps) {
   if (files.length === 0) return null;
   return (
     <div className="file-group">
@@ -326,7 +298,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, selectedPath
         )}
       </div>
       {files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} selected={file.path === selectedPath} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openInZed={openInZed} selected={file.path === selectedPath} />
       ))}
     </div>
   );
@@ -339,22 +311,24 @@ interface FileRowProps {
   selected: boolean;
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
+  openInZed(file: FileChange): void;
 }
 
 /** Satıra tıklamak dosyayı orta panelde açar; sağdaki düğme yalnız stage eder ya da geri alır. */
-function FileRow({ file, group, busy, selected, run, open }: FileRowProps) {
+function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
-  const button = (testId: string, label: string, title: string, op: GitOp, icon: ReactNode) => (
+  const button = (testId: string, label: string, title: string, action: GitOp | (() => void), icon: ReactNode, disabled = busy) => (
     <button
       className="icon-button tiny"
       data-testid={testId}
       aria-label={label}
       title={title}
-      disabled={busy}
+      disabled={disabled}
       onClick={(event) => {
         event.stopPropagation();
-        run(op);
+        if (typeof action === 'function') action();
+        else run(action);
       }}
       onDoubleClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
@@ -387,6 +361,7 @@ function FileRow({ file, group, busy, selected, run, open }: FileRowProps) {
       <span className="file-dir">{dir}</span>
       {group === 'staged' && isPartlyStaged(file) && <span className="chip">partly staged</span>}
       {group === 'staged' && button('unstage-file', `Unstage ${name}`, 'Unstage', { op: 'unstage', file }, <MinusIcon size={12} />)}
+      {group === 'conflicts' && button('open-in-zed', `Open ${name} in Zed`, 'Open in Zed', () => openInZed(file), <ExternalIcon size={12} />, false)}
       {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
   );

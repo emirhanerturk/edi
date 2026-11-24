@@ -115,6 +115,18 @@ interface AppStore {
   setCenterOpen(open: boolean): void;
   /** Diff görünümünün düzenini değiştirir ve hatırlar. */
   setDiffMode(mode: Layout['diffMode']): void;
+  /** Durum çubuğunun sağında, orta panelde açık olan şeyin kısa bilgisi; yoksa null. */
+  centerInfo: string | null;
+  setCenterInfo(info: string | null): void;
+
+  /** Sağ panelde seçili sekme. */
+  rightTab: 'git' | 'files';
+  setRightTab(tab: 'git' | 'files'): void;
+  /** Files sekmesinde açık klasörler (`repoYolu\ngöreliYol`; repo kökü için göreli yol boş). */
+  filesOpen: Record<string, boolean>;
+  toggleFilesDir(key: string, open: boolean): void;
+  collapseFiles(): void;
+
   /** Orta paneldeki son hata ("Zed açılamadı" gibi); yoksa null. */
   centerError: string | null;
   dismissCenterError(): void;
@@ -184,6 +196,17 @@ export const useApp = create<AppStore>((set, get) => ({
     set((state) => ({ layout: { ...state.layout, diffMode: mode } }));
     edi.setLayout({ diffMode: mode });
   },
+  centerInfo: null,
+  setCenterInfo: (info) => {
+    if (get().centerInfo !== info) set({ centerInfo: info });
+  },
+
+  rightTab: 'git',
+  setRightTab: (tab) => set({ rightTab: tab }),
+  filesOpen: {},
+  toggleFilesDir: (key, open) => set((state) => ({ filesOpen: { ...state.filesOpen, [key]: open } })),
+  collapseFiles: () => set({ filesOpen: {} }),
+
   centerError: null,
   dismissCenterError: () => set({ centerError: null }),
   async openInZed(repoPath, path) {
@@ -282,6 +305,8 @@ export function connect(): () => void {
         workspace,
         // Klasör değiştiyse ya da bir repo kaybolduysa ona ait sekmeler kapanır.
         center: syncCenter(state.center, state.workspace.dir, workspace.dir, workspace.repos.map((repo) => repo.path)),
+        // Başka klasöre geçince Files ağacı kapalı başlar.
+        filesOpen: workspace.dir === state.workspace.dir ? state.filesOpen : {},
       })),
     ),
     edi.on('recent', (recent) => useApp.setState({ recent })),

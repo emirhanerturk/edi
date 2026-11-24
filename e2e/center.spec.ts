@@ -139,3 +139,82 @@ test("commit'i olmayan repoda ve silinen dosyada diff açılır", async () => {
     await app.close();
   }
 });
+
+test('Files sekmesinden dosya açılır', async () => {
+  const dir = await tmpDir();
+  const repo = await repoWithChanges(dir);
+  await makeRepo(dir, 'beta');
+  await writeFile(join(repo, '.gitignore'), 'node_modules/\n');
+  await mkdir(join(repo, 'node_modules', 'x'), { recursive: true });
+  await writeFile(join(repo, 'node_modules', 'x', 'index.js'), 'x\n');
+  await writeFile(join(repo, 'src', 'büyük.txt'), 'a'.repeat(2 * 1_048_576));
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await expect(page.getByTestId('repo-row')).toHaveCount(2);
+    await page.getByRole('tab', { name: 'Files' }).click();
+    const row = (name: string) => page.locator(`[data-testid="tree-row"][data-name="${name}"]`);
+    await expect(page.getByTestId('tree-row')).toHaveCount(2);
+    await expect(row('alpha')).toHaveAttribute('data-badge', '●');
+    await expect(row('beta')).toHaveAttribute('data-badge', '');
+
+    await row('alpha').click();
+    await expect(row('src')).toHaveAttribute('data-badge', '●');
+    await expect(row('README.md')).toHaveAttribute('data-badge', 'M');
+    // .gitignore'a takılan klasör listelenmez.
+    await expect(row('node_modules')).toHaveCount(0);
+    await row('src').click();
+    await row('app.ts').click();
+
+    const view = page.getByTestId('center-view');
+    await expect(view).toHaveAttribute('data-kind', 'file');
+    await expect(page.getByTestId('view-header')).toContainText('Read-only');
+    await expect(view.getByTestId('file-line')).toHaveText(['1const a = 2;', '2export default a;']);
+    await expect(row('app.ts')).toHaveAttribute('aria-current', 'true');
+    await expect(page.getByTestId('center-info')).toHaveText('TypeScript · 2 lines');
+
+    // Büyük dosyanın içeriği gelmez.
+    await row('büyük.txt').click();
+    await expect(view.getByText('This file is too large to show (2.0 MB)')).toBeVisible();
+
+    // Hepsini kapat.
+    await page.getByRole('button', { name: 'Collapse all' }).click();
+    await expect(page.getByTestId('tree-row')).toHaveCount(2);
+
+    // Dosya diskte değişince açık görünüm yenilenir.
+    await row('alpha').click();
+    await row('src').click();
+    await row('app.ts').click();
+    await writeFile(join(repo, 'src', 'app.ts'), 'const a = 4;\n');
+    await expect(view.getByTestId('file-line')).toHaveText(['1const a = 4;'], { timeout: 10_000 });
+  } finally {
+    await app.close();
+  }
+});
+
+test('Git sekmesinde yeni dosyaya tıklayınca içeriği "new file" işaretiyle açılır', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await writeFile(join(repo, 'yeni.md'), '# Başlık\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await fileRow(page, 'yeni.md').click();
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
+    await expect(page.getByTestId('view-header').getByText('new file')).toBeVisible();
+    await expect(page.getByTestId('file-line')).toHaveText(['1# Başlık']);
+    await expect(page.getByTestId('center-info')).toHaveText('Markdown · 1 line');
+  } finally {
+    await app.close();
+  }
+});
+
+test('açık klasör tek bir repoysa Files ağacı doğrudan onun içeriğiyle başlar', async () => {
+  const parent = await tmpDir();
+  const repo = await makeRepo(parent, 'solo');
+  const { app, page } = await launch({ openDir: repo });
+  try {
+    await page.getByRole('tab', { name: 'Files' }).click();
+    await expect(page.getByTestId('tree-row')).toHaveText(['README.md']);
+  } finally {
+    await app.close();
+  }
+});

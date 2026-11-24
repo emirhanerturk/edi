@@ -4,6 +4,7 @@ import { fileLetter } from '../git/model';
 import { useApp } from '../store';
 import { CenterTabs, type TabLabel } from './CenterTabs';
 import { DiffView } from './DiffView';
+import { FileView } from './FileView';
 import type { CenterTab } from './tabs';
 import './center.css';
 
@@ -57,10 +58,5 @@ export function CenterPanel() {
 function CenterView({ tab, repo }: { tab: CenterTab; repo: RepoView | null }) {
   // Repo kaybolduysa sekme bir sonraki çalışma alanı olayında kapanır.
   if (!repo) return null;
-  if (tab.kind === 'diff') return <DiffView repo={repo} path={tab.path} />;
-  return (
-    <div className="center-view" data-testid="center-view" data-kind={tab.kind}>
-      <p className="center-note">{tab.path}</p>
-    </div>
-  );
+  return tab.kind === 'diff' ? <DiffView repo={repo} path={tab.path} /> : <FileView repo={repo} path={tab.path} />;
 }
