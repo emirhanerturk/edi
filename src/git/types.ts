@@ -34,3 +34,33 @@ export type FileContent =
   | { ok: true; kind: 'binary'; size: number }
   | { ok: true; kind: 'tooLarge'; size: number }
   | { ok: false; error: string };
+
+/** Bir commit'in listede gereken bilgileri. */
+export interface CommitSummary {
+  oid: string;
+  short: string;
+  subject: string;
+  authorName: string;
+  authorEmail: string;
+  /** Commit'in (committer) tarihi, epoch ms. */
+  date: number;
+  /** Ebeveyn sayısı: 0 kök, 2+ merge. */
+  parents: number;
+  tags: string[];
+}
+
+export type LogResult =
+  | {
+      ok: true;
+      /** Yeniden eskiye. */
+      commits: CommitSummary[];
+      /** İstenenden fazlası var: "Load 50 more" işe yarar. */
+      hasMore: boolean;
+      /** Yüklenenler arasında henüz push edilmemiş commit'lerin kimlikleri. */
+      unpushed: string[];
+      /** `origin/main` gibi; yoksa ya da silinmişse null. */
+      upstream: string | null;
+      /** Reponun `user.email` değeri; ayarlı değilse null. */
+      userEmail: string | null;
+    }
+  | { ok: false; error: string };
