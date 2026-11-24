@@ -177,7 +177,8 @@ describe('GitOps', () => {
     const repo = repos[0]!;
     expect(await ops.run(repo, { op: 'createBranch', branch: 'feat/x' })).toEqual({ ok: true, message: 'Switched to feat/x' });
     expect(ws.repo(repo)?.status?.head).toBe('feat/x');
-    expect(await ops.branches(repo)).toEqual({ ok: true, branches: ['feat/x', 'main'], current: 'feat/x' });
+    const list = await ops.branches(repo);
+    expect(list.ok && { names: list.branches.map((branch) => branch.name).sort(), current: list.current }).toEqual({ names: ['feat/x', 'main'], current: 'feat/x' });
     expect((await ops.run(repo, { op: 'switch', branch: 'main' })).ok).toBe(true);
     expect(ws.repo(repo)?.status?.head).toBe('main');
     expect(await ops.run(repo, { op: 'switch', branch: '--detach' })).toEqual({ ok: false, error: 'Invalid branch name' });

@@ -119,3 +119,16 @@ export type BlameResult = { ok: true; lines: (string | null)[]; commits: Record<
 
 /** Commits on the branch that its upstream doesn't have, newest first. `canUndo`: the newest can be undone. */
 export type UnpushedResult = { ok: true; commits: CommitSummary[]; canUndo: boolean } | { ok: false; error: string };
+
+/** A local branch in the branch menu. */
+export interface BranchInfo {
+  name: string;
+  /** Commits not on its upstream yet, and upstream commits it doesn't have, as of the last fetch. 0 without an upstream. */
+  ahead: number;
+  behind: number;
+  /** Committer date of its last commit, in ms. */
+  updatedAt: number;
+}
+
+/** Local branches, most recently committed to first. */
+export type BranchList = { ok: true; branches: BranchInfo[]; current: string | null } | { ok: false; error: string };

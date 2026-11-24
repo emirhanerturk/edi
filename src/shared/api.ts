@@ -3,10 +3,10 @@
  * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { BlameCommit, BlameResult, HeadText, UnpushedResult } from '../git/types.js';
+import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 
-export type { BlameCommit, BlameResult, HeadText, UnpushedResult };
+export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 
 export interface RepoView {
@@ -68,8 +68,6 @@ export type GitOp =
   | { op: 'undoCommit'; oid: string };
 
 export type OpResult = { ok: true; message: string } | { ok: false; error: string };
-
-export type BranchList = { ok: true; branches: string[]; current: string | null } | { ok: false; error: string };
 
 /** A file's change against HEAD and its status entry. */
 export type DiffView = { ok: true; diff: ParsedDiff; file: FileChange } | { ok: false; error: string };

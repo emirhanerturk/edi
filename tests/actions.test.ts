@@ -1,5 +1,7 @@
+import { execFile } from 'node:child_process';
 import { access, chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import {
   commit,
@@ -62,6 +64,22 @@ async function repoWithRemoteAndPeer() {
   await git(peer, 'config', 'user.name', 'Peer');
   await git(peer, 'config', 'user.email', 'peer@example.com');
   return { repo, bare, peer };
+}
+
+/** listBranches with names only, sorted by name: these tests make commits within the same second. */
+async function names(repo: string) {
+  const list = await listBranches(repo);
+  return list.ok ? { ...list, branches: list.branches.map((branch) => branch.name).sort() } : list;
+}
+
+/** Commits a new file with the given committer date (unix seconds). */
+async function commitAt(repo: string, subject: string, seconds: number) {
+  await write(repo, `${seconds}.txt`, `${subject}\n`);
+  await git(repo, 'add', '-A');
+  await promisify(execFile)('git', ['commit', '-q', '-m', subject], {
+    cwd: repo,
+    env: { ...process.env, GIT_COMMITTER_DATE: `@${seconds} +0000`, GIT_AUTHOR_DATE: `@${seconds} +0000` },
+  });
 }
 
 async function peerPushes(peer: string, name: string) {
@@ -287,13 +305,37 @@ describe('branch', () => {
   it('lists local branches and the current one', async () => {
     const repo = await newRepo();
     await git(repo, 'branch', 'feat/x');
-    expect(await listBranches(repo)).toEqual({ ok: true, branches: ['feat/x', 'main'], current: 'main' });
+    expect(await names(repo)).toEqual({ ok: true, branches: ['feat/x', 'main'], current: 'main' });
+  });
+
+  it('lists the most recently committed branch first, with its date and how far it is from its upstream', async () => {
+    const { repo, peer } = await repoWithRemoteAndPeer();
+    await peerPushes(peer, 'b.txt');
+    await git(repo, 'fetch', '-q');
+    await commitAt(repo, 'feat: local', 1_900_000_000);
+    await git(repo, 'switch', '-q', '-c', 'feat/new', 'HEAD~1');
+    await commitAt(repo, 'feat: newer', 1_900_000_600);
+    await git(repo, 'branch', '-q', '--set-upstream-to', 'origin/main');
+    const list = await listBranches(repo);
+    expect(list).toEqual({
+      ok: true,
+      current: 'feat/new',
+      branches: [
+        // Not on origin/main's new commit: 1 ahead, 1 behind.
+        { name: 'feat/new', ahead: 1, behind: 1, updatedAt: 1_900_000_600_000 },
+        { name: 'main', ahead: 1, behind: 1, updatedAt: 1_900_000_000_000 },
+      ],
+    });
+    // A branch without an upstream has no counts.
+    await git(repo, 'branch', '-q', '--unset-upstream');
+    const again = await listBranches(repo);
+    expect(again.ok && again.branches[0]).toEqual({ name: 'feat/new', ahead: 0, behind: 0, updatedAt: 1_900_000_600_000 });
   });
 
   it('has no current branch on a detached HEAD', async () => {
     const repo = await newRepo();
     await git(repo, 'checkout', '-q', '--detach');
-    expect(await listBranches(repo)).toEqual({ ok: true, branches: ['main'], current: null });
+    expect(await names(repo)).toEqual({ ok: true, branches: ['main'], current: null });
   });
 
   it('switches to an existing branch and creates a new one', async () => {
@@ -465,7 +507,7 @@ describe('deferred findings', () => {
     const repo = await newRepo();
     await git(repo, 'tag', 'release');
     await git(repo, 'switch', '-q', '-c', 'release');
-    expect(await listBranches(repo)).toEqual({ ok: true, branches: ['main', 'release'], current: 'release' });
+    expect(await names(repo)).toEqual({ ok: true, branches: ['main', 'release'], current: 'release' });
   });
 
   it('push republishes a branch whose upstream was deleted', async () => {

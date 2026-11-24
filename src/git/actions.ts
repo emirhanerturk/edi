@@ -1,5 +1,6 @@
 import { type RunGitOptions, runGit } from './exec.js';
 import { type FileChange, type RepoStatus, getStatus, isStaged } from './status.js';
+import type { BranchList } from './types.js';
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 export type DiffResult = { ok: true; text: string } | { ok: false; error: string };
@@ -106,17 +107,33 @@ export function fetchRepo(repo: string): Promise<ActionResult> {
   return act(repo, ['fetch'], 'Fetched', { timeoutMs: FETCH_TIMEOUT_MS });
 }
 
-export async function listBranches(
-  repo: string,
-): Promise<{ ok: true; branches: string[]; current: string | null } | { ok: false; error: string }> {
-  const refs = await runGit(repo, ['for-each-ref', '--format=%(refname:lstrip=2)', 'refs/heads']);
+export async function listBranches(repo: string): Promise<BranchList> {
+  // Name, "ahead 1, behind 2" (empty when in sync or without an upstream, "gone" if it was deleted) and date.
+  // Reads only local refs: the counts are as of the last fetch.
+  const refs = await runGit(repo, [
+    'for-each-ref',
+    '--sort=-committerdate',
+    '--format=%(refname:lstrip=2)%00%(upstream:track,nobracket)%00%(committerdate:unix)',
+    'refs/heads',
+  ]);
   if (!refs.ok) return { ok: false, error: refs.error };
   // Exits with 1 on a detached HEAD; that isn't an error, it means "no current branch".
   const currentRef = await runGit(repo, ['symbolic-ref', '-q', 'HEAD'], { okCodes: [0, 1] });
   if (!currentRef.ok) return { ok: false, error: currentRef.error };
   return {
     ok: true,
-    branches: refs.stdout.split('\n').filter((name) => name !== ''),
+    branches: refs.stdout
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => {
+        const [name = '', track = '', date = '0'] = line.split('\0');
+        return {
+          name,
+          ahead: Number(/ahead (\d+)/.exec(track)?.[1] ?? 0),
+          behind: Number(/behind (\d+)/.exec(track)?.[1] ?? 0),
+          updatedAt: Number(date) * 1000,
+        };
+      }),
     current: currentRef.stdout.trim().replace(/^refs\/heads\//, '') || null,
   };
 }
