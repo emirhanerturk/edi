@@ -2,10 +2,12 @@
 // yok edilip yeniden kurulamayacak kadar durum taşır (geçmiş, imleç, seçim).
 import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import type { NewTerminal, TerminalCreated } from '../../shared/api';
 import { edi } from '../bridge';
+import { linkActivator } from './links';
 
 interface Entry {
   term: Terminal;
@@ -78,10 +80,14 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
     allowProposedApi: true,
     // Türkçe klavyede Option'lı karakterler (@ # { } [ ] | \ ~) yazılabilsin.
     macOptionIsMeta: false,
+    // Option+tık bağlantıyı açar; imleci oraya taşıyan ok tuşları kabuğa gönderilmesin.
+    altClickMovesCursor: false,
     theme: THEME,
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  // http(s) bağlantıları altı çizili görünür; Option+tık varsayılan tarayıcıda açar.
+  term.loadAddon(new WebLinksAddon(linkActivator((url) => void edi.openUrl(url))));
   term.open(host);
   try {
     const webgl = new WebglAddon();

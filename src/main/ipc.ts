@@ -10,6 +10,7 @@ import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
+import { openUrl } from './openUrl.js';
 import { ViewOps } from './viewOps.js';
 import { Workspace } from './workspace.js';
 
@@ -188,6 +189,7 @@ export class AppCore {
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
     ipcMain.handle('view:openInZed', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.openInZed(repoPath, filePath));
+    ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));
     ipcMain.handle('history:log', (_event, repoPath: unknown, count: unknown) => this.historyOps.log(repoPath, count));
     ipcMain.handle('history:commit', (_event, repoPath: unknown, oid: unknown) => this.historyOps.commit(repoPath, oid));
 

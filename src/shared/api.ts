@@ -128,6 +128,8 @@ export interface EdiApi {
   listFiles(repoPath: string): Promise<FileList>;
   /** Dosyayı, `filePath` null ise repo klasörünü Zed'de açar. */
   openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
+  /** Terminaldeki bir web bağlantısını varsayılan tarayıcıda açar (yalnız http/https). */
+  openUrl(url: string): Promise<OpResult>;
   log(repoPath: string, count: number): Promise<LogResult>;
   commit(repoPath: string, oid: string): Promise<CommitResult>;
   pty: {
