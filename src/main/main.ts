@@ -1,6 +1,8 @@
+import os from 'node:os';
 import path from 'node:path';
 import { BrowserWindow, Menu, app, screen } from 'electron';
 import { AppCore } from './ipc.js';
+import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
 
 // Testler ve geliştirme, kullanıcının gerçek ayar klasörüne dokunmasın diye ayrı bir klasör verebilir.
 if (process.env.EDI_USER_DATA) app.setPath('userData', process.env.EDI_USER_DATA);
@@ -89,6 +91,20 @@ function createWindow(): void {
 
   if (devUrl) void win.loadURL(devUrl);
   else void win.loadFile(path.join(here, '../renderer/index.html'));
+}
+
+// Dock'tan açılan paketli uygulama kabuk ayarlarını (PATH) almaz: giriş kabuğunun ortamı bir
+// kez okunur. Açılışı bekletmez; hook'ları çalıştıracak ilk commit'ten çok önce hazır olur.
+// Terminaller etkilenmez: her sekme kendi giriş kabuğunu açar.
+if (app.isPackaged) {
+  const shell = process.env.SHELL || os.userInfo().shell || '/bin/zsh';
+  void readLoginEnv(shell).then((login) => {
+    if (!login) return;
+    // process.env'in kendisi güncellenir (yerine düz bir nesne konmaz).
+    for (const [name, value] of Object.entries(mergeLoginEnv(process.env, login))) {
+      if (value !== undefined) process.env[name] = value;
+    }
+  });
 }
 
 app.whenReady().then(async () => {
