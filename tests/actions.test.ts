@@ -9,6 +9,7 @@ import {
   diffFile,
   fetchRepo,
   listBranches,
+  overwriteError,
   pull,
   push,
   stageAll,
@@ -608,5 +609,43 @@ describe('deferred findings', () => {
 
     expect((await commit(repo, 'feat: x', { addAll: true })).ok).toBe(false);
     expect(await fileOf(repo, 'first.txt')).toMatchObject({ kind: 'untracked' });
+  });
+});
+
+describe('refusals because of local changes', () => {
+  it('a switch names the files that would be overwritten', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await git(repo, 'switch', '-q', '-c', 'feat/x');
+    await writeFile(join(repo, 'README.md'), 'feat/x line\n');
+    await git(repo, 'commit', '-q', '-am', 'feat: x');
+    await git(repo, 'switch', '-q', 'main');
+    await writeFile(join(repo, 'README.md'), 'local edit\n');
+    expect(await switchBranch(repo, 'feat/x')).toEqual({ ok: false, error: 'Your local changes to README.md would be overwritten by checkout' });
+  });
+
+  it('a pull names them too', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    const bare = await addBareRemote(repo);
+    await git(repo, 'push', '-q', '-u', 'origin', 'main');
+    const peer = join(await makeTmpDir(), 'peer');
+    await git(repo, 'clone', '-q', bare, peer);
+    await git(peer, 'config', 'user.name', 'Peer');
+    await git(peer, 'config', 'user.email', 'peer@example.com');
+    await writeFile(join(peer, 'README.md'), 'remote line\n');
+    await git(peer, 'commit', '-q', '-am', 'feat: remote');
+    await git(peer, 'push', '-q');
+    await git(repo, 'fetch', '-q');
+    await writeFile(join(repo, 'README.md'), 'local edit\n');
+    expect(await pull(repo)).toEqual({ ok: false, error: 'Your local changes to README.md would be overwritten by merge' });
+  });
+
+  it('reads untracked files and long lists; anything else is left to the usual error line', () => {
+    expect(overwriteError('error: The following untracked working tree files would be overwritten by checkout:\n\tx.txt\nPlease move')).toBe(
+      'The untracked file x.txt would be overwritten by checkout',
+    );
+    expect(overwriteError('error: Your local changes to the following files would be overwritten by merge:\n\ta\n\tb\n\tc\n\td\n\te\nPlease')).toBe(
+      'Your local changes to a, b, c and 2 more would be overwritten by merge',
+    );
+    expect(overwriteError('fatal: Not possible to fast-forward, aborting.')).toBeNull();
   });
 });

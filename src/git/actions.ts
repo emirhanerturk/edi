@@ -8,14 +8,14 @@ export type DiffResult = { ok: true; text: string } | { ok: false; error: string
 /** git's empty tree object: the diff base in a repo with no commits yet. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 /** Local commands that change the index or the working tree (a large initial `add` can take a while). */
-const LOCAL_WRITE_TIMEOUT_MS = 120_000;
+export const LOCAL_WRITE_TIMEOUT_MS = 120_000;
 const FETCH_TIMEOUT_MS = 120_000;
 /**
  * Commands that can run hooks or update the working tree: pre-commit / pre-push
  * hooks may run tests, and an interrupted pull leaves the tree half-updated. Hence the long timeout.
  */
 const SLOW_TIMEOUT_MS = 600_000;
-const CONFLICT_ERROR = 'Conflicted files present; resolve them outside edi';
+export const CONFLICT_ERROR = 'Conflicted files present; resolve them outside edi';
 
 /**
  * Matches the path literally, not as a glob. Paths like `app/[slug]/page.tsx`
@@ -27,7 +27,38 @@ const DIFF_ARGS = ['-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext
 
 async function act(repo: string, args: string[], message: string, opts?: RunGitOptions): Promise<ActionResult> {
   const result = await runGit(repo, args, opts);
-  return result.ok ? { ok: true, message } : { ok: false, error: result.error };
+  return result.ok ? { ok: true, message } : { ok: false, error: overwriteError(result.stderr ?? '') ?? result.error };
+}
+
+/** "a, b, c and 2 more". */
+export const fileList = (paths: string[]) => (paths.length <= 3 ? paths.join(', ') : `${paths.slice(0, 3).join(', ')} and ${paths.length - 3} more`);
+
+/** The first line of git's output matching `heading`, and the tab-indented file list git prints under it. */
+export function listedUnder(output: string, heading: RegExp): { line: string; files: string[] } | null {
+  const lines = output.split('\n');
+  const start = lines.findIndex((line) => heading.test(line));
+  if (start === -1) return null;
+  const files: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line.startsWith('\t')) break;
+    files.push(line.trim());
+  }
+  return files.length === 0 ? null : { line: lines[start]!, files };
+}
+
+/**
+ * A switch or pull refused because local changes would be overwritten, in one line with the files git
+ * lists under it ("Your local changes to README.md would be overwritten by checkout"); null otherwise.
+ */
+export function overwriteError(stderr: string): string | null {
+  const refused = listedUnder(stderr, /would be overwritten by (checkout|merge):\s*$/);
+  if (!refused) return null;
+  const by = /by checkout/.test(refused.line) ? 'checkout' : 'merge';
+  const { files } = refused;
+  if (/untracked working tree files/.test(refused.line)) {
+    return `The untracked ${files.length === 1 ? 'file' : 'files'} ${fileList(files)} would be overwritten by ${by}`;
+  }
+  return `Your local changes to ${fileList(files)} would be overwritten by ${by}`;
 }
 
 export function stageFile(repo: string, f: FileChange): Promise<ActionResult> {
