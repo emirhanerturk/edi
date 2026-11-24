@@ -1,6 +1,6 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
+import { CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -55,6 +55,17 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
     if (commitOrNull) setChanged({ oid: commitOrNull.oid, collapsed: update(collapsed) });
   };
 
+  // After a copy the icon is a green check for a moment; switching commits shows the copy icon again.
+  const [copiedOid, setCopiedOid] = useState<string | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+  const copy = (oid: string) => {
+    onCopy();
+    setCopiedOid(oid);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopiedOid(null), 1500);
+  };
+
   if (result === null) return <div className="center-view" data-testid="center-view" data-kind="commit" />;
   if (!result.ok) {
     return (
@@ -78,41 +89,57 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
             {paragraph}
           </p>
         ))}
+        {/* Two groups: when they don't fit on one line, the counts and buttons move to a second one. */}
         <div className="commit-meta" data-testid="commit-meta">
-          <span
-            className="commit-author"
-            data-testid="commit-author"
-            title={commit.authorEmail ? `${commit.authorName || commit.authorEmail} <${commit.authorEmail}>` : commit.authorName}
-          >
-            {commit.authorName || commit.authorEmail}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span className="commit-repo">{repoName}</span>
-          {branch !== null && <span aria-hidden="true">·</span>}
-          {branch !== null && <span className="commit-branch mono">{branch}</span>}
-          <span aria-hidden="true">·</span>
-          <span>{longAgo(commit.date, now)}</span>
-          <div className="spacer" />
-          <span className="mono">
-            <span className="add">+{commit.added}</span> <span className="del">−{commit.removed}</span>
-          </span>
-          {!commit.tooLarge && commit.files.length > 0 && (
-            <AllFilesButton
-              allCollapsed={commit.files.every((file) => collapsed.has(file.path))}
-              onCollapse={() => setCollapsed(() => new Set(commit.files.map((file) => file.path)))}
-              onExpand={() => setCollapsed(() => new Set())}
-            />
-          )}
-          <button className="commit-copy" aria-label={`Copy hash ${commit.short}`} title="Copy hash" onClick={onCopy}>
-            <span className="mono">{commit.short}</span>
-            <CopyIcon size={12} />
-          </button>
-          {result.webUrl && (
-            <button className="commit-copy commit-web" aria-label="Open on GitHub" title={result.webUrl} onClick={() => onOpenUrl(result.webUrl!)}>
-              <span>GitHub</span>
-              <ExternalIcon size={12} />
+          <div className="commit-meta-info">
+            <span
+              className="commit-author"
+              data-testid="commit-author"
+              title={commit.authorEmail ? `${commit.authorName || commit.authorEmail} <${commit.authorEmail}>` : commit.authorName}
+            >
+              {commit.authorName || commit.authorEmail}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="commit-repo" title={repoName}>
+              {repoName}
+            </span>
+            {branch !== null && <span aria-hidden="true">·</span>}
+            {branch !== null && (
+              <span className="commit-branch mono" title={branch}>
+                {branch}
+              </span>
+            )}
+            <span aria-hidden="true">·</span>
+            <span className="commit-when">{longAgo(commit.date, now)}</span>
+          </div>
+          <div className="commit-meta-actions">
+            <span className="mono">
+              <span className="add">+{commit.added}</span> <span className="del">−{commit.removed}</span>
+            </span>
+            {!commit.tooLarge && commit.files.length > 0 && (
+              <AllFilesButton
+                allCollapsed={commit.files.every((file) => collapsed.has(file.path))}
+                onCollapse={() => setCollapsed(() => new Set(commit.files.map((file) => file.path)))}
+                onExpand={() => setCollapsed(() => new Set())}
+              />
+            )}
+            <button
+              className="commit-copy"
+              data-copied={copiedOid === commit.oid}
+              aria-label={`Copy hash ${commit.short}`}
+              title={copiedOid === commit.oid ? 'Copied' : 'Copy hash'}
+              onClick={() => copy(commit.oid)}
+            >
+              <span className="mono">{commit.short}</span>
+              {copiedOid === commit.oid ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
             </button>
-          )}
+            {result.webUrl && (
+              <button className="commit-copy commit-web" aria-label="Open on GitHub" title={result.webUrl} onClick={() => onOpenUrl(result.webUrl!)}>
+                <span>GitHub</span>
+                <ExternalIcon size={12} />
+              </button>
+            )}
+          </div>
         </div>
       </header>
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
