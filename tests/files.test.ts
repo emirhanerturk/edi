@@ -39,7 +39,18 @@ describe('listFiles', () => {
       ok: true,
       files: ['.gitignore', 'README.md', 'src/a.ts', 'src/deep/b.ts'],
       ignored: ['debug.log', 'node_modules/', 'src/deep/trace.log'],
+      dirs: [],
     });
+  });
+
+  it('lists empty folders, nested ones too: git leaves them out, but a new folder must show', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await mkdir(join(repo, 'empty'));
+    await mkdir(join(repo, 'outer', 'inner'), { recursive: true });
+    await mkdir(join(repo, 'full'));
+    await writeFile(join(repo, 'full', 'x.txt'), 'x\n');
+    const result = await listFiles(repo);
+    expect(result.ok && result.dirs).toEqual(['empty', 'outer', 'outer/inner']);
   });
 
   it('returns names with spaces, Turkish letters or a leading dash as they are', async () => {
@@ -54,7 +65,7 @@ describe('listFiles', () => {
   it('works in a repo without commits', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     await writeFile(join(repo, 'first.txt'), 'x\n');
-    expect(await listFiles(repo)).toEqual({ ok: true, files: ['first.txt'], ignored: [] });
+    expect(await listFiles(repo)).toEqual({ ok: true, files: ['first.txt'], ignored: [], dirs: [] });
   });
 
   it('returns an error in a folder that is not a repo', async () => {

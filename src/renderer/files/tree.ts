@@ -37,6 +37,8 @@ export function buildTree(
   ignored: string[] = [],
   /** Contents of loaded ignored folders: folder path → one level of entries. */
   loaded: Record<string, DirEntry[]> = {},
+  /** Empty folders (git doesn't list them). */
+  emptyDirs: string[] = [],
 ): TreeNode[] {
   const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
   const dirs = new Map<string, TreeNode>([['', root]]);
@@ -72,6 +74,8 @@ export function buildTree(
       ignored: false,
     });
   }
+
+  for (const dir of emptyDirs) dirOf(dir);
 
   // Ignored entries: a folder ends with `/` and stays empty.
   for (const entry of ignored) {

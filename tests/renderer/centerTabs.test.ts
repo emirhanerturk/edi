@@ -5,6 +5,7 @@ import {
   EMPTY_CENTER,
   activateCenterTab,
   closeCenterTab,
+  moveFileTabs,
   openTarget,
   pinCenterTab,
   setPanelOpen,
@@ -168,5 +169,43 @@ describe('commit tabs', () => {
   it('a commit tab closes too when its repo vanishes', () => {
     const s = openTarget(EMPTY_CENTER, commit('a'.repeat(40), '/w/gone'), true);
     expect(syncCenter(s, '/w', '/w', ['/w/a']).tabs).toEqual([]);
+  });
+});
+
+describe('moveFileTabs', () => {
+  const file = (path: string, repoPath = '/r'): CenterTarget => ({ kind: 'file', repoPath, path });
+  const start = () => {
+    let s = openTarget(EMPTY_CENTER, file('src/a.ts'), true);
+    s = openTarget(s, file('src/deep/b.ts'), true);
+    s = openTarget(s, { kind: 'diff', repoPath: '/r', path: 'src/a.ts' }, true);
+    s = openTarget(s, file('srcx/c.ts'), true);
+    s = openTarget(s, file('src/a.ts', '/other'), true);
+    return activateCenterTab(s, tabId(file('src/deep/b.ts')));
+  };
+
+  it('a renamed folder moves the file tabs inside it, in place; the active one stays active', () => {
+    const s = moveFileTabs(start(), '/r', 'src', 'lib');
+    expect(s.tabs.map((tab) => tab.id)).toEqual([
+      tabId(file('lib/a.ts')),
+      tabId(file('lib/deep/b.ts')),
+      'diff:/r:src/a.ts',
+      tabId(file('srcx/c.ts')),
+      tabId(file('src/a.ts', '/other')),
+    ]);
+    expect(s.tabs[1]).toMatchObject({ path: 'lib/deep/b.ts', pinned: true });
+    expect(s.active).toBe(tabId(file('lib/deep/b.ts')));
+  });
+
+  it('a deleted file or folder closes its file tabs', () => {
+    const s = moveFileTabs(start(), '/r', 'src', null);
+    expect(s.tabs.map((tab) => tab.id)).toEqual(['diff:/r:src/a.ts', tabId(file('srcx/c.ts')), tabId(file('src/a.ts', '/other'))]);
+    expect(s.active).toBe('diff:/r:src/a.ts');
+  });
+
+  it('a rename onto an open tab of the same file keeps one tab', () => {
+    let s = openTarget(EMPTY_CENTER, file('a.ts'), true);
+    s = openTarget(s, file('A.ts'), true);
+    s = moveFileTabs(s, '/r', 'a.ts', 'A.ts');
+    expect(s.tabs.map((tab) => tab.path)).toEqual(['A.ts']);
   });
 });

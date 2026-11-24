@@ -1,3 +1,4 @@
+import { FilePlus, FolderPlus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { edi } from '../bridge';
 import { BranchIcon, CollapseIcon, CommitIcon, FetchIcon, FolderIcon, RefreshIcon, RescanIcon } from '../components/icons';
@@ -20,11 +21,13 @@ export interface RightPanelViewProps {
   onRescan(): void;
   onCollapseAll(): void;
   onRefreshHistory(): void;
+  /** Files tab, when the open folder is a single repo: a new file or folder at its root. */
+  onNewEntry?(kind: 'file' | 'dir'): void;
   children: ReactNode;
 }
 
 /** Right panel: Git and Files tabs; the header buttons change with the selected tab. */
-export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onRescan, onCollapseAll, onRefreshHistory, children }: RightPanelViewProps) {
+export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onRescan, onCollapseAll, onRefreshHistory, onNewEntry, children }: RightPanelViewProps) {
   return (
     <section className="git" aria-label={tab === 'git' ? 'Git' : tab === 'history' ? 'History' : 'Files'}>
       <div className="git-tabs">
@@ -62,9 +65,21 @@ export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onResc
             <RefreshIcon size={14} />
           </button>
         ) : (
-          <button className="icon-button" aria-label="Collapse all" title="Collapse all" onClick={onCollapseAll}>
-            <CollapseIcon size={14} />
-          </button>
+          <>
+            {onNewEntry && (
+              <>
+                <button className="icon-button" aria-label="New File" title="New File" onClick={() => onNewEntry('file')}>
+                  <FilePlus size={14} strokeWidth={1.6} />
+                </button>
+                <button className="icon-button" aria-label="New Folder" title="New Folder" onClick={() => onNewEntry('dir')}>
+                  <FolderPlus size={14} strokeWidth={1.6} />
+                </button>
+              </>
+            )}
+            <button className="icon-button" aria-label="Collapse all" title="Collapse all" onClick={onCollapseAll}>
+              <CollapseIcon size={14} />
+            </button>
+          </>
         )}
       </div>
       {children}
@@ -76,7 +91,10 @@ export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onResc
 export function RightPanel() {
   const tab = useApp((s) => s.rightTab);
   const repos = useApp((s) => s.workspace.repos);
-  const { setRightTab, fetchAll, collapseFiles, refreshHistory } = useApp.getState();
+  const dir = useApp((s) => s.workspace.dir);
+  const { setRightTab, fetchAll, collapseFiles, refreshHistory, startFilesEdit } = useApp.getState();
+  // With several repos, each repo row has its own buttons.
+  const root = repos.length === 1 && repos[0]!.path === dir ? repos[0]!.path : null;
   return (
     <RightPanelView
       tab={tab}
@@ -87,6 +105,7 @@ export function RightPanel() {
       onRescan={() => void edi.rescan()}
       onCollapseAll={collapseFiles}
       onRefreshHistory={refreshHistory}
+      onNewEntry={root === null ? undefined : (kind) => startFilesEdit({ mode: 'new', kind, repoPath: root, parent: '' })}
     >
       {tab === 'git' ? <GitPanel /> : tab === 'history' ? <HistoryPanel /> : <FilesPanel />}
     </RightPanelView>

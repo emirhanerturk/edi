@@ -51,6 +51,42 @@ export function closeCenterTab(s: CenterState, id: string): CenterState {
   return { ...s, tabs, active };
 }
 
+/**
+ * After a file or folder was renamed (`to`) or moved to the Trash (`to` null): its file tabs, and those
+ * of files inside it, follow it to the new path in place, or close.
+ */
+export function moveFileTabs(s: CenterState, repoPath: string, from: string, to: string | null): CenterState {
+  const affected = (tab: CenterTab) => tab.kind === 'file' && tab.repoPath === repoPath && (tab.path === from || tab.path.startsWith(`${from}/`));
+  if (!s.tabs.some(affected)) return s;
+  let active = s.active;
+  const seen = new Set<string>();
+  const tabs: CenterTab[] = [];
+  for (const tab of s.tabs) {
+    let next: CenterTab | null = tab;
+    if (affected(tab)) {
+      if (to === null) next = null;
+      else {
+        const path = to + tab.path.slice(from.length);
+        next = { ...tab, path, id: tabId({ kind: 'file', repoPath, path }) };
+      }
+      if (tab.id === s.active) active = next?.id ?? null;
+    }
+    if (!next || seen.has(next.id)) continue;
+    seen.add(next.id);
+    tabs.push(next);
+  }
+  if (tabs.length === 0) return EMPTY_CENTER;
+  if (active === null || !tabs.some((tab) => tab.id === active)) {
+    // The active tab closed: the nearest tab that stayed, after it first, as when closing it.
+    const index = s.tabs.findIndex((tab) => tab.id === s.active);
+    const stayed = (tab: CenterTab) => tabs.some((other) => other.id === tab.id);
+    const after = s.tabs.slice(index + 1).find(stayed);
+    const before = s.tabs.slice(0, Math.max(index, 0)).reverse().find(stayed);
+    active = (after ?? before ?? tabs[0]!).id;
+  }
+  return { ...s, tabs, active };
+}
+
 export function activateCenterTab(s: CenterState, id: string): CenterState {
   return s.tabs.some((tab) => tab.id === id) ? { ...s, active: id } : s;
 }

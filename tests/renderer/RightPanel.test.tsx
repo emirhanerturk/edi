@@ -65,5 +65,19 @@ describe('RightPanelView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
     expect(onCollapseAll).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Fetch all repositories' })).toBeNull();
+    // Without a single repo to put them in, no New File / New Folder buttons.
+    expect(screen.queryByRole('button', { name: 'New File' })).toBeNull();
+  });
+
+  it('New File and New Folder on the Files tab when the open folder is one repo', () => {
+    const onNewEntry = vi.fn();
+    render(
+      <RightPanelView tab="files" badge={0} canFetch={false} onTab={vi.fn()} onFetchAll={vi.fn()} onRescan={vi.fn()} onCollapseAll={vi.fn()} onRefreshHistory={vi.fn()} onNewEntry={onNewEntry}>
+        <p>content</p>
+      </RightPanelView>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'New File' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New Folder' }));
+    expect(onNewEntry.mock.calls).toEqual([['file'], ['dir']]);
   });
 });

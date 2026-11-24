@@ -74,6 +74,12 @@ export type BranchList = { ok: true; branches: string[]; current: string | null 
 /** A file's change against HEAD and its status entry. */
 export type DiffView = { ok: true; diff: ParsedDiff; file: FileChange } | { ok: false; error: string };
 
+/** A file or folder change from the Files tab. `path`: where it is now. `cancelled`: the user said no at the question. */
+export type EntryOpResult = { ok: true; path: string } | { ok: false; error: string; cancelled?: true };
+/** The kind of Files tab row that was right-clicked, and what was picked from its menu. */
+export type FilesMenuKind = 'repo' | 'dir' | 'file';
+export type FilesMenuAction = 'newFile' | 'newFolder' | 'rename' | 'trash' | 'reveal';
+
 /** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
 
@@ -160,6 +166,16 @@ export interface EdiApi {
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
   /** Saves editor text over an existing file; `expected` is the disk text the edit started from (`null`: overwrite). */
   writeFile(repoPath: string, filePath: string, text: string, expected: string | null): Promise<WriteResult>;
+  /** Files tab: an empty file or a folder at `path` (relative to the repo); never overwrites. */
+  createEntry(repoPath: string, path: string, kind: 'file' | 'dir'): Promise<EntryOpResult>;
+  /** Renames in place. `unsaved`: open tabs under it with unsaved edits (it asks first then). */
+  renameEntry(repoPath: string, path: string, name: string, unsaved: number): Promise<EntryOpResult>;
+  /** Moves to the Trash after asking. */
+  trashEntry(repoPath: string, path: string, unsaved: number): Promise<EntryOpResult>;
+  /** Shows it in Finder; '' is the repo itself. */
+  revealEntry(repoPath: string, path: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** The native right-click menu of a Files tab row; the picked action, or null. */
+  filesMenu(kind: FilesMenuKind): Promise<FilesMenuAction | null>;
   /** The file's text at HEAD (null if not in HEAD), to mark the editor's changed lines. */
   headText(repoPath: string, filePath: string): Promise<HeadText>;
   /** Who last changed each line of `text` (the editor's current text for the file). */

@@ -122,7 +122,7 @@ describe('ViewOps', () => {
     const { repo, ops } = await setup();
     await writeFile(join(repo, 'new.ts'), 'const a = 1;\n');
     expect(await ops.readFile(repo, 'new.ts')).toEqual({ ok: true, kind: 'text', text: 'const a = 1;\n', size: 13 });
-    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'new.ts'], ignored: [] });
+    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'new.ts'], ignored: [], dirs: [] });
     await mkdir(join(repo, 'dist'));
     await writeFile(join(repo, 'dist', 'app.js'), 'x\n');
     expect(await ops.listDir(repo, 'dist')).toEqual({ ok: true, entries: [{ name: 'app.js', dir: false }], more: 0 });

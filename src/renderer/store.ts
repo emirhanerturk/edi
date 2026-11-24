@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
+import type { FilesEdit } from './files/filesEdit';
 import { edi } from './bridge';
 import {
   type CenterState,
@@ -8,6 +9,7 @@ import {
   EMPTY_CENTER,
   activateCenterTab,
   closeCenterTab,
+  moveFileTabs,
   openTarget,
   pinCenterTab,
   setPanelOpen,
@@ -158,6 +160,13 @@ interface AppStore {
   filesOpen: Record<string, boolean>;
   toggleFilesDir(key: string, open: boolean): void;
   collapseFiles(): void;
+  /** A name being typed in the Files tab (new file or folder, or a rename); null if none. */
+  filesEdit: FilesEdit | null;
+  /** Starts typing a name; a new entry's folder opens so the field shows. */
+  startFilesEdit(edit: FilesEdit): void;
+  endFilesEdit(): void;
+  /** After a rename (`to`) or a move to the Trash (`to` null): file tabs follow or close. */
+  moveFileTabs(repoPath: string, from: string, to: string | null): void;
 
   /** Last error in the center panel (such as "Couldn't open Zed"); null if none. */
   centerError: string | null;
@@ -293,6 +302,15 @@ export const useApp = create<AppStore>((set, get) => ({
   filesOpen: {},
   toggleFilesDir: (key, open) => set((state) => ({ filesOpen: { ...state.filesOpen, [key]: open } })),
   collapseFiles: () => set({ filesOpen: {} }),
+  filesEdit: null,
+  startFilesEdit(edit) {
+    set((state) => ({
+      filesEdit: edit,
+      filesOpen: edit.mode === 'new' ? { ...state.filesOpen, [`${edit.repoPath}\n${edit.parent}`]: true } : state.filesOpen,
+    }));
+  },
+  endFilesEdit: () => set({ filesEdit: null }),
+  moveFileTabs: (repoPath, from, to) => set((state) => ({ center: moveFileTabs(state.center, repoPath, from, to) })),
 
   centerError: null,
   dismissCenterError: () => set({ centerError: null }),
@@ -421,6 +439,7 @@ export function connect(): () => void {
         center: syncCenter(state.center, state.workspace.dir, workspace.dir, workspace.repos.map((repo) => repo.path)),
         // Switching to another folder starts the Files tree collapsed.
         filesOpen: workspace.dir === state.workspace.dir ? state.filesOpen : {},
+        filesEdit: workspace.dir === state.workspace.dir ? state.filesEdit : null,
         // The old folder's error means nothing in the new folder.
         centerError: workspace.dir === state.workspace.dir ? state.centerError : null,
         // History: starts over in another folder; logs and the filter of vanished repos are dropped.

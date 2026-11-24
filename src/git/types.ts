@@ -27,8 +27,11 @@ export interface RepoStatus {
   files: FileChange[];
 }
 
-/** `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents). */
-export type FileList = { ok: true; files: string[]; ignored: string[] } | { ok: false; error: string };
+/**
+ * `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents).
+ * `dirs`: folders with nothing git lists inside them (git leaves empty folders out).
+ */
+export type FileList = { ok: true; files: string[]; ignored: string[]; dirs: string[] } | { ok: false; error: string };
 
 /** One entry of a folder listing. */
 export interface DirEntry {

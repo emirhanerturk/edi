@@ -97,6 +97,13 @@ describe('buildTree', () => {
   it('an empty list gives an empty tree', () => {
     expect(buildTree([], [])).toEqual([]);
   });
+
+  it('empty folders show as folders with nothing inside', () => {
+    const tree = buildTree(['a.ts'], [], [], {}, ['new', 'new/inner']);
+    expect(tree.map((node) => `${node.kind}:${node.path}`)).toEqual(['dir:new', 'file:a.ts']);
+    expect(tree[0]!.children.map((node) => `${node.kind}:${node.path}`)).toEqual(['dir:new/inner']);
+    expect(tree[0]!.children[0]!.children).toEqual([]);
+  });
 });
 
 describe('flattenTree', () => {
