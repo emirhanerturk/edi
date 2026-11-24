@@ -8,7 +8,7 @@ import { addRemote, git, launch, makeRepo, tmpDir } from './helpers.js';
 const run = promisify(execFile);
 const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
 
-/** Verilen saat önce commit atar (yazar ve commit tarihi). */
+/** Commits the given number of hours ago (author and committer date). */
 async function commitAgo(repo: string, subject: string, hours: number, file = 'a.txt'): Promise<void> {
   await writeFile(join(repo, file), `${subject}\n`);
   await git(repo, 'add', '-A');
@@ -16,7 +16,7 @@ async function commitAgo(repo: string, subject: string, hours: number, file = 'a
   await run('git', ['commit', '-q', '-m', subject], { cwd: repo, env: { ...GIT_ENV, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } });
 }
 
-/** makeRepo'nun 'chore: init' commitini verilen saat öncesine taşır. */
+/** Moves makeRepo's 'chore: init' commit back by the given number of hours. */
 async function backdateInit(repo: string, hours: number): Promise<void> {
   const date = `@${Math.floor(Date.now() / 1000 - hours * 3600)} +0000`;
   await run('git', ['commit', '-q', '--amend', '--no-edit', `--date=${date}`], { cwd: repo, env: { ...GIT_ENV, GIT_COMMITTER_DATE: date } });
@@ -24,7 +24,7 @@ async function backdateInit(repo: string, hours: number): Promise<void> {
 
 const subjects = (page: Page) => page.getByTestId('history-commit').locator('.history-subject');
 
-test("History sekmesi tüm repoların commit'lerini gösterir", async () => {
+test('the History tab shows the commits of every repo', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
   const beta = await makeRepo(dir, 'beta');
@@ -40,7 +40,7 @@ test("History sekmesi tüm repoların commit'lerini gösterir", async () => {
   try {
     const { page } = first;
     await page.getByRole('tab', { name: /History/ }).click();
-    // makeRepo'nun 'chore: init' commitleri en eskiler.
+    // makeRepo's 'chore: init' commits are the oldest.
     await expect(subjects(page)).toHaveText([
       'fix(alpha): local change',
       'feat(beta): middle',
@@ -54,7 +54,7 @@ test("History sekmesi tüm repoların commit'lerini gösterir", async () => {
     await expect(page.getByTestId('history-commit').filter({ hasText: 'pushed work' }).getByRole('img', { name: 'Not pushed yet' })).toHaveCount(0);
     await expect(local).toContainText('alpha');
 
-    // Commit görünümü.
+    // The commit view.
     await page.getByTestId('history-commit').filter({ hasText: 'middle' }).click();
     const view = page.getByTestId('center-view');
     await expect(view).toHaveAttribute('data-kind', 'commit');
@@ -67,14 +67,14 @@ test("History sekmesi tüm repoların commit'lerini gösterir", async () => {
     await expect(page.getByTestId('center-info')).toHaveText('1 file changed');
     await expect(page.getByTestId('history-commit').filter({ hasText: 'middle' })).toHaveAttribute('aria-current', 'true');
 
-    // Tek repoya süz: repo adı gizlenir, upstream çizgisi ve branch görünür.
+    // Filter to one repo: the repo name is hidden, the upstream line and the branch show.
     await page.getByRole('button', { name: 'All repositories' }).click();
     await page.getByRole('menuitemradio', { name: 'alpha' }).click();
     await expect(subjects(page)).toHaveText(['fix(alpha): local change', 'feat(alpha): pushed work', 'chore: init']);
     await expect(page.getByTestId('history-remote')).toHaveText('origin/main');
     await expect(page.getByTestId('history-branch')).toHaveText('main');
 
-    // Terminal tarafında atılan commit bir sonraki yoklamada görünür.
+    // A commit made from the terminal shows on the next poll.
     await commitAgo(alpha, 'feat(alpha): from the terminal', 0, 'c.txt');
     await expect(subjects(page).first()).toHaveText('feat(alpha): from the terminal');
 

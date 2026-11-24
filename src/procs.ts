@@ -3,16 +3,16 @@ import { basename } from 'node:path';
 
 export interface PsRow {
   pid: number;
-  /** Süreç grubu. */
+  /** Process group. */
   pgid: number;
-  /** Sürecin terminalinde o an önde olan süreç grubu; terminali yoksa 0. */
+  /** The process group currently in the foreground of the process's terminal; 0 if it has no terminal. */
   tpgid: number;
-  /** `ttys003` gibi; terminali yoksa boş. */
+  /** Like `ttys003`; empty if it has no terminal. */
   tty: string;
   args: string;
 }
 
-/** `ps -axww -o pid=,pgid=,tpgid=,tty=,args=` çıktısını ayrıştırır. */
+/** Parses the output of `ps -axww -o pid=,pgid=,tpgid=,tty=,args=`. */
 export function parsePs(out: string): PsRow[] {
   const rows: PsRow[] = [];
   for (const line of out.split('\n')) {
@@ -29,7 +29,7 @@ export function parsePs(out: string): PsRow[] {
   return rows;
 }
 
-/** Çalışan tüm süreçler. Okunamazsa boş dizi: sekme adı bir kolaylık, hatası kullanıcıyı ilgilendirmez. */
+/** All running processes. An empty array if they can't be read: the tab name is a convenience, and its errors don't concern the user. */
 export function listPs(): Promise<PsRow[]> {
   return new Promise((resolve) => {
     execFile(
@@ -41,7 +41,7 @@ export function listPs(): Promise<PsRow[]> {
   });
 }
 
-/** Bir terminalde o an önde çalışan süreç grubunun üyeleri. */
+/** Members of the process group currently in the foreground of a terminal. */
 export function foreground(rows: PsRow[], tty: string): PsRow[] {
   return rows.filter((row) => row.tty === tty && row.pgid === row.tpgid);
 }
@@ -49,20 +49,20 @@ export function foreground(rows: PsRow[], tty: string): PsRow[] {
 export interface TabInfo {
   title: string;
   claude: boolean;
-  /** Kabuğun dışında bir şey çalışıyor: sekme kapatılırken sorulur. */
+  /** Something other than the shell is running: closing the tab asks first. */
   busy: boolean;
 }
 
 const TITLE_MAX = 40;
 
-/** Sekmenin başlığı ve türü, terminalinde önde çalışan süreç grubuna göre. */
+/** The tab's title and kind, based on the foreground process group in its terminal. */
 export function tabInfo(fg: PsRow[], shellPid: number, shellName: string, claudePids: ReadonlySet<number>): TabInfo {
   if (fg.some((row) => claudePids.has(row.pid))) return { title: 'claude', claude: true, busy: true };
 
   const others = fg.filter((row) => row.pid !== shellPid);
   if (others.length === 0) return { title: shellName, claude: false, busy: false };
 
-  // Grubun lideri kullanıcının yazdığı komuttur; diğerleri onun alt süreçleri.
+  // The group leader is the command the user typed; the others are its child processes.
   const leader = others.find((row) => row.pid === row.pgid) ?? others[0]!;
   const [command = '', ...rest] = leader.args.split(' ');
   const title = [basename(command), ...rest].join(' ').slice(0, TITLE_MAX);

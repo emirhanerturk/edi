@@ -5,7 +5,7 @@ export interface Box {
   bottom: number;
 }
 
-/** Pencereye göre sabit konum: `top` ya da (yukarı açılıyorsa) `bottom` dolu gelir. */
+/** Fixed position relative to the window: `top` or (if opening upward) `bottom` is set. */
 export interface Placement {
   left: number;
   top?: number;
@@ -14,16 +14,16 @@ export interface Placement {
   maxHeight: number;
 }
 
-/** Menü ile düğme arasındaki boşluk ve menünün pencere kenarına en fazla yaklaşacağı mesafe. */
+/** Gap between the menu and the button, and the closest the menu gets to the window edge. */
 const GAP = 4;
 const MARGIN = 8;
-/** Altta bundan az yer varsa ve üstte daha çok yer varsa menü yukarı açılır. */
+/** If there's less room than this below and more room above, the menu opens upward. */
 const MIN_BELOW = 200;
 
 /**
- * Açılır menüyü düğmenin altına, sağ kenarına hizalı yerleştirir ve pencerenin içinde tutar.
- * Menü `position: fixed` ile çizilir; böylece kaydırılabilir bir panelin içinde açılsa da
- * panelin kenarında kırpılmaz.
+ * Places a dropdown menu below the button, aligned to its right edge, and keeps it inside the window.
+ * The menu is drawn with `position: fixed`, so even when opened inside a scrollable panel it isn't
+ * clipped at the panel's edge.
  */
 export function placeMenu(anchor: Box, viewport: { width: number; height: number }, size: { width: number; maxHeight: number }): Placement {
   const width = Math.min(size.width, viewport.width - 2 * MARGIN);

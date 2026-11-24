@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { linkActivator } from '../../src/renderer/terminals/links';
 
 describe('linkActivator', () => {
-  it('yalnız Option basılıyken açar', () => {
+  it('opens only while Option is held', () => {
     const open = vi.fn();
     const activate = linkActivator(open);
     activate({ altKey: false } as MouseEvent, 'http://localhost:5173/');

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { languageOf } from '../../src/renderer/highlight/languages';
 
 describe('languageOf', () => {
-  it('uzantıdan dili bulur', () => {
+  it('finds the language from the extension', () => {
     const cases: [string, string, string][] = [
       ['app/game/play.tsx', 'tsx', 'TypeScript JSX'],
       ['src/a.ts', 'typescript', 'TypeScript'],
@@ -41,7 +41,7 @@ describe('languageOf', () => {
     for (const [path, id, label] of cases) expect(languageOf(path), path).toEqual({ id, label });
   });
 
-  it('adından tanınan dosyalar', () => {
+  it('recognizes files by name', () => {
     expect(languageOf('docker/Dockerfile')).toEqual({ id: 'dockerfile', label: 'Dockerfile' });
     expect(languageOf('Dockerfile.dev')).toEqual({ id: 'dockerfile', label: 'Dockerfile' });
     expect(languageOf('Makefile')).toEqual({ id: 'makefile', label: 'Makefile' });
@@ -50,16 +50,16 @@ describe('languageOf', () => {
     expect(languageOf('.zshrc')).toEqual({ id: 'shellscript', label: 'Shell' });
   });
 
-  it('büyük harfli uzantıyı tanır', () => {
+  it('recognizes an uppercase extension', () => {
     expect(languageOf('A.TS')).toEqual({ id: 'typescript', label: 'TypeScript' });
     expect(languageOf('README.MD')).toEqual({ id: 'markdown', label: 'Markdown' });
   });
 
-  it('bilinmeyen ya da uzantısız dosyada null', () => {
+  it('null for an unknown or extensionless file', () => {
     expect(languageOf('.gitignore')).toBeNull();
     expect(languageOf('LICENSE')).toBeNull();
     expect(languageOf('a.xyz')).toBeNull();
-    expect(languageOf('klasör.ts/dosya')).toBeNull();
+    expect(languageOf('folder.ts/file')).toBeNull();
     expect(languageOf('')).toBeNull();
   });
 });

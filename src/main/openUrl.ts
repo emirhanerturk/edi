@@ -5,8 +5,8 @@ const NOT_WEB = { ok: false, error: 'Only web links can be opened' } as const;
 const MAX_URL = 2048;
 
 /**
- * Terminaldeki bir bağlantıyı varsayılan tarayıcıda açar. Yalnız http ve https: `file:`,
- * `javascript:` ya da bir uygulamanın kendi şeması (`vscode://`) tarayıcı yerine başka bir şey çalıştırabilir.
+ * Opens a link from the terminal in the default browser. Only http and https: `file:`,
+ * `javascript:` or an app's own scheme (`vscode://`) could run something other than the browser.
  */
 export async function openUrl(url: unknown, open: (url: string) => Promise<void> = (u) => shell.openExternal(u)): Promise<OpResult> {
   if (typeof url !== 'string' || url.length > MAX_URL) return NOT_WEB;

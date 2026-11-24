@@ -1,29 +1,29 @@
-// Bir reponun geçerli branch'indeki (HEAD) son commit'leri okur. Yalnız okur.
+// Reads the latest commits on a repo's current branch (HEAD). Read-only.
 import { runGit } from './exec.js';
 import type { CommitSummary, LogResult } from './types.js';
 
 export type { CommitSummary, LogResult };
 
-/** Bir sayfada repo başına okunan commit sayısı. */
+/** Number of commits read per repo per page. */
 export const PAGE = 50;
 
 /**
- * Kullanıcının ayarlarından bağımsız çıktı: imza doğrulaması, renk ve tırnaklı yollar kapalı.
- * Biçim her zaman açıkça verilir (`format.pretty` etkisizdir).
+ * Output independent of the user's config: signature verification, color and quoted paths are off.
+ * The format is always given explicitly (`format.pretty` has no effect).
  */
 export const PINNED = ['-c', 'log.showSignature=false', '-c', 'color.ui=false', '-c', 'core.quotePath=false'];
 
 /**
- * History okumaları için ortam: partial clone'da (`--filter=blob:none`) eksik içerik için git'in
- * kendiliğinden uzak repoya gitmesi kapalıdır. Görüntülemek ağa çıkmaz, `.git`'e yazmaz.
+ * Environment for History reads: in a partial clone (`--filter=blob:none`), git is stopped from going to the
+ * remote on its own for missing content. Viewing doesn't touch the network or write to `.git`.
  */
 export const NO_LAZY_FETCH = { GIT_NO_LAZY_FETCH: '1' };
 
 const US = '\x1f';
-/** Alanlar birim ayracıyla, kayıtlar (`-z` ile) NUL ile ayrılır: konu satırında ikisi de bulunamaz. */
+/** Fields are separated by the unit separator and records (with `-z`) by NUL: neither can appear in a subject line. */
 export const SUMMARY_FORMAT = ['%H', '%h', '%P', '%an', '%ae', '%ct', '%D', '%s'].join('%x1f');
 
-/** `%D` alanından etiketler: "HEAD -> main, tag: v1.2.0, origin/main". */
+/** Tags from the `%D` field: "HEAD -> main, tag: v1.2.0, origin/main". */
 function tagsOf(decoration: string): string[] {
   return decoration
     .split(', ')
@@ -46,11 +46,11 @@ export function parseSummary(fields: string[]): CommitSummary | null {
   };
 }
 
-/** `git log -z --format=<SUMMARY_FORMAT>` çıktısını ayrıştırır. */
+/** Parses the output of `git log -z --format=<SUMMARY_FORMAT>`. */
 export function parseLog(out: string): CommitSummary[] {
   const commits: CommitSummary[] = [];
   for (const record of out.split('\0')) {
-    // Kayıtlar arasında git bazen satır sonu bırakır.
+    // git sometimes leaves a newline between records.
     const summary = parseSummary(record.replace(/^\n/, '').split(US));
     if (summary) commits.push(summary);
   }
@@ -60,15 +60,15 @@ export function parseLog(out: string): CommitSummary[] {
 const lines = (stdout: string) => stdout.split('\n').map((line) => line.trim()).filter(Boolean);
 
 async function upstreamOf(repo: string): Promise<string | null> {
-  // Upstream yoksa ya da uzaktaki branch silinmişse git hata ile çıkar (stdout'a "@{u}" yazsa da).
+  // If there is no upstream or the remote branch was deleted, git exits with an error (even though it writes "@{u}" to stdout).
   const result = await runGit(repo, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
   const name = result.ok ? result.stdout.trim() : '';
   return name === '' ? null : name;
 }
 
 /**
- * Yüklenen commit'lerden push edilmemiş olanlar. Upstream varsa ona göre; yoksa uzaktaki hiçbir
- * branch'te olmayanlar; remote hiç yoksa hiçbiri (push edilecek yer yok, ok işareti gürültü olur).
+ * The loaded commits that haven't been pushed. Relative to the upstream if there is one; otherwise those on no
+ * remote branch; if there is no remote at all, none (there is nowhere to push, so the arrow would be noise).
  */
 async function unpushedOf(repo: string, upstream: string | null, limit: number): Promise<string[]> {
   if (upstream !== null) {
@@ -81,7 +81,7 @@ async function unpushedOf(repo: string, upstream: string | null, limit: number):
   return result.ok ? lines(result.stdout) : [];
 }
 
-/** HEAD'den geriye en çok `count` commit. Commit'i olmayan repoda boş liste döner. */
+/** At most `count` commits going back from HEAD. Returns an empty list in a repo with no commits. */
 export async function readLog(repo: string, count: number): Promise<LogResult> {
   const [head, email] = await Promise.all([
     runGit(repo, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], { okCodes: [0, 1], env: NO_LAZY_FETCH }),

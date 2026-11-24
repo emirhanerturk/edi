@@ -8,7 +8,7 @@
 
 **Tech Stack:** as plan 2. No new dependency.
 
-**Spec:** `docs/superpowers/specs/2026-11-24-edi-desktop-app-design.md` (sections "History", "Orta panel → Commit görünümü", "Teknik kararlar"). Visual source: `docs/design/edi-ui/History.dc.html`, `HistoryStates.dc.html`.
+**Spec:** `docs/superpowers/specs/2026-11-24-edi-desktop-app-design.md` (sections "History", "Center panel → Commit view", "Technical decisions"). Visual source: `docs/design/edi-ui/History.dc.html`, `HistoryStates.dc.html`.
 
 Plan 3 of 4. It builds on plan 2 (branch `feat/center-panel`); work happens on `feat/history`, branched from it.
 
@@ -189,7 +189,7 @@ export function isRelease(subject: string, tag: string): boolean;     // '1.86.0
 
 **Files:** Create `e2e/history.spec.ts`. Modify `README.md`.
 
-- [ ] **Step 1:** e2e `'History sekmesi tüm repoların commit'lerini gösterir'`: two repos with commits at different times (`GIT_COMMITTER_DATE`), one unpushed commit on a repo with a bare remote → History tab lists both repos' subjects newest first under day headers, the arrow on the unpushed one; By repo layout survives a relaunch; filter to one repo shows the `origin/main` line; clicking a commit opens the commit view with its files and `+/−`; a new commit made from the terminal side (`git commit` in the test) appears after the next poll.
+- [ ] **Step 1:** e2e `'the History tab shows every repo's commits'`: two repos with commits at different times (`GIT_COMMITTER_DATE`), one unpushed commit on a repo with a bare remote → History tab lists both repos' subjects newest first under day headers, the arrow on the unpushed one; By repo layout survives a relaunch; filter to one repo shows the `origin/main` line; clicking a commit opens the commit view with its files and `+/−`; a new commit made from the terminal side (`git commit` in the test) appears after the next poll.
 - [ ] **Step 2:** `npm run typecheck && npm test && npm run e2e` — PASS; screenshot with the demo repos, compare with `History.dc.html`.
 - [ ] **Step 3:** README: History tab and commit view; planned next line.
 - [ ] **Step 4:** commit `docs: describe the History tab and the commit view`.

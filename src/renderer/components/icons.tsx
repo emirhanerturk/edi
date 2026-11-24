@@ -1,9 +1,9 @@
-// Simgeler: 16'lık ızgarada çizgi SVG. Renk `currentColor`'dan gelir.
+// Icons: line SVGs on a 16-unit grid. Color comes from `currentColor`.
 import type { ReactNode, SVGProps } from 'react';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children'> {
   size?: number;
-  /** Verilirse simge anlam taşır ve ekran okuyucuya okunur; verilmezse süstür. */
+  /** If given, the icon carries meaning and is read by screen readers; if not, it's decorative. */
   label?: string;
 }
 
@@ -44,7 +44,7 @@ export const ChevronRight = (p: IconProps) => (
     <path d="M6 4l4 4-4 4" />
   </Icon>
 );
-/** Claude Code işareti: sekiz kollu yıldız. */
+/** Claude Code mark: an eight-pointed star. */
 export const ClaudeMark = (p: IconProps) => (
   <Icon strokeWidth={1.9} stroke="var(--claude)" {...p}>
     <path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2" />
@@ -120,14 +120,14 @@ export const RescanIcon = (p: IconProps) => (
     <path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" />
   </Icon>
 );
-/** Süren işlem: dönen yay. */
+/** Operation in progress: a spinning arc. */
 export const Spinner = (p: IconProps) => (
   <Icon className="spin" {...p}>
     <path d="M8 2.5a5.5 5.5 0 1 1-5.5 5.5" />
   </Icon>
 );
 
-/** Dışarıda (başka uygulamada) aç. */
+/** Open externally (in another app). */
 export const ExternalIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M6.5 3.5H3.5v9h9v-3M9.5 2.5h4v4M13.5 2.5l-6 6" />
@@ -146,21 +146,21 @@ export const FileIcon = (p: IconProps) => (
     <path d="M9 1.5v3h3" />
   </Icon>
 );
-/** Hepsini kapat: içe bakan iki ok. */
+/** Collapse all: two arrows pointing inward. */
 export const CollapseIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4.5 6.5L8 3l3.5 3.5M4.5 9.5L8 13l3.5-3.5" />
   </Icon>
 );
 
-/** Hepsini kapat (commit dosyaları): birbirine bakan iki ok. */
+/** Collapse all (commit files): two arrows pointing at each other. */
 export const FoldIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4.5 2L8 5.5 11.5 2M4.5 14L8 10.5l3.5 3.5" />
   </Icon>
 );
 
-/** Hepsini aç: dışa bakan iki ok. */
+/** Expand all: two arrows pointing outward. */
 export const ExpandIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4.5 4.5L8 1l3.5 3.5M4.5 11.5L8 15l3.5-3.5" />

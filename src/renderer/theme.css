@@ -1,11 +1,11 @@
-/* Görsel dil: One Dark yüzeyleri, nötr vurgu. Kaynak: docs/design/edi-ui. */
+/* Visual language: One Dark surfaces, neutral accent. Source: docs/design/edi-ui. */
 :root {
   --bg: #282c34;
   --panel: #21252b;
   --panel-open: #252930;
   --input: #1b1d23;
   --selected: #2f343e;
-  /* Satırın üzerine gelince: hem panelde hem açık repo zemininde fark edilir. */
+  /* Row hover: noticeable both on the panel and on an open repo's background. */
   --hover: rgba(255, 255, 255, 0.035);
   --line: #181a1f;
   --line-soft: #1b1e23;
@@ -93,7 +93,7 @@ textarea {
   display: flex;
 }
 
-/* Başlık çubuğu: pencere buradan sürüklenir; soldaki boşluk trafik ışıklarının yeri. */
+/* Title bar: the window is dragged from here; the space on the left is for the traffic lights. */
 .titlebar {
   height: 38px;
   flex: none;

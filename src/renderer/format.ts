@@ -1,6 +1,6 @@
 import type { WorkspaceView } from '../shared/api';
 
-/** Ev klasörünü `~` ile kısaltır. */
+/** Shortens the home folder to `~`. */
 export function tildify(path: string, home: string): string {
   if (home === '' || home === '/') return path;
   if (path === home) return '~';
@@ -11,7 +11,7 @@ export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** Durum çubuğundaki sayılar. */
+/** Counts in the status bar. */
 export function summary(view: WorkspaceView): { repos: number; withChanges: number; toPush: number } {
   let withChanges = 0;
   let toPush = 0;
@@ -24,8 +24,8 @@ export function summary(view: WorkspaceView): { repos: number; withChanges: numb
 }
 
 /**
- * "Ne kadar önce". Yoklama birkaç saniyede bir çalıştığı için yakın zaman sabit yazılır;
- * sayı ancak yenileme takıldığında görünür.
+ * "How long ago". Polling runs every few seconds, so the recent past is a fixed string;
+ * a number only shows up when refreshing gets stuck.
  */
 export function ago(then: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - then) / 1000));

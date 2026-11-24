@@ -15,19 +15,19 @@ export interface HistoryPanelViewProps {
   rows: HistoryRow[];
   groups: RepoGroup[];
   now: number;
-  /** Tek repo gösteriliyor: repo adları gizlenir, branch etiketi görünür. */
+  /** Showing a single repo: repo names are hidden, the branch label is shown. */
   single: boolean;
-  /** Tek repo modunda reponun branch'i. */
+  /** The repo's branch in single-repo mode. */
   branch: string | null;
-  /** Süzgeç menüsündeki repolar. */
+  /** Repos in the filter menu. */
   repos: { name: string; path: string }[];
   filter: string | null;
-  /** İlk loglar henüz gelmedi. */
+  /** The first logs haven't arrived yet. */
   loading: boolean;
-  /** Logu okunamayan repolar. */
+  /** Repos whose log couldn't be read. */
   errors: { repoName: string; error: string }[];
   canLoadMore: boolean;
-  /** Orta panelde açık commit. */
+  /** The commit open in the center panel. */
   selected: { repoPath: string; oid: string } | null;
   onOpenCommit(repoPath: string, oid: string, pin: boolean): void;
   onFilter(path: string | null): void;
@@ -35,7 +35,7 @@ export interface HistoryPanelViewProps {
   onLoadMore(): void;
 }
 
-/** Tık önizleme, çift tık kalıcı sekme, Enter önizleme. */
+/** Click previews, double click opens a permanent tab, Enter previews. */
 function openHandlers(open: (pin: boolean) => void) {
   return {
     role: 'button',
@@ -58,7 +58,7 @@ function Subject({ subject, merge = false }: { subject: string; merge?: boolean 
   );
 }
 
-/** History sekmesi: tüm repoların commitleri tek zaman çizelgesinde ya da repo gruplarında. */
+/** History tab: all repos' commits on a single timeline or in repo groups. */
 export function HistoryPanelView(props: HistoryPanelViewProps) {
   const { layout, filter, repos, single, branch, errors, canLoadMore, onFilter, onLayout, onLoadMore } = props;
   return (
@@ -167,7 +167,7 @@ function Timeline({ rows, now, single, loading, selected, onOpenCommit }: Histor
 }
 
 function ByRepo({ groups, now, loading, selected, onOpenCommit }: HistoryPanelViewProps) {
-  // Kullanıcının açıp kapattığı gruplar; diğerleri son 3 güne göre açık ya da kapalı.
+  // Groups the user expanded or collapsed; the others are expanded or collapsed based on the last 3 days.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   if (groups.length === 0) return <p className="history-note">{loading ? 'Loading…' : 'No commits yet'}</p>;
   return (
@@ -222,7 +222,7 @@ function GroupLine({ commit, now, current, open }: { commit: CommitSummary; now:
   );
 }
 
-/** History sekmesinin uygulama durumuna bağlı hâli. Logları gösterildiğinde ve HEAD değiştikçe okur. */
+/** The History tab bound to app state. Reads logs when they're shown and whenever HEAD changes. */
 export function HistoryPanel() {
   const repos = useApp((s) => s.workspace.repos);
   const history = useApp((s) => s.history);

@@ -1,5 +1,5 @@
-// Geliştirme: ana süreci derler, sayfayı Vite'tan (anında yenilemeyle) sunar ve Electron'u açar.
-// Ana süreçteki değişiklikler için yeniden başlatmak gerekir.
+// Development: compiles the main process, serves the page from Vite (with live reload) and opens Electron.
+// Changes to the main process need a restart.
 import { spawn, spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

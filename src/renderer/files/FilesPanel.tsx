@@ -8,19 +8,19 @@ import { useApp } from '../store';
 import { type TreeRow, buildTree, flattenTree, insideIgnored } from './tree';
 import './files.css';
 
-/** Açık klasörlerin anahtarı: repo yolu ve klasörün repoya göre yolu (repo kökü için boş). */
+/** Key for open folders: the repo path and the folder's path relative to the repo (empty for the repo root). */
 export const dirKey = (repoPath: string, path: string) => `${repoPath}\n${path}`;
 
 export interface FilesPanelViewProps {
   repos: RepoView[];
-  /** Açık klasör tek bir repo: ağaç doğrudan onun içeriğiyle başlar. */
+  /** The open folder is a single repo: the tree starts directly with its contents. */
   single: boolean;
-  /** Yüklenmiş dosya listeleri (repo yolu → liste); yüklenmemişse yoktur. */
+  /** Loaded file lists (repo path → list); absent if not loaded. */
   lists: Record<string, FileList>;
-  /** Açılıp okunmuş yok sayılan klasörlerin içi (`dirKey` → tek seviye); okunuyorsa yoktur. */
+  /** Contents of ignored folders that were expanded and read (`dirKey` → one level); absent while reading. */
   dirs: Record<string, DirList>;
   open: Record<string, boolean>;
-  /** Orta panelde açık olan dosya. */
+  /** The file open in the center panel. */
   selected: { repoPath: string; path: string } | null;
   onToggle(key: string, open: boolean): void;
   onOpenFile(repoPath: string, path: string, pin: boolean): void;
@@ -31,7 +31,7 @@ type Line =
   | { type: 'node'; repo: RepoView; row: TreeRow }
   | { type: 'note'; key: string; text: string; error: boolean; depth: number };
 
-/** Files sekmesi: her repo bir üst klasör; içinde çalışma ağacı, değişen dosyalar işaretli. */
+/** Files tab: each repo is a top-level folder holding its working tree, with changed files marked. */
 export function FilesPanelView({ repos, single, lists, dirs, open, selected, onToggle, onOpenFile }: FilesPanelViewProps) {
   if (repos.length === 0) {
     return (
@@ -52,7 +52,7 @@ export function FilesPanelView({ repos, single, lists, dirs, open, selected, onT
     }
     const tree = buildTree(list.files, repo.status?.files ?? [], list.ignored, loaded);
     const lines: Line[] = [];
-    // "N more not shown" notu, yok sayılan klasörün son satırından sonra gelir.
+    // The "N more not shown" note comes after the ignored folder's last row.
     const pending: { depth: number; line: Line }[] = [];
     const flushTo = (depth: number) => {
       while (pending.length > 0 && pending[pending.length - 1]!.depth >= depth) lines.push(pending.pop()!.line);
@@ -62,7 +62,7 @@ export function FilesPanelView({ repos, single, lists, dirs, open, selected, onT
       lines.push({ type: 'node', repo, row });
       const { node } = row;
       if (node.kind !== 'dir' || !row.open || !insideIgnored(node.path, list.ignored)) continue;
-      // Yok sayılan klasörün içi açılınca okunur: okunurken, okunamazsa ve sınırı aşınca not.
+      // An ignored folder's contents are read when it's expanded: a note while reading, if reading fails and when over the limit.
       const key = dirKey(repo.path, node.path);
       const dir = dirs[key];
       const noteDepth = row.depth + 1;
@@ -140,7 +140,7 @@ export function FilesPanelView({ repos, single, lists, dirs, open, selected, onT
     );
   }
 
-  // Çok repolu görünüm: her repo, Git sekmesindeki gibi kendi bölümü; açık olan vurgulu.
+  // Multi-repo view: each repo is its own section, as in the Git tab; the open one is highlighted.
   return (
     <div className="git-list files-tree" role="tree" aria-label="Files">
       {repos.map((repo) => {
@@ -164,9 +164,9 @@ interface TreeItemProps {
   depth: number;
   kind: 'repo' | 'dir' | 'file';
   open?: boolean;
-  /** `.gitignore`'a takılıyor: soluk. */
+  /** Matched by `.gitignore`: dimmed. */
   ignored?: boolean;
-  /** Dosyada durum harfi, klasörde "●"; yoksa boş. */
+  /** Status letter on a file, "●" on a folder; empty if none. */
   badge: string;
   selected?: boolean;
   onClick(): void;
@@ -219,15 +219,15 @@ function TreeItem({ name, title, depth, kind, open, ignored = false, badge, sele
 }
 
 /**
- * Değişince dosya listesi yeniden okunur: branch ve HEAD (branch değişimi, pull, commit temiz
- * repoda da dosyaları değiştirir) ve değişen dosyaların yolları (yeni ya da silinen dosya olabilir).
+ * When it changes, the file list is reread: branch and HEAD (a branch switch, pull or commit changes
+ * files even in a clean repo) and the paths of changed files (there may be new or deleted files).
  */
 const changeSignature = (repo: RepoView) =>
   [repo.status?.head ?? '', repo.status?.headOid ?? '', ...(repo.status?.files ?? []).map((file) => `${file.x}${file.y} ${file.path}`)].join('\n');
 
 /**
- * Files sekmesinin uygulama durumuna bağlı hâli. Bir reponun dosya listesi, klasörü ilk açıldığında
- * yüklenir; değişiklik listesi değiştikçe ve sekme yeniden gösterildiğinde tazelenir.
+ * The Files tab bound to app state. A repo's file list loads the first time its folder is
+ * expanded; it's refreshed whenever the change list changes and when the tab is shown again.
  */
 export function FilesPanel() {
   const workspace = useApp((s) => s.workspace);
@@ -236,13 +236,13 @@ export function FilesPanel() {
   const [lists, setLists] = useState<Record<string, FileList>>({});
   const loaded = useRef(new Map<string, string>());
   const [dirs, setDirs] = useState<Record<string, DirList>>({});
-  /** Okunan ya da okunmakta olan yok sayılan klasörler (`dirKey`); kapanınca silinir. */
+  /** Ignored folders read or being read (`dirKey`); removed on collapse. */
   const dirsRead = useRef(new Set<string>());
   const { repos } = workspace;
   const single = repos.length === 1 && repos[0]!.path === workspace.dir;
 
-  // Başka klasöre geçince eski listeler çizim sırasında atılır (React yeniden çizer, yükleme
-  // etkisi temiz başlar); klasöre dönüldüğünde liste yeniden okunur.
+  // When switching to another folder, the old lists are dropped during render (React rerenders, the load
+  // effect starts clean); when returning to the folder, the list is reread.
   const [listsDir, setListsDir] = useState(workspace.dir);
   if (listsDir !== workspace.dir) {
     setListsDir(workspace.dir);
@@ -260,7 +260,7 @@ export function FilesPanel() {
       loaded.current.set(repo.path, signature);
       void edi.listFiles(repo.path).then(
         (list) => {
-          // Bu arada daha yeni bir yükleme başladıysa bu sonuç atılır.
+          // If a newer load started in the meantime, this result is dropped.
           if (loaded.current.get(repo.path) === signature) setLists((prev) => ({ ...prev, [repo.path]: list }));
         },
         () => loaded.current.delete(repo.path),
@@ -268,7 +268,7 @@ export function FilesPanel() {
     }
   }, [repos, open, single]);
 
-  // Yok sayılan bir klasör açılınca içi okunur; kapanınca unutulur, yeniden açılınca tazelenir.
+  // When an ignored folder is expanded, its contents are read; on collapse they're forgotten, and refreshed when expanded again.
   useEffect(() => {
     for (const key of [...dirsRead.current]) {
       if (open[key] === true) continue;
@@ -286,7 +286,7 @@ export function FilesPanel() {
         dirsRead.current.add(key);
         void edi.listDir(repo.path, path).then(
           (dir) => {
-            // Bu arada kapandıysa sonuç atılır.
+            // If it collapsed in the meantime, the result is dropped.
             if (dirsRead.current.has(key)) setDirs((prev) => ({ ...prev, [key]: dir }));
           },
           () => dirsRead.current.delete(key),

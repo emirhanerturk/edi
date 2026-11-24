@@ -18,7 +18,7 @@ function renderTabs(active = labels[0]!.id) {
 }
 
 describe('CenterTabs', () => {
-  it('sekmeleri harfi ve adıyla gösterir; etkin sekmede klasör, arka plandaki diff sekmesinde "diff" yazar', () => {
+  it('shows tabs with their letter and name; the active tab shows the folder, a background diff tab says "diff"', () => {
     renderTabs(labels[1]!.id);
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
@@ -29,12 +29,12 @@ describe('CenterTabs', () => {
     expect(within(tabs[2]!).queryByText('diff')).toBeNull();
   });
 
-  it('önizleme sekmesini işaretler', () => {
+  it('marks the preview tab', () => {
     renderTabs();
     expect(screen.getAllByRole('tab').map((tab) => tab.getAttribute('data-preview'))).toEqual(['false', 'true', 'false']);
   });
 
-  it('tıklayınca sekmeye geçer, çift tıklayınca kalıcı yapar', () => {
+  it('a click switches to the tab, a double-click pins it', () => {
     const { onActivate, onPin } = renderTabs();
     const tab = screen.getAllByRole('tab')[1]!;
     fireEvent.mouseDown(tab, { button: 0 });
@@ -43,7 +43,7 @@ describe('CenterTabs', () => {
     expect(onPin).toHaveBeenCalledWith(labels[1]!.id);
   });
 
-  it('her sekmenin kapatma düğmesi vardır; etkin olmayanınki üzerine gelince görünür; sekmeye geçmeden kapatır', () => {
+  it('every tab has a close button; on an inactive tab it shows on hover; it closes without switching to the tab', () => {
     const { onClose, onActivate } = renderTabs();
     const buttons = screen.getAllByRole('button', { name: 'Close tab' });
     expect(buttons).toHaveLength(labels.length);
@@ -57,13 +57,13 @@ describe('CenterTabs', () => {
     expect(onActivate).not.toHaveBeenCalled();
   });
 
-  it('orta tuş sekmeyi kapatır', () => {
+  it('the middle mouse button closes the tab', () => {
     const { onClose } = renderTabs();
     fireEvent.mouseDown(screen.getAllByRole('tab')[2]!, { button: 1 });
     expect(onClose).toHaveBeenCalledWith(labels[2]!.id);
   });
 
-  it('commit sekmesi commit simgesi ve kısa hash ile görünür', () => {
+  it('a commit tab shows a commit icon and the short hash', () => {
     const commit: TabLabel = { id: 'commit:/w/a:3ed0fc5aaaa', kind: 'commit', name: '3ed0fc5', dir: 'quizei-app', letter: null, pinned: true };
     render(<CenterTabs tabs={[...labels, commit]} active={labels[0]!.id} onActivate={vi.fn()} onPin={vi.fn()} onClose={vi.fn()} onClosePanel={vi.fn()} />);
     const tab = screen.getAllByRole('tab')[3]!;
@@ -72,7 +72,7 @@ describe('CenterTabs', () => {
     expect(within(tab).queryByText('diff')).toBeNull();
   });
 
-  it('sağ uçtaki düğme paneli kapatır', () => {
+  it('the button at the right end closes the panel', () => {
     const { onClosePanel } = renderTabs();
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
     expect(onClosePanel).toHaveBeenCalledTimes(1);

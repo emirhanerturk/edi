@@ -12,10 +12,10 @@ export interface BranchMenuProps {
   onCreate(branch: string): void;
 }
 
-/** Uzun branch adları (claude/…) kısaltılmadan sığsın diye menü panelden geniş olabilir. */
+/** The menu can be wider than the panel so long branch names (claude/…) fit without truncation. */
 const MENU_SIZE = { width: 440, maxHeight: 420 };
 
-/** Branch düğmesi ve menüsü: yerel branch'ler ve "New branch…". */
+/** Branch button and its menu: local branches and "New branch…". */
 export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
   const menu = usePopover<HTMLDivElement>();
   const [list, setList] = useState<BranchList | null>(null);
@@ -24,7 +24,7 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
   const button = useRef<HTMLButtonElement>(null);
   const [place, setPlace] = useState<Placement | null>(null);
 
-  // Menü pencereye göre sabit konumlanır: Git panelinin kaydırma alanı onu kırpamaz.
+  // The menu is fixed relative to the window: the Git panel's scroll area can't clip it.
   useLayoutEffect(() => {
     if (!menu.open) {
       setPlace(null);
@@ -34,7 +34,7 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
       const anchor = button.current?.getBoundingClientRect();
       if (anchor) setPlace(placeMenu(anchor, { width: window.innerWidth, height: window.innerHeight }, MENU_SIZE));
     };
-    // Repo listesi kayarsa düğme yerinden oynar; menü havada kalmasın diye kapanır.
+    // If the repo list scrolls, the button moves; the menu closes so it isn't left floating.
     const onScroll = (event: Event) => {
       if (!(event.target instanceof Node) || !menu.ref.current?.contains(event.target)) menu.setOpen(false);
     };
@@ -60,7 +60,7 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
     return () => {
       stale = true;
     };
-    // Menü her açılışta listeyi yeniden okur; `load` her çizimde yeni bir işlev olabilir.
+    // The menu rereads the list on every open; `load` may be a new function on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menu.open]);
 

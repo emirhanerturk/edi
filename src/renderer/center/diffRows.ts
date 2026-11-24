@@ -1,4 +1,4 @@
-// Ayrıştırılmış diff'i ekranda çizilecek satırlara çevirir.
+// Turns a parsed diff into the rows to draw on screen.
 import { type ParsedDiff, splitRows } from '../../git/diffParse';
 
 export type LineKind = 'context' | 'add' | 'del';
@@ -11,12 +11,12 @@ export interface Cell {
 
 export type Row =
   | { type: 'hunk'; text: string }
-  /** Yan yana görünüm: sol eski, sağ yeni; o tarafta satır yoksa null. */
+  /** Side-by-side view: old on the left, new on the right; null if that side has no line. */
   | { type: 'split'; left: Cell | null; right: Cell | null }
-  /** Tek sütun görünüm. */
+  /** Single-column view. */
   | { type: 'inline'; kind: LineKind; oldNo: number | null; newNo: number | null; text: string };
 
-/** Bundan uzun diff'in devamı çizilmez; dosya Zed'de açılabilir. */
+/** The rest of a diff longer than this isn't drawn; the file can be opened in Zed. */
 export const MAX_DIFF_LINES = 5000;
 
 export function diffRows(diff: ParsedDiff, mode: 'split' | 'inline', max = MAX_DIFF_LINES): { rows: Row[]; truncated: boolean } {

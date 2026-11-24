@@ -40,20 +40,20 @@ const show = (dir: string, repos: RepoView[]) =>
     useApp.setState((state) => ({ workspace: { ...state.workspace, dir, repos } }));
   });
 
-describe('FilesPanel dosya listesini yeniden okur', () => {
-  it("temiz bir repoda branch değişince ya da HEAD ilerleyince (pull, commit)", async () => {
+describe('FilesPanel rereads the file list', () => {
+  it('in a clean repo when the branch changes or HEAD moves (pull, commit)', async () => {
     show('/w/a', [repo('/w/a')]);
     render(<FilesPanel />);
     expect(bridge.listFiles).toHaveBeenCalledTimes(1);
-    show('/w/a', [repo('/w/a', { head: 'baska' })]);
+    show('/w/a', [repo('/w/a', { head: 'other' })]);
     expect(bridge.listFiles).toHaveBeenCalledTimes(2);
-    show('/w/a', [repo('/w/a', { head: 'baska', headOid: 'b'.repeat(40) })]);
+    show('/w/a', [repo('/w/a', { head: 'other', headOid: 'b'.repeat(40) })]);
     expect(bridge.listFiles).toHaveBeenCalledTimes(3);
-    show('/w/a', [repo('/w/a', { head: 'baska', headOid: 'b'.repeat(40) })]);
+    show('/w/a', [repo('/w/a', { head: 'other', headOid: 'b'.repeat(40) })]);
     expect(bridge.listFiles).toHaveBeenCalledTimes(3);
   });
 
-  it('başka klasöre gidip dönünce eski liste kullanılmaz', async () => {
+  it('does not reuse the old list after leaving for another folder and coming back', async () => {
     bridge.listFiles.mockClear();
     show('/w/a', [repo('/w/a')]);
     render(<FilesPanel />);
@@ -64,8 +64,8 @@ describe('FilesPanel dosya listesini yeniden okur', () => {
   });
 });
 
-describe('FilesPanel yok sayılan klasörü', () => {
-  it('açılınca okur, kapanıp yeniden açılınca tazeler; içinde olmayan açık klasör için okumaz', async () => {
+describe('FilesPanel and ignored folders', () => {
+  it('reads one when it opens and refreshes it when reopened; does not read an open folder outside one', async () => {
     bridge.listDir.mockClear();
     useApp.setState({ filesOpen: {} });
     show('/w/a', [repo('/w/a')]);

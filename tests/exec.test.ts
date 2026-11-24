@@ -5,18 +5,18 @@ import { pickErrorLine, runGit } from '../src/git/exec.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 describe('runGit', () => {
-  it('başarıda stdout döner', async () => {
+  it('returns stdout on success', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     expect(await runGit(repo, ['rev-parse', '--is-inside-work-tree'])).toEqual({ ok: true, stdout: 'true\n' });
   });
 
-  it('repo olmayan dizinde git hatasını döner', async () => {
+  it("returns git's error in a directory that is not a repo", async () => {
     const r = await runGit(await makeTmpDir(), ['status']);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/^fatal:/);
   });
 
-  it('git çıktısı yerel ayardan bağımsız İngilizce', async () => {
+  it('keeps git output in English regardless of the locale', async () => {
     const before = { LANG: process.env.LANG, LC_ALL: process.env.LC_ALL };
     process.env.LANG = 'tr_TR.UTF-8';
     process.env.LC_ALL = 'tr_TR.UTF-8';
@@ -32,45 +32,45 @@ describe('runGit', () => {
     }
   });
 
-  it('olmayan cwd ile throw etmez', async () => {
-    expect((await runGit('/yok/boyle/yer', ['status'])).ok).toBe(false);
+  it('does not throw with a missing cwd', async () => {
+    expect((await runGit('/no/such/place', ['status'])).ok).toBe(false);
   });
 
-  it('okCodes içindeki çıkış kodunu başarı sayar', async () => {
+  it('treats an exit code listed in okCodes as success', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const args = ['diff', '--no-index', '--', '/dev/null', 'README.md'];
     expect((await runGit(repo, args)).ok).toBe(false);
     expect((await runGit(repo, args, { okCodes: [0, 1] })).ok).toBe(true);
   });
 
-  it("git hatayı stdout'a yazdığında onu döner", async () => {
+  it('returns the error when git writes it to stdout', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
-    const r = await runGit(repo, ['commit', '-m', 'feat: boş']);
+    const r = await runGit(repo, ['commit', '-m', 'feat: empty']);
     expect(!r.ok && r.error).toMatch(/nothing to commit/);
   });
 
-  it('zaman aşımında süreci keser', async () => {
+  it('kills the process on timeout', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const started = Date.now();
-    // Sonsuza dek bekleyen bir alias: runGit onu kesmek zorunda.
-    const r = await runGit(repo, ['-c', 'alias.bekle=!sleep 30', 'bekle'], { timeoutMs: 200 });
+    // An alias that waits forever: runGit has to kill it.
+    const r = await runGit(repo, ['-c', 'alias.hang=!sleep 30', 'hang'], { timeoutMs: 200 });
     expect(r).toMatchObject({ ok: false, error: 'Timed out' });
     expect(Date.now() - started).toBeLessThan(5000);
   });
 });
 
-describe('runGit sağlamlığı', () => {
-  it('silinmiş repo klasöründe anlaşılır hata', async () => {
+describe('runGit robustness', () => {
+  it('gives a clear error for a deleted repo folder', async () => {
     const r = await runGit(join(await makeTmpDir(), 'gone'), ['status']);
     expect(r).toEqual({ ok: false, error: 'Repository folder not found', stdout: '' });
   });
 
-  it('arka plana süreç atan hook zaman aşımı sayılmaz', async () => {
+  it('does not time out on a hook that leaves a background process', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const hook = join(repo, '.git', 'hooks', 'post-commit');
     await writeFile(hook, '#!/bin/sh\n(sleep 6) &\n');
     await chmod(hook, 0o755);
-    await writeFile(join(repo, 'README.md'), 'değişti\n');
+    await writeFile(join(repo, 'README.md'), 'changed\n');
 
     const started = Date.now();
     const r = await runGit(repo, ['commit', '-am', 'feat: x'], { timeoutMs: 4000 });
@@ -79,31 +79,31 @@ describe('runGit sağlamlığı', () => {
     expect(await git(repo, 'log', '-1', '--format=%s')).toBe('feat: x\n');
   });
 
-  it('zaman aşımında kilit dosyası ve alt süreç bırakmaz', async () => {
+  it('leaves no lock file or child process behind on timeout', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const hook = join(repo, '.git', 'hooks', 'pre-commit');
     const pidFile = join(repo, '.git', 'hook.pid');
     await writeFile(hook, `#!/bin/sh\necho $$ > "${pidFile}"\nsleep 30\n`);
     await chmod(hook, 0o755);
-    await writeFile(join(repo, 'README.md'), 'değişti\n');
+    await writeFile(join(repo, 'README.md'), 'changed\n');
 
-    // commit -a hook çalışırken index.lock'u tutar.
+    // commit -a holds index.lock while the hook runs.
     const r = await runGit(repo, ['commit', '-a', '-m', 'feat: x'], { timeoutMs: 1500 });
     expect(r).toMatchObject({ ok: false, error: 'Timed out' });
 
     const lockExists = await access(join(repo, '.git', 'index.lock')).then(() => true, () => false);
     expect(lockExists).toBe(false);
     const hookPid = Number((await readFile(pidFile, 'utf8')).trim());
-    expect(() => process.kill(hookPid, 0)).toThrow(); // hook süreci de bitmiş
+    expect(() => process.kill(hookPid, 0)).toThrow(); // the hook process is gone too
     expect((await git(repo, 'rev-list', '--count', 'HEAD')).trim()).toBe('1');
   });
 
-  it('NUL içeren argümanda reject etmez', async () => {
+  it('does not reject on an argument containing NUL', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await expect(runGit(repo, ['commit', '-m', 'a\0b'])).resolves.toMatchObject({ ok: false });
   });
 
-  it('ortamdan gelen GIT_DIR başka repoya yönlendiremez', async () => {
+  it('does not let GIT_DIR from the environment redirect to another repo', async () => {
     const parent = await makeTmpDir();
     const repoA = await initRepo(parent, 'a', { commit: true });
     const repoB = await initRepo(parent, 'b', { commit: true });
@@ -118,18 +118,18 @@ describe('runGit sağlamlığı', () => {
 });
 
 describe('pickErrorLine', () => {
-  it('fatal/error satırını ipucu satırlarına tercih eder', () => {
+  it('prefers the fatal/error line over hint lines', () => {
     expect(pickErrorLine('hint: x\nerror: failed to push some refs\n')).toBe('error: failed to push some refs');
   });
-  it('reddedilen push satırını seçer', () => {
+  it('picks the rejected push line', () => {
     expect(pickErrorLine(' ! [rejected] main -> main (fetch first)\nerror: failed\n')).toBe(
       '! [rejected] main -> main (fetch first)',
     );
   });
-  it('eşleşme yoksa son dolu satırı verir', () => {
+  it('returns the last non-empty line when nothing matches', () => {
     expect(pickErrorLine('foo\nbar\n')).toBe('bar');
   });
-  it('boş çıktıda genel bir mesaj verir', () => {
+  it('returns a generic message for empty output', () => {
     expect(pickErrorLine('')).toBe('git failed');
   });
 });

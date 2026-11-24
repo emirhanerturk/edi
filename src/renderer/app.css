@@ -1,4 +1,4 @@
-/* Pencere kabuğu: başlık çubuğu, durum çubuğu, boş durum, menüler ve düğmeler. */
+/* Window shell: title bar, status bar, empty state, menus and buttons. */
 
 .spacer {
   flex: 1;
@@ -11,7 +11,7 @@
   color: var(--muted);
 }
 
-/* Düğmeler */
+/* Buttons */
 .button-primary {
   display: flex;
   align-items: center;
@@ -50,7 +50,7 @@
   border: 1px solid var(--border);
 }
 
-/* Başlık çubuğu */
+/* Title bar */
 .titlebar-center {
   flex: 1;
   min-width: 0;
@@ -58,7 +58,7 @@
   justify-content: center;
 }
 
-/* Claude kullanım limitleri: oturum sayısının yanında. */
+/* Claude usage limits: next to the session count. */
 .usage {
   display: flex;
   align-items: center;
@@ -157,7 +157,7 @@
   color: var(--text);
 }
 
-/* Açılır menü */
+/* Dropdown menu */
 .menu {
   position: absolute;
   z-index: 20;
@@ -223,7 +223,7 @@
   background: var(--chip);
 }
 
-/* Durum çubuğu */
+/* Status bar */
 .statusbar {
   height: 26px;
   flex: none;
@@ -238,7 +238,7 @@
   white-space: nowrap;
 }
 
-/* Boş durum */
+/* Empty state */
 .empty {
   flex: 1;
   min-height: 0;
@@ -343,7 +343,7 @@
   margin-right: 6px;
 }
 
-/* Paneller arasındaki sürüklenebilir çizgi: görünen çizgi panelin kenarlığıdır, bu yalnız tutma alanı. */
+/* Draggable line between panels: the visible line is the panel's border, this is only the grab area. */
 .splitter {
   flex: none;
   position: relative;

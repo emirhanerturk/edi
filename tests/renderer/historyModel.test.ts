@@ -20,7 +20,7 @@ function repoLog(name: string, commits: CommitSummary[], over: Partial<RepoLog['
   };
 }
 
-/** Satırların okunur özeti. */
+/** A readable summary of the rows. */
 const brief = (rows: HistoryRow[]) =>
   rows.map((row) =>
     row.type === 'day'
@@ -33,7 +33,7 @@ const brief = (rows: HistoryRow[]) =>
   );
 
 describe('isRelease', () => {
-  it('etiket konu satırıyla aynıysa (baştaki v sayılmaz) sürüm commitidir', () => {
+  it('a commit is a release when its tag matches the subject (ignoring a leading v)', () => {
     expect(isRelease('1.86.0', 'v1.86.0')).toBe(true);
     expect(isRelease('v1.86.0', 'v1.86.0')).toBe(true);
     expect(isRelease('v1.86.0', '1.86.0')).toBe(true);
@@ -47,21 +47,21 @@ describe('boundary', () => {
   const busy = Array.from({ length: 50 }, (_, i) => commit(`feat: busy ${i}`, now - i * H));
   const quiet = Array.from({ length: 5 }, (_, i) => commit(`feat: quiet ${i}`, now - (i + 1) * 20 * D));
 
-  it('daha fazlası olan repoların en eski yüklenen commitlerinin en yenisi', () => {
+  it('the newest of the oldest loaded commits among repos that have more', () => {
     expect(boundary([repoLog('busy', busy, { hasMore: true }), repoLog('quiet', quiet)])).toBe(now - 49 * H);
   });
 
-  it('hepsi yüklendiyse sınır yok', () => {
+  it('no boundary when everything is loaded', () => {
     expect(boundary([repoLog('busy', busy), repoLog('quiet', quiet)])).toBeNull();
   });
 
-  it('sınırdan eski commitler gösterilmez: sessiz reponun eskileri yanlış bir boşluk yaratmaz', () => {
+  it("commits older than the boundary are hidden: a quiet repo's old commits do not create a false gap", () => {
     const rows = timeline([repoLog('busy', busy, { hasMore: true }), repoLog('quiet', quiet)], now, { single: false });
     expect(rows.filter((row) => row.type === 'commit')).toHaveLength(50);
     expect(brief(rows).some((line) => line.includes('quiet'))).toBe(false);
   });
 
-  it('"Load 50 more" sınırı geri çeker', () => {
+  it('"Load 50 more" moves the boundary back', () => {
     const more = Array.from({ length: 100 }, (_, i) => commit(`feat: busy ${i}`, now - i * H));
     const quietRecent = [commit('feat: quiet new', now - 60 * H), ...quiet];
     const rows = timeline([repoLog('busy', more, { hasMore: true }), repoLog('quiet', quietRecent)], now, { single: false });
@@ -71,7 +71,7 @@ describe('boundary', () => {
 });
 
 describe('timeline', () => {
-  it('tasarımdaki gibi: gün başlıkları, sürüm satırı, ok, yazar, merge', () => {
+  it('as in the design: day headers, release row, arrow, author, merge', () => {
     const rows = timeline(
       [
         repoLog('quizei-app', [commit('fix(auth): refresh the session', now - 25 * M)], { unpushed: [] }),
@@ -100,24 +100,24 @@ describe('timeline', () => {
     expect(rows[6]).toEqual({ type: 'day', label: 'YESTERDAY', first: false });
   });
 
-  it('aynı andaki commitler her reponun kendi sırasını korur', () => {
+  it("commits at the same moment keep each repo's own order", () => {
     const t = now - H;
     const rows = timeline([repoLog('a', [commit('a2', t), commit('a1', t)]), repoLog('b', [commit('b1', t)])], now, { single: false });
     expect(brief(rows).slice(1)).toEqual(['a2 a', 'a1 a', 'b1 b']);
   });
 
-  it("reponun user.email'i yoksa yazar gösterilmez", () => {
-    const rows = timeline([repoLog('a', [commit('x', now - H, { authorName: 'Biri', authorEmail: 'biri@x.dev' })], { userEmail: null })], now, { single: false });
+  it('shows no author when the repo has no user.email', () => {
+    const rows = timeline([repoLog('a', [commit('x', now - H, { authorName: 'Someone', authorEmail: 'someone@x.dev' })], { userEmail: null })], now, { single: false });
     expect(brief(rows)).toEqual(['# TODAY', 'x a']);
   });
 
-  it('tek repoda push edilenle edilmeyen arasına upstream çizgisi girer', () => {
+  it('a single repo gets an upstream line between pushed and unpushed commits', () => {
     const local = commit('feat: local', now - H);
     const rows = timeline([repoLog('a', [local, commit('feat: pushed', now - 2 * H), commit('feat: older', now - 2 * D)], { unpushed: [local.oid] })], now, { single: true });
     expect(brief(rows)).toEqual(['# TODAY', 'feat: local a ↑', '-- origin/main', 'feat: pushed a', '# THIS WEEK', 'feat: older a']);
   });
 
-  it('upstream yoksa, hepsi push edildiyse ya da hiçbiri edilmediyse çizgi yok', () => {
+  it('no line without an upstream, or when all or none are pushed', () => {
     const one = commit('feat: local', now - H);
     const two = commit('feat: pushed', now - 2 * H);
     for (const over of [{ upstream: null, unpushed: [one.oid] }, { unpushed: [] }, { unpushed: [one.oid, two.oid] }]) {
@@ -127,33 +127,33 @@ describe('timeline', () => {
     expect(timeline([repoLog('a', [one, two], { unpushed: [one.oid] })], now, { single: false }).some((row) => row.type === 'remote')).toBe(false);
   });
 
-  it("commit'i olmayan repo hiçbir satır eklemez", () => {
-    expect(timeline([repoLog('bos', [])], now, { single: false })).toEqual([]);
+  it('a repo without commits adds no rows', () => {
+    expect(timeline([repoLog('empty', [])], now, { single: false })).toEqual([]);
   });
 });
 
 describe('byRepo', () => {
-  it('son commite göre sıralar; son 3 günde commit olan açık, son üç commiti verir', () => {
+  it('sorts by latest commit; a repo with commits in the last 3 days is open and gives its last three commits', () => {
     const groups = byRepo(
       [
-        repoLog('eski', [commit('feat: e', now - 5 * D)]),
-        repoLog('bos', []),
-        repoLog('yeni', [commit('a', now - H), commit('b', now - 2 * H), commit('c', now - 3 * H), commit('d', now - 4 * H)], {}, 1),
-        repoLog('az', [], {}),
+        repoLog('old', [commit('feat: e', now - 5 * D)]),
+        repoLog('empty', []),
+        repoLog('new', [commit('a', now - H), commit('b', now - 2 * H), commit('c', now - 3 * H), commit('d', now - 4 * H)], {}, 1),
+        repoLog('bare', [], {}),
       ],
       now,
     );
     expect(groups.map((g) => [g.repoName, g.open, g.latest, g.ahead, g.commits.map((c) => c.subject)])).toEqual([
-      ['yeni', true, now - H, 1, ['a', 'b', 'c']],
-      ['eski', false, now - 5 * D, 0, ['feat: e']],
-      ['az', false, null, 0, []],
-      ['bos', false, null, 0, []],
+      ['new', true, now - H, 1, ['a', 'b', 'c']],
+      ['old', false, now - 5 * D, 0, ['feat: e']],
+      ['bare', false, null, 0, []],
+      ['empty', false, null, 0, []],
     ]);
   });
 });
 
 describe('historyKey', () => {
-  it('branch, HEAD, upstream ve ahead/behind değişince değişir', () => {
+  it('changes when the branch, HEAD, upstream or ahead/behind changes', () => {
     const status = { head: 'main', headOid: 'a'.repeat(40), upstream: 'origin/main', ahead: 0, behind: 0 };
     const keys = [
       status,

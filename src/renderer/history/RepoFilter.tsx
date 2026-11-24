@@ -3,14 +3,14 @@ import { usePopover } from '../components/usePopover';
 
 export interface RepoFilterProps {
   repos: { name: string; path: string }[];
-  /** Seçili reponun yolu; tümü için null. */
+  /** Path of the selected repo; null for all. */
   filter: string | null;
   onFilter(path: string | null): void;
 }
 
 const ALL = 'All repositories';
 
-/** History'yi tek bir repoya süzen menü. */
+/** Menu that filters History to a single repo. */
 export function RepoFilter({ repos, filter, onFilter }: RepoFilterProps) {
   const { open, setOpen, ref } = usePopover<HTMLDivElement>();
   const current = repos.find((repo) => repo.path === filter) ?? null;

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
-/** İlk sonuçta (önceki yok) karşılaştırılmaz: büyük bir veri boşuna metne çevrilmez. */
+/** The first result (no previous one) isn't compared: no point serializing large data for nothing. */
 const same = (a: unknown, b: unknown) => a === b || (a !== null && JSON.stringify(a) === JSON.stringify(b));
 
 /**
- * Bir görünümün verisini yükler. `key` değişince eski veri hemen kalkar ve yenisi yüklenir;
- * `refreshToken` değişince sessizce yeniden yüklenir (yenisi gelene kadar eskisi durur).
- * Geç gelen sonuçlar atılır: başka bir anahtarın sonucu ya da daha yeni bir yüklemenin
- * arkasından gelen eski sonuç ekrana yazılmaz. İçerik değişmediyse aynı nesne kalır.
+ * Loads a view's data. When `key` changes, the old data goes away at once and the new data loads;
+ * when `refreshToken` changes, it reloads quietly (the old data stays until the new arrives).
+ * Late results are dropped: a result for another key, or a stale result arriving after a newer
+ * load, isn't written to the screen. If the content didn't change, the same object stays.
  */
 export function useView<T>(key: string, load: () => Promise<T>, refreshToken: unknown): { data: T | null; loading: boolean } {
   const [state, setState] = useState<{ key: string; data: T | null }>({ key, data: null });
@@ -20,12 +20,12 @@ export function useView<T>(key: string, load: () => Promise<T>, refreshToken: un
     const order = ++run.started;
     void run.load().then(
       (data) => {
-        // Anahtar değiştiyse `latest.current` başka bir nesnedir.
+        // If the key changed, `latest.current` is a different object.
         if (latest.current !== run || order < run.applied) return;
         run.applied = order;
         setState((prev) => (prev.key === key && same(prev.data, data) ? prev : { key, data }));
       },
-      () => undefined, // Köprü hatası: eldeki veri durur, bir sonraki yenileme yeniden dener.
+      () => undefined, // Bridge error: the current data stays, the next refresh tries again.
     );
   }, [key, refreshToken]);
 
@@ -33,7 +33,7 @@ export function useView<T>(key: string, load: () => Promise<T>, refreshToken: un
   return { data, loading: data === null };
 }
 
-/** Verilen değerlerden biri değiştikçe artan sayaç: birden çok şeyi tek yenileme işareti yapar. */
+/** A counter that goes up whenever one of the given values changes: turns several things into a single refresh signal. */
 export function useVersion(...values: unknown[]): number {
   const ref = useRef({ version: 0, values });
   if (values.length !== ref.current.values.length || values.some((value, index) => !Object.is(value, ref.current.values[index]))) {

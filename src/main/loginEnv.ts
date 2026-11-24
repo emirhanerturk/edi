@@ -2,12 +2,12 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 
 /**
- * Dock'tan açılan uygulama kullanıcının kabuk ayarlarını (PATH: nvm'deki node, Homebrew) almaz;
- * git hook'ları "node bulunamadı" diye düşer. Paketli uygulama açılırken giriş kabuğunun
- * ortamı bir kez okunur ve ana sürecin ortamına eklenir.
+ * An app launched from the Dock doesn't get the user's shell settings (PATH: node from nvm, Homebrew);
+ * git hooks fail with "node not found". When the packaged app starts, the login shell's
+ * environment is read once and added to the main process's environment.
  */
 
-/** İki işaret arasındaki `env -0` çıktısı; kabuğun önüne ve arkasına bastığı gürültü atlanır. */
+/** The `env -0` output between the two markers; noise the shell prints before and after is skipped. */
 export function parseEnvBlock(out: string, marker: string): Record<string, string> | null {
   const start = out.indexOf(marker);
   const end = start === -1 ? -1 : out.indexOf(marker, start + marker.length);
@@ -20,7 +20,7 @@ export function parseEnvBlock(out: string, marker: string): Record<string, strin
   return env;
 }
 
-/** Giriş kabuğunun (`-il`) ortamı. Kabuk hata verirse ya da `timeoutMs` içinde bitmezse null. */
+/** The login shell's (`-il`) environment. Null if the shell fails or doesn't finish within `timeoutMs`. */
 export function readLoginEnv(shell: string, opts: { timeoutMs?: number } = {}): Promise<Record<string, string> | null> {
   const { timeoutMs = 10_000 } = opts;
   const marker = `__EDI_ENV_${randomBytes(6).toString('hex')}__`;
@@ -33,21 +33,21 @@ export function readLoginEnv(shell: string, opts: { timeoutMs?: number } = {}): 
       clearTimeout(timer);
       resolve(value);
     };
-    // Kendi süreç grubunda: zaman aşımında kabuğun başlattığı her şey birlikte kapanır.
+    // In its own process group: on timeout, everything the shell started is killed with it.
     const child = spawn(shell, ['-ilc', command], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
     const timer = setTimeout(() => {
       try {
         if (child.pid !== undefined) process.kill(-child.pid, 'SIGKILL');
       } catch {
-        // Zaten bitti.
+        // Already finished.
       }
       finish(null);
     }, timeoutMs);
     const chunks: Buffer[] = [];
     child.stdout.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
-      // İkinci işaret gelince ortam tamdır: rc'nin arka planda bıraktığı bir iş stdout'u açık
-      // tutsa da kabuğun bitmesi beklenmez.
+      // Once the second marker arrives the environment is complete: we don't wait for the shell to exit,
+      // even if a job the rc left in the background keeps stdout open.
       const env = parseEnvBlock(Buffer.concat(chunks).toString('utf8'), marker);
       if (env) finish(env);
     });
@@ -56,11 +56,11 @@ export function readLoginEnv(shell: string, opts: { timeoutMs?: number } = {}): 
   });
 }
 
-/** Kabuğa ya da uygulamaya özgü, taşınmayan değişkenler. */
+/** Shell- or app-specific variables that are not carried over. */
 const SKIPPED = new Set(['PWD', 'OLDPWD', 'SHLVL', '_']);
 const skipped = (name: string) => SKIPPED.has(name) || name.startsWith('ELECTRON_') || name.startsWith('EDI_');
 
-/** Giriş kabuğunun değerleri eklenir ya da üstüne yazılır; uygulamanın kendi ayarları korunur. */
+/** The login shell's values are added or override existing ones; the app's own settings are kept. */
 export function mergeLoginEnv(base: NodeJS.ProcessEnv, login: Record<string, string>): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   for (const [name, value] of Object.entries(login)) {

@@ -6,7 +6,7 @@ import { launch, makeRepo, tmpDir } from './helpers.js';
 const root = join(import.meta.dirname, '..');
 const electron = join(root, 'node_modules', '.bin', 'electron');
 
-/** `edi <klasör>` komutunun yaptığı gibi ikinci bir kopya başlatır; kopya klasörü devredip kapanır. */
+/** Starts a second instance, as the `edi <folder>` command does; it hands the folder over and quits. */
 function secondInstance(userData: string, args: string[]): Promise<number> {
   const env: NodeJS.ProcessEnv = { ...process.env, EDI_USER_DATA: userData, EDI_HIDDEN: '1' };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -15,19 +15,19 @@ function secondInstance(userData: string, args: string[]): Promise<number> {
   });
 }
 
-test('ikinci kopya klasörü açık pencereye devreder ve kendisi kapanır', async () => {
+test('a second instance hands the folder to the open window and quits', async () => {
   const first = await tmpDir();
-  await makeRepo(first, 'ilk-repo');
+  await makeRepo(first, 'first-repo');
   const second = await tmpDir();
-  await makeRepo(second, 'ikinci-repo');
+  await makeRepo(second, 'second-repo');
   const { app, page, userData } = await launch({ openDir: first });
   try {
-    await expect(page.getByText('ilk-repo')).toBeVisible();
+    await expect(page.getByText('first-repo')).toBeVisible();
     expect(await secondInstance(userData, [`--open=${second}`])).toBe(0);
-    await expect(page.getByText('ikinci-repo')).toBeVisible();
-    await expect(page.getByText('ilk-repo')).toHaveCount(0);
+    await expect(page.getByText('second-repo')).toBeVisible();
+    await expect(page.getByText('first-repo')).toHaveCount(0);
     expect(app.windows()).toHaveLength(1);
-    // Testlerde gizli çalışan pencere devirde görünür olmaz.
+    // A window running hidden in tests does not become visible on hand-over.
     expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.isVisible()))).toEqual([false]);
   } finally {
     await app.close();

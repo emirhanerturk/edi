@@ -9,7 +9,7 @@ import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 const run = promisify(execFile);
 const US = '\x1f';
 
-/** Verilen zamanda (epoch saniye) commit atar; commit'in tam kimliğini döner. */
+/** Commits at the given time (epoch seconds) and returns the full commit id. */
 async function commitAt(repo: string, subject: string, seconds: number, file = 'a.txt'): Promise<string> {
   await writeFile(join(repo, file), `${subject}\n`);
   await git(repo, 'add', '-A');
@@ -19,7 +19,7 @@ async function commitAt(repo: string, subject: string, seconds: number, file = '
 }
 
 describe('parseLog', () => {
-  it('alanları ve etiketleri okur', () => {
+  it('reads the fields and tags', () => {
     const record = (fields: string[]) => `${fields.join(US)}\0`;
     const out =
       record(['a'.repeat(40), 'aaaaaaa', `${'b'.repeat(40)} ${'c'.repeat(40)}`, 'Ada', 'ada@x.dev', '1700000000', 'HEAD -> main, tag: v1.2.0, origin/main, tag: latest', 'Merge: ğüş — "x"']) +
@@ -39,20 +39,20 @@ describe('parseLog', () => {
     ]);
   });
 
-  it('boş çıktıda boş liste', () => {
+  it('returns an empty list for empty output', () => {
     expect(parseLog('')).toEqual([]);
   });
 });
 
 describe('readLog', () => {
-  it('yeniden eskiye sıralar; fazlası varsa bunu söyler', async () => {
+  it('sorts newest first and says when there are more', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
-    await commitAt(repo, 'feat: bir', 1_700_000_000);
-    await commitAt(repo, 'feat: iki', 1_700_000_100);
-    await commitAt(repo, 'fix: üç', 1_700_000_200);
+    await commitAt(repo, 'feat: one', 1_700_000_000);
+    await commitAt(repo, 'feat: two', 1_700_000_100);
+    await commitAt(repo, 'fix: three', 1_700_000_200);
 
     const two = await readLog(repo, 2);
-    expect(two.ok && two.commits.map((c) => c.subject)).toEqual(['fix: üç', 'feat: iki']);
+    expect(two.ok && two.commits.map((c) => c.subject)).toEqual(['fix: three', 'feat: two']);
     expect(two.ok && two.hasMore).toBe(true);
     expect(two.ok && two.commits[0]!.date).toBe(1_700_000_200_000);
 
@@ -62,88 +62,88 @@ describe('readLog', () => {
     expect(all).toMatchObject({ ok: true, userEmail: 'test@example.com', upstream: null, unpushed: [] });
   });
 
-  it('etiketleri ve merge commit\'ini tanır', async () => {
+  it('recognizes tags and merge commits', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
-    await commitAt(repo, 'feat: ilk', 1_700_000_000);
+    await commitAt(repo, 'feat: first', 1_700_000_000);
     await git(repo, 'tag', 'v1.0.0');
-    await git(repo, 'switch', '-q', '-c', 'yan');
-    await commitAt(repo, 'feat: yan', 1_700_000_100, 'b.txt');
+    await git(repo, 'switch', '-q', '-c', 'side');
+    await commitAt(repo, 'feat: side', 1_700_000_100, 'b.txt');
     await git(repo, 'switch', '-q', 'main');
-    await commitAt(repo, 'feat: ana', 1_700_000_200, 'c.txt');
-    await run('git', ['merge', '-q', '--no-ff', '-m', 'Merge branch yan', 'yan'], {
+    await commitAt(repo, 'feat: main', 1_700_000_200, 'c.txt');
+    await run('git', ['merge', '-q', '--no-ff', '-m', 'Merge branch side', 'side'], {
       cwd: repo,
       env: { ...process.env, GIT_COMMITTER_DATE: '@1700000300 +0000', GIT_AUTHOR_DATE: '@1700000300 +0000' },
     });
-    await git(repo, 'tag', '-a', 'v1.1.0', '-m', 'sürüm');
+    await git(repo, 'tag', '-a', 'v1.1.0', '-m', 'release');
 
     const log = await readLog(repo, 50);
     if (!log.ok) throw new Error(log.error);
     expect(log.commits.map((c) => [c.subject, c.parents, c.tags])).toEqual([
-      ['Merge branch yan', 2, ['v1.1.0']],
-      ['feat: ana', 1, []],
-      ['feat: yan', 1, []],
-      ['feat: ilk', 0, ['v1.0.0']],
+      ['Merge branch side', 2, ['v1.1.0']],
+      ['feat: main', 1, []],
+      ['feat: side', 1, []],
+      ['feat: first', 0, ['v1.0.0']],
     ]);
   });
 
-  it("commit'i olmayan repoda boş liste", async () => {
+  it('returns an empty list in a repo without commits', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     expect(await readLog(repo, 50)).toEqual({ ok: true, commits: [], hasMore: false, unpushed: [], upstream: null, userEmail: 'test@example.com' });
   });
 
-  it("detached HEAD'de o commit'ten geriye okur", async () => {
+  it('reads back from the commit on a detached HEAD', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
-    await commitAt(repo, 'feat: bir', 1_700_000_000);
-    await commitAt(repo, 'feat: iki', 1_700_000_100);
+    await commitAt(repo, 'feat: one', 1_700_000_000);
+    await commitAt(repo, 'feat: two', 1_700_000_100);
     await git(repo, 'checkout', '-q', '--detach', 'HEAD~1');
     const log = await readLog(repo, 50);
-    expect(log.ok && log.commits.map((c) => c.subject)).toEqual(['feat: bir']);
+    expect(log.ok && log.commits.map((c) => c.subject)).toEqual(['feat: one']);
   });
 
-  it("upstream'de olmayan commit'ler push edilmemiş sayılır", async () => {
+  it('counts commits missing from the upstream as unpushed', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     await addBareRemote(repo);
-    await commitAt(repo, 'feat: gitti', 1_700_000_000);
+    await commitAt(repo, 'feat: pushed', 1_700_000_000);
     await git(repo, 'push', '-q', '-u', 'origin', 'main');
-    const local = await commitAt(repo, 'feat: yerelde', 1_700_000_100);
+    const local = await commitAt(repo, 'feat: local', 1_700_000_100);
 
     expect(await readLog(repo, 50)).toMatchObject({ ok: true, upstream: 'origin/main', unpushed: [local] });
   });
 
-  it("upstream'i olmayan branch'te uzaktaki hiçbir branch'te olmayanlar push edilmemiştir", async () => {
+  it('on a branch without an upstream, counts commits on no remote branch as unpushed', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     await addBareRemote(repo);
-    await commitAt(repo, 'feat: gitti', 1_700_000_000);
+    await commitAt(repo, 'feat: pushed', 1_700_000_000);
     await git(repo, 'push', '-q', 'origin', 'main');
-    await git(repo, 'switch', '-q', '-c', 'feat/yeni');
-    const local = await commitAt(repo, 'feat: yerelde', 1_700_000_100);
+    await git(repo, 'switch', '-q', '-c', 'feat/new');
+    const local = await commitAt(repo, 'feat: local', 1_700_000_100);
 
     expect(await readLog(repo, 50)).toMatchObject({ ok: true, upstream: null, unpushed: [local] });
   });
 
-  it('remote yoksa ok işareti de yok', async () => {
+  it('shows no arrow marker without a remote', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
-    await commitAt(repo, 'feat: bir', 1_700_000_000);
+    await commitAt(repo, 'feat: one', 1_700_000_000);
     expect(await readLog(repo, 50)).toMatchObject({ ok: true, upstream: null, unpushed: [] });
   });
 
-  it('upstream silinmişse çökmez', async () => {
+  it('does not crash when the upstream was deleted', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     await addBareRemote(repo);
-    const pushed = await commitAt(repo, 'feat: gitti', 1_700_000_000);
+    const pushed = await commitAt(repo, 'feat: pushed', 1_700_000_000);
     await git(repo, 'push', '-q', 'origin', 'main');
     await git(repo, 'config', 'branch.main.remote', 'origin');
-    await git(repo, 'config', 'branch.main.merge', 'refs/heads/silindi');
-    const local = await commitAt(repo, 'feat: yerelde', 1_700_000_100);
+    await git(repo, 'config', 'branch.main.merge', 'refs/heads/deleted');
+    const local = await commitAt(repo, 'feat: local', 1_700_000_100);
 
     const log = await readLog(repo, 50);
     expect(log).toMatchObject({ ok: true, upstream: null, unpushed: [local] });
     expect(log.ok && log.unpushed).not.toContain(pushed);
   });
 
-  it('kullanıcının log ayarları çıktıyı bozmaz', async () => {
+  it("is not broken by the user's log settings", async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
-    await commitAt(repo, 'feat: bir', 1_700_000_000);
+    await commitAt(repo, 'feat: one', 1_700_000_000);
     await git(repo, 'tag', 'v1');
     for (const [key, value] of [
       ['log.showSignature', 'true'],
@@ -156,25 +156,25 @@ describe('readLog', () => {
       await git(repo, 'config', key, value);
     }
     const log = await readLog(repo, 50);
-    expect(log.ok && log.commits.map((c) => [c.subject, c.tags, c.oid.length])).toEqual([['feat: bir', ['v1'], 40]]);
+    expect(log.ok && log.commits.map((c) => [c.subject, c.tags, c.oid.length])).toEqual([['feat: one', ['v1'], 40]]);
   });
 
-  it('sığ klondaki commit\'leri listeler', async () => {
+  it('lists the commits in a shallow clone', async () => {
     const parent = await makeTmpDir();
     const repo = await initRepo(parent, 'a');
-    await commitAt(repo, 'feat: bir', 1_700_000_000);
-    await commitAt(repo, 'feat: iki', 1_700_000_100);
-    await commitAt(repo, 'feat: üç', 1_700_000_200);
-    const clone = join(parent, 'sig');
+    await commitAt(repo, 'feat: one', 1_700_000_000);
+    await commitAt(repo, 'feat: two', 1_700_000_100);
+    await commitAt(repo, 'feat: three', 1_700_000_200);
+    const clone = join(parent, 'shallow');
     await git(parent, 'clone', '-q', '--depth', '2', `file://${repo}`, clone);
 
     const log = await readLog(clone, 50);
-    expect(log.ok && log.commits.map((c) => c.subject)).toEqual(['feat: üç', 'feat: iki']);
+    expect(log.ok && log.commits.map((c) => c.subject)).toEqual(['feat: three', 'feat: two']);
     expect(log.ok && log.hasMore).toBe(false);
     expect(log).toMatchObject({ upstream: 'origin/main', unpushed: [] });
   });
 
-  it('repo olmayan klasörde hata', async () => {
+  it('fails in a folder that is not a repo', async () => {
     expect((await readLog(await makeTmpDir(), 50)).ok).toBe(false);
   });
 });

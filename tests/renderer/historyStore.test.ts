@@ -46,35 +46,35 @@ const log = (subject: string, hasMore = false): LogResult => ({
 connect();
 beforeEach(() => {
   bridge.pending.splice(0);
-  bridge.handlers.workspace!(workspace('/bos', []));
+  bridge.handlers.workspace!(workspace('/empty', []));
   bridge.handlers.workspace!(workspace('/w', [repo('/w/a'), repo('/w/b')]));
 });
 
 describe('History store', () => {
-  it('logu 50 commitle okur; okunurken eskisi kalır', async () => {
+  it('reads the log with 50 commits; the old one stays while reading', async () => {
     const first = useApp.getState().loadHistory('/w/a');
     expect(bridge.pending.map((p) => [p.repoPath, p.count])).toEqual([['/w/a', 50]]);
     expect(useApp.getState().history['/w/a']).toMatchObject({ limit: 50, log: null });
-    bridge.pending[0]!.resolve(log('ilk'));
+    bridge.pending[0]!.resolve(log('first'));
     await first;
     const second = useApp.getState().loadHistory('/w/a');
-    expect(useApp.getState().history['/w/a']!.log).toEqual(log('ilk'));
-    bridge.pending[1]!.resolve(log('ikinci'));
+    expect(useApp.getState().history['/w/a']!.log).toEqual(log('first'));
+    bridge.pending[1]!.resolve(log('second'));
     await second;
-    expect(useApp.getState().history['/w/a']!.log).toEqual(log('ikinci'));
+    expect(useApp.getState().history['/w/a']!.log).toEqual(log('second'));
   });
 
-  it('geç gelen eski cevap yenisinin üstüne yazılmaz', async () => {
+  it('a late stale response does not overwrite the newer one', async () => {
     const old = useApp.getState().loadHistory('/w/a');
     const fresh = useApp.getState().loadHistory('/w/a');
-    bridge.pending[1]!.resolve(log('yeni'));
+    bridge.pending[1]!.resolve(log('new'));
     await fresh;
-    bridge.pending[0]!.resolve(log('eski'));
+    bridge.pending[0]!.resolve(log('old'));
     await old;
-    expect(useApp.getState().history['/w/a']!.log).toEqual(log('yeni'));
+    expect(useApp.getState().history['/w/a']!.log).toEqual(log('new'));
   });
 
-  it('"Load 50 more" yalnız daha fazlası olan ve süzgeçten geçen repoları büyütür', async () => {
+  it('"Load 50 more" grows only the repos that have more and pass the filter', async () => {
     const a = useApp.getState().loadHistory('/w/a');
     const b = useApp.getState().loadHistory('/w/b');
     bridge.pending[0]!.resolve(log('a', true));
@@ -87,7 +87,7 @@ describe('History store', () => {
     expect(bridge.pending).toHaveLength(3);
   });
 
-  it('başka klasörde loglar ve süzgeç sıfırlanır; kaybolan reponun logu atılır', async () => {
+  it("another folder resets the logs and the filter; a vanished repo's log is dropped", async () => {
     const a = useApp.getState().loadHistory('/w/a');
     const b = useApp.getState().loadHistory('/w/b');
     bridge.pending.forEach((p) => p.resolve(log(p.repoPath)));
@@ -97,12 +97,12 @@ describe('History store', () => {
     expect(Object.keys(useApp.getState().history)).toEqual(['/w/a']);
     expect(useApp.getState().historyFilter).toBeNull();
     useApp.getState().setHistoryFilter('/w/a');
-    bridge.handlers.workspace!(workspace('/baska', [repo('/baska/a')]));
+    bridge.handlers.workspace!(workspace('/other', [repo('/other/a')]));
     expect(useApp.getState().history).toEqual({});
     expect(useApp.getState().historyFilter).toBeNull();
   });
 
-  it('düzen seçimi hatırlanır', () => {
+  it('remembers the layout choice', () => {
     useApp.getState().setHistoryLayout('byRepo');
     expect(useApp.getState().layout.historyLayout).toBe('byRepo');
     expect(bridge.edi.setLayout).toHaveBeenCalledWith({ historyLayout: 'byRepo' });

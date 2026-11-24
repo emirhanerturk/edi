@@ -3,7 +3,7 @@ import { type Hunk, parseDiff, splitRows } from '../src/git/diffParse.js';
 
 const HEADER = ['diff --git a/app/play.tsx b/app/play.tsx', 'index 1a2b3c4..5d6e7f8 100644', '--- a/app/play.tsx', '+++ b/app/play.tsx'];
 
-// docs/design/edi-ui/Main.dc.html içindeki diff.
+// The diff from docs/design/edi-ui/Main.dc.html.
 const ARTBOARD = [
   ...HEADER,
   '@@ -38,12 +38,16 @@ export function PlayScreen() {',
@@ -37,7 +37,7 @@ const ARTBOARD = [
 ].join('\n');
 
 describe('parseDiff', () => {
-  it('hunk başlıklarını, satır numaralarını ve toplamları okur', () => {
+  it('reads hunk headers, line numbers and totals', () => {
     const diff = parseDiff(ARTBOARD);
     expect(diff).toMatchObject({ added: 7, removed: 3, binary: false });
     expect(diff.hunks.map((h) => h.header)).toEqual([
@@ -56,87 +56,87 @@ describe('parseDiff', () => {
     expect(diff.hunks[1]!.lines[3]).toEqual({ kind: 'add', newNo: 77, text: '    paddingTop: 16,' });
   });
 
-  it('sayısız başlıkta uzunluk 1 sayılır', () => {
-    const diff = parseDiff([...HEADER, '@@ -1 +1 @@', '-eski', '+yeni', ''].join('\n'));
+  it('treats a header without counts as length 1', () => {
+    const diff = parseDiff([...HEADER, '@@ -1 +1 @@', '-old', '+new', ''].join('\n'));
     expect(diff.hunks[0]!.lines).toEqual([
-      { kind: 'del', oldNo: 1, text: 'eski' },
-      { kind: 'add', newNo: 1, text: 'yeni' },
+      { kind: 'del', oldNo: 1, text: 'old' },
+      { kind: 'add', newNo: 1, text: 'new' },
     ]);
   });
 
-  it('yeni dosya: tamamı ekleme', () => {
+  it('a new file is all additions', () => {
     const diff = parseDiff(
-      ['diff --git a/yeni.txt b/yeni.txt', 'new file mode 100644', 'index 0000000..e69de29', '--- /dev/null', '+++ b/yeni.txt', '@@ -0,0 +1,2 @@', '+bir', '+iki', ''].join('\n'),
+      ['diff --git a/new.txt b/new.txt', 'new file mode 100644', 'index 0000000..e69de29', '--- /dev/null', '+++ b/new.txt', '@@ -0,0 +1,2 @@', '+one', '+two', ''].join('\n'),
     );
     expect(diff).toMatchObject({ added: 2, removed: 0 });
     expect(diff.hunks[0]!.lines).toEqual([
-      { kind: 'add', newNo: 1, text: 'bir' },
-      { kind: 'add', newNo: 2, text: 'iki' },
+      { kind: 'add', newNo: 1, text: 'one' },
+      { kind: 'add', newNo: 2, text: 'two' },
     ]);
   });
 
-  it('silinen dosya: tamamı silme', () => {
+  it('a deleted file is all deletions', () => {
     const diff = parseDiff(
-      ['diff --git a/eski.txt b/eski.txt', 'deleted file mode 100644', 'index e69de29..0000000', '--- a/eski.txt', '+++ /dev/null', '@@ -1,2 +0,0 @@', '-bir', '-iki', ''].join('\n'),
+      ['diff --git a/old.txt b/old.txt', 'deleted file mode 100644', 'index e69de29..0000000', '--- a/old.txt', '+++ /dev/null', '@@ -1,2 +0,0 @@', '-one', '-two', ''].join('\n'),
     );
     expect(diff).toMatchObject({ added: 0, removed: 2 });
     expect(diff.hunks[0]!.lines.map((l) => l.kind)).toEqual(['del', 'del']);
   });
 
-  it('yeniden adlandırma başlıklarını atlar', () => {
+  it('skips rename headers', () => {
     const diff = parseDiff(
-      ['diff --git a/a.txt b/b.txt', 'similarity index 80%', 'rename from a.txt', 'rename to b.txt', 'index 1..2 100644', '--- a/a.txt', '+++ b/b.txt', '@@ -1,2 +1,2 @@', ' aynı', '-eski', '+yeni', ''].join('\n'),
+      ['diff --git a/a.txt b/b.txt', 'similarity index 80%', 'rename from a.txt', 'rename to b.txt', 'index 1..2 100644', '--- a/a.txt', '+++ b/b.txt', '@@ -1,2 +1,2 @@', ' same', '-old', '+new', ''].join('\n'),
     );
     expect(diff).toMatchObject({ added: 1, removed: 1 });
     expect(diff.hunks).toHaveLength(1);
   });
 
-  it('içeriği değişmeyen yeniden adlandırmada hunk yoktur', () => {
+  it('has no hunks for a rename without content changes', () => {
     const diff = parseDiff(['diff --git a/a.txt b/b.txt', 'similarity index 100%', 'rename from a.txt', 'rename to b.txt', ''].join('\n'));
     expect(diff).toEqual({ hunks: [], added: 0, removed: 0, binary: false });
   });
 
-  it('"No newline at end of file" işaretini satır saymaz', () => {
-    const diff = parseDiff([...HEADER, '@@ -1 +1 @@', '-eski', '\\ No newline at end of file', '+yeni', '\\ No newline at end of file', ''].join('\n'));
+  it('does not count the "No newline at end of file" marker as a line', () => {
+    const diff = parseDiff([...HEADER, '@@ -1 +1 @@', '-old', '\\ No newline at end of file', '+new', '\\ No newline at end of file', ''].join('\n'));
     expect(diff).toMatchObject({ added: 1, removed: 1 });
     expect(diff.hunks[0]!.lines).toHaveLength(2);
   });
 
-  it('CRLF satır sonlarında \\r metne girmez', () => {
-    const diff = parseDiff([...HEADER, '@@ -1,2 +1,2 @@', ' aynı\r', '-eski\r', '+yeni\r', ''].join('\n'));
-    expect(diff.hunks[0]!.lines.map((l) => l.text)).toEqual(['aynı', 'eski', 'yeni']);
+  it('keeps \\r out of the text with CRLF line endings', () => {
+    const diff = parseDiff([...HEADER, '@@ -1,2 +1,2 @@', ' same\r', '-old\r', '+new\r', ''].join('\n'));
+    expect(diff.hunks[0]!.lines.map((l) => l.text)).toEqual(['same', 'old', 'new']);
   });
 
-  it('ikili dosyayı tanır', () => {
+  it('detects a binary file', () => {
     const diff = parseDiff(['diff --git a/a.png b/a.png', 'index 1..2 100644', 'Binary files a/a.png and b/a.png differ', ''].join('\n'));
     expect(diff).toEqual({ hunks: [], added: 0, removed: 0, binary: true });
   });
 
-  it('boş metinde boş sonuç', () => {
+  it('returns an empty result for empty text', () => {
     expect(parseDiff('')).toEqual({ hunks: [], added: 0, removed: 0, binary: false });
   });
 
-  it('hunk içinde "--- " ve "+++ " ile başlayan satırlar değişikliktir, başlık değil', () => {
-    // Silinen satır "-- sql yorumu", eklenen satır "++ sayaç" ise diff'te "--- sql yorumu" ve "+++ sayaç" görünür.
-    const diff = parseDiff([...HEADER, '@@ -1,3 +1,3 @@', ' aynı', '--- sql yorumu', '+++ sayaç', ' son', ''].join('\n'));
+  it('treats lines starting with "--- " and "+++ " inside a hunk as changes, not headers', () => {
+    // When the deleted line is "-- sql comment" and the added one "++ counter", the diff shows "--- sql comment" and "+++ counter".
+    const diff = parseDiff([...HEADER, '@@ -1,3 +1,3 @@', ' same', '--- sql comment', '+++ counter', ' last', ''].join('\n'));
     expect(diff).toMatchObject({ added: 1, removed: 1 });
     expect(diff.hunks[0]!.lines).toEqual([
-      { kind: 'context', oldNo: 1, newNo: 1, text: 'aynı' },
-      { kind: 'del', oldNo: 2, text: '-- sql yorumu' },
-      { kind: 'add', newNo: 2, text: '++ sayaç' },
-      { kind: 'context', oldNo: 3, newNo: 3, text: 'son' },
+      { kind: 'context', oldNo: 1, newNo: 1, text: 'same' },
+      { kind: 'del', oldNo: 2, text: '-- sql comment' },
+      { kind: 'add', newNo: 2, text: '++ counter' },
+      { kind: 'context', oldNo: 3, newNo: 3, text: 'last' },
     ]);
   });
 
-  it('hunk içindeki "@@" ile başlayan içerik satırı yeni hunk açmaz', () => {
-    const diff = parseDiff([...HEADER, '@@ -1,2 +1,2 @@', ' @@ bu bir içerik satırı', '-a', '+b', ''].join('\n'));
+  it('does not start a new hunk at a content line starting with "@@"', () => {
+    const diff = parseDiff([...HEADER, '@@ -1,2 +1,2 @@', ' @@ this is a content line', '-a', '+b', ''].join('\n'));
     expect(diff.hunks).toHaveLength(1);
-    expect(diff.hunks[0]!.lines[0]).toMatchObject({ kind: 'context', text: '@@ bu bir içerik satırı' });
+    expect(diff.hunks[0]!.lines[0]).toMatchObject({ kind: 'context', text: '@@ this is a content line' });
   });
 });
 
 describe('splitRows', () => {
-  it('tasarımdaki yan yana düzeni üretir', () => {
+  it('produces the side-by-side layout from the design', () => {
     const rows = splitRows(parseDiff(ARTBOARD).hunks[0]!);
     const brief = rows.map((r) => [r.left?.no ?? null, r.right?.no ?? null, (r.left ?? r.right)!.changed]);
     expect(brief).toEqual([
@@ -164,7 +164,7 @@ describe('splitRows', () => {
     });
   });
 
-  it('silinenler eklenenlerden çoksa sağ taraf boş kalır', () => {
+  it('leaves the right side empty when there are more deletions than additions', () => {
     const hunk: Hunk = {
       header: '@@ -1,3 +1,1 @@',
       lines: [
@@ -181,18 +181,18 @@ describe('splitRows', () => {
     ]);
   });
 
-  it('araya bağlam girince eşleştirme sıfırlanır', () => {
+  it('resets pairing when context comes in between', () => {
     const hunk: Hunk = {
       header: '@@ -1,3 +1,3 @@',
       lines: [
         { kind: 'del', oldNo: 1, text: 'a' },
-        { kind: 'context', oldNo: 2, newNo: 1, text: 'orta' },
+        { kind: 'context', oldNo: 2, newNo: 1, text: 'middle' },
         { kind: 'add', newNo: 2, text: 'x' },
       ],
     };
     expect(splitRows(hunk).map((r) => [r.left?.text ?? null, r.right?.text ?? null])).toEqual([
       ['a', null],
-      ['orta', 'orta'],
+      ['middle', 'middle'],
       [null, 'x'],
     ]);
   });

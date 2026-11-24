@@ -26,7 +26,7 @@ async function statusOf(repo: string): Promise<RepoStatus> {
 
 async function fileOf(repo: string, path: string): Promise<FileChange> {
   const found = (await statusOf(repo)).files.find((f) => f.path === path);
-  if (!found) throw new Error(`durumda yok: ${path}`);
+  if (!found) throw new Error(`not in status: ${path}`);
   return found;
 }
 
@@ -39,20 +39,20 @@ const write = async (repo: string, path: string, content: string) => {
 };
 const exists = (path: string) => access(path).then(() => true, () => false);
 
-/** README.md'de çözülmemiş çakışması olan, merge'ü yarıda kalmış repo. */
+/** A repo with an unfinished merge and an unresolved conflict in README.md. */
 async function repoWithConflict() {
   const repo = await newRepo();
   await git(repo, 'switch', '-q', '-c', 'feat/x');
-  await write(repo, 'README.md', 'feat/x satırı\n');
+  await write(repo, 'README.md', 'feat/x line\n');
   await git(repo, 'commit', '-q', '-am', 'feat: x');
   await git(repo, 'switch', '-q', 'main');
-  await write(repo, 'README.md', 'main satırı\n');
+  await write(repo, 'README.md', 'main line\n');
   await git(repo, 'commit', '-q', '-am', 'feat: main');
-  await git(repo, 'merge', 'feat/x').catch(() => undefined); // çakışmayla biter
+  await git(repo, 'merge', 'feat/x').catch(() => undefined); // ends in a conflict
   return repo;
 }
 
-/** origin'i olan ve main'i oraya gönderilmiş repo + aynı origin'in ikinci klonu. */
+/** A repo with an origin that main was pushed to, plus a second clone of the same origin. */
 async function repoWithRemoteAndPeer() {
   const repo = await newRepo();
   const bare = await addBareRemote(repo);
@@ -65,14 +65,14 @@ async function repoWithRemoteAndPeer() {
 }
 
 async function peerPushes(peer: string, name: string) {
-  await write(peer, name, 'uzaktan\n');
+  await write(peer, name, 'from the remote\n');
   await git(peer, 'add', '-A');
   await git(peer, 'commit', '-q', '-m', `feat: ${name}`);
   await git(peer, 'push', '-q');
 }
 
 describe('stage / unstage', () => {
-  it('boşluklu ve Türkçe karakterli dosyayı stage eder ve geri alır', async () => {
+  it('stages and unstages a file with spaces and Turkish letters', async () => {
     const repo = await newRepo();
     await write(repo, 'boş dosya.txt', 'x\n');
 
@@ -86,31 +86,31 @@ describe('stage / unstage', () => {
     expect(await fileOf(repo, 'boş dosya.txt')).toMatchObject({ kind: 'untracked' });
   });
 
-  it("commit'i olmayan repoda unstage çalışır", async () => {
+  it('unstages in a repo without commits', async () => {
     const repo = await newRepo({});
-    await write(repo, 'ilk.txt', 'x\n');
-    await stageFile(repo, await fileOf(repo, 'ilk.txt'));
+    await write(repo, 'first.txt', 'x\n');
+    await stageFile(repo, await fileOf(repo, 'first.txt'));
 
-    expect((await unstageFile(repo, await fileOf(repo, 'ilk.txt'))).ok).toBe(true);
-    expect(await fileOf(repo, 'ilk.txt')).toMatchObject({ kind: 'untracked' });
+    expect((await unstageFile(repo, await fileOf(repo, 'first.txt'))).ok).toBe(true);
+    expect(await fileOf(repo, 'first.txt')).toMatchObject({ kind: 'untracked' });
   });
 
-  it("stage'li rename unstage edilince stage'li kayıt kalmaz", async () => {
+  it('leaves nothing staged after unstaging a staged rename', async () => {
     const repo = await newRepo();
-    await write(repo, 'eski ad.txt', 'aynı içerik\n');
+    await write(repo, 'old name.txt', 'same content\n');
     await git(repo, 'add', '-A');
-    await git(repo, 'commit', '-q', '-m', 'feat: dosya');
-    await git(repo, 'mv', 'eski ad.txt', 'yeni ad.txt');
-    const renamed = await fileOf(repo, 'yeni ad.txt');
-    expect(renamed).toMatchObject({ x: 'R', origPath: 'eski ad.txt' });
+    await git(repo, 'commit', '-q', '-m', 'feat: file');
+    await git(repo, 'mv', 'old name.txt', 'new name.txt');
+    const renamed = await fileOf(repo, 'new name.txt');
+    expect(renamed).toMatchObject({ x: 'R', origPath: 'old name.txt' });
 
     expect((await unstageFile(repo, renamed)).ok).toBe(true);
     const files = (await statusOf(repo)).files;
     expect(files.some(isStaged)).toBe(false);
-    expect(files.map((f) => f.path).sort()).toEqual(['eski ad.txt', 'yeni ad.txt']);
+    expect(files.map((f) => f.path).sort()).toEqual(['new name.txt', 'old name.txt']);
   });
 
-  it('silinmiş dosyayı stage eder', async () => {
+  it('stages a deleted file', async () => {
     const repo = await newRepo();
     await rm(join(repo, 'README.md'));
 
@@ -118,10 +118,10 @@ describe('stage / unstage', () => {
     expect(await fileOf(repo, 'README.md')).toMatchObject({ x: 'D', y: '.' });
   });
 
-  it('stageAll hepsini stage eder, unstageAll hepsini geri alır', async () => {
+  it('stageAll stages everything and unstageAll unstages everything', async () => {
     const repo = await newRepo();
-    await write(repo, 'README.md', 'değişti\n');
-    await write(repo, 'yeni.txt', 'x\n');
+    await write(repo, 'README.md', 'changed\n');
+    await write(repo, 'new.txt', 'x\n');
 
     expect((await stageAll(repo)).ok).toBe(true);
     expect((await statusOf(repo)).files.every((f) => isStaged(f) && !hasUnstaged(f))).toBe(true);
@@ -134,9 +134,9 @@ describe('stage / unstage', () => {
 });
 
 describe('commit', () => {
-  it("yalnız stage'lileri commit eder", async () => {
+  it('commits only staged files', async () => {
     const repo = await newRepo();
-    await write(repo, 'README.md', 'değişti\n');
+    await write(repo, 'README.md', 'changed\n');
     await write(repo, 'a.txt', 'x\n');
     await git(repo, 'add', 'a.txt');
 
@@ -147,24 +147,24 @@ describe('commit', () => {
     ]);
   });
 
-  it('addAll ile yeni dosyaları da commit eder', async () => {
+  it('commits new files too with addAll', async () => {
     const repo = await newRepo();
-    await write(repo, 'README.md', 'değişti\n');
-    await write(repo, 'yeni.txt', 'x\n');
+    await write(repo, 'README.md', 'changed\n');
+    await write(repo, 'new.txt', 'x\n');
 
-    expect((await commit(repo, 'feat: hepsi', { addAll: true })).ok).toBe(true);
+    expect((await commit(repo, 'feat: everything', { addAll: true })).ok).toBe(true);
     expect((await statusOf(repo)).files).toEqual([]);
     expect(await commitCount(repo)).toBe(2);
   });
 
-  it('Türkçe karakterli mesajı aynen yazar', async () => {
+  it('writes a message with Turkish letters as is', async () => {
     const repo = await newRepo();
     await write(repo, 'a.txt', 'x\n');
     await commit(repo, 'fix: çökme düzeltildi', { addAll: true });
     expect(await git(repo, 'log', '-1', '--format=%s')).toBe('fix: çökme düzeltildi\n');
   });
 
-  it('boş mesajla commit etmez', async () => {
+  it('does not commit with an empty message', async () => {
     const repo = await newRepo();
     await write(repo, 'a.txt', 'x\n');
     await git(repo, 'add', '-A');
@@ -173,15 +173,15 @@ describe('commit', () => {
     expect(await commitCount(repo)).toBe(1);
   });
 
-  it("commit edilecek bir şey yokken git'in açıklamasını döner", async () => {
+  it("returns git's explanation when there is nothing to commit", async () => {
     const repo = await newRepo();
-    const r = await commit(repo, 'feat: boş', { addAll: false });
+    const r = await commit(repo, 'feat: empty', { addAll: false });
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/nothing to commit/);
     expect(await commitCount(repo)).toBe(1);
   });
 
-  it('pre-commit hook reddederse commit atılmaz ve hook çıktısı döner', async () => {
+  it("does not commit when the pre-commit hook rejects and returns the hook's output", async () => {
     const repo = await newRepo();
     const hook = join(repo, '.git', 'hooks', 'pre-commit');
     await writeFile(hook, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
@@ -193,8 +193,8 @@ describe('commit', () => {
   });
 });
 
-describe('index kilidi', () => {
-  it('index.lock varken yazma işlemi hata döner, durum okunmaya devam eder', async () => {
+describe('index lock', () => {
+  it('fails a write while index.lock exists but still reads the status', async () => {
     const repo = await newRepo();
     await write(repo, 'a.txt', 'x\n');
     const file = await fileOf(repo, 'a.txt');
@@ -208,7 +208,7 @@ describe('index kilidi', () => {
 });
 
 describe('push / pull / fetch', () => {
-  it("upstream'siz branch'i origin'e upstream kurarak gönderir", async () => {
+  it('pushes a branch without an upstream to origin and sets the upstream', async () => {
     const repo = await newRepo();
     const bare = await addBareRemote(repo);
     expect((await statusOf(repo)).upstream).toBeNull();
@@ -218,7 +218,7 @@ describe('push / pull / fetch', () => {
     expect((await git(bare, 'rev-parse', 'main')).trim()).toBe(await head(repo));
   });
 
-  it('upstream varken yeni commit gönderir', async () => {
+  it('pushes a new commit when an upstream exists', async () => {
     const { repo, bare } = await repoWithRemoteAndPeer();
     await write(repo, 'a.txt', 'x\n');
     await commit(repo, 'feat: a', { addAll: true });
@@ -228,24 +228,24 @@ describe('push / pull / fetch', () => {
     expect((await git(bare, 'rev-parse', 'main')).trim()).toBe(await head(repo));
   });
 
-  it('origin yokken hata döner', async () => {
+  it('returns an error without an origin', async () => {
     const repo = await newRepo();
     expect((await push(repo, await statusOf(repo))).ok).toBe(false);
   });
 
-  it('detached HEAD push edilmez', async () => {
+  it('does not push a detached HEAD', async () => {
     const repo = await newRepo();
     await addBareRemote(repo);
     await git(repo, 'checkout', '-q', '--detach');
     expect(await push(repo, await statusOf(repo))).toEqual({ ok: false, error: 'Detached HEAD: cannot push' });
   });
 
-  it('uzaktaki commit reddedilen push zorlanmaz', async () => {
+  it('does not force a push rejected because of a remote commit', async () => {
     const { repo, bare, peer } = await repoWithRemoteAndPeer();
-    await peerPushes(peer, 'uzak.txt');
+    await peerPushes(peer, 'remote.txt');
     const remoteHead = (await git(bare, 'rev-parse', 'main')).trim();
-    await write(repo, 'yerel.txt', 'x\n');
-    await commit(repo, 'feat: yerel', { addAll: true });
+    await write(repo, 'local.txt', 'x\n');
+    await commit(repo, 'feat: local', { addAll: true });
 
     const r = await push(repo, await statusOf(repo));
     expect(r.ok).toBe(false);
@@ -253,19 +253,19 @@ describe('push / pull / fetch', () => {
     expect((await git(bare, 'rev-parse', 'main')).trim()).toBe(remoteHead);
   });
 
-  it('pull fast-forward eder', async () => {
+  it('pull fast-forwards', async () => {
     const { repo, peer } = await repoWithRemoteAndPeer();
-    await peerPushes(peer, 'uzak.txt');
+    await peerPushes(peer, 'remote.txt');
 
     expect(await pull(repo)).toEqual({ ok: true, message: 'Pulled' });
     expect(await head(repo)).toBe(await head(peer));
   });
 
-  it('ayrışmış geçmişte pull hata döner ve HEAD değişmez', async () => {
+  it('pull fails on diverged history and leaves HEAD unchanged', async () => {
     const { repo, peer } = await repoWithRemoteAndPeer();
-    await peerPushes(peer, 'uzak.txt');
-    await write(repo, 'yerel.txt', 'x\n');
-    await commit(repo, 'feat: yerel', { addAll: true });
+    await peerPushes(peer, 'remote.txt');
+    await write(repo, 'local.txt', 'x\n');
+    await commit(repo, 'feat: local', { addAll: true });
     const before = await head(repo);
 
     expect((await pull(repo)).ok).toBe(false);
@@ -273,9 +273,9 @@ describe('push / pull / fetch', () => {
     expect((await statusOf(repo)).files).toEqual([]);
   });
 
-  it('fetch sonrası geride kalınan commit sayısı görünür', async () => {
+  it('shows the number of commits behind after a fetch', async () => {
     const { repo, peer } = await repoWithRemoteAndPeer();
-    await peerPushes(peer, 'uzak.txt');
+    await peerPushes(peer, 'remote.txt');
     expect((await statusOf(repo)).behind).toBe(0);
 
     expect(await fetchRepo(repo)).toEqual({ ok: true, message: 'Fetched' });
@@ -284,19 +284,19 @@ describe('push / pull / fetch', () => {
 });
 
 describe('branch', () => {
-  it('yerel branch\'leri ve geçerli olanı listeler', async () => {
+  it('lists local branches and the current one', async () => {
     const repo = await newRepo();
     await git(repo, 'branch', 'feat/x');
     expect(await listBranches(repo)).toEqual({ ok: true, branches: ['feat/x', 'main'], current: 'main' });
   });
 
-  it('detached HEAD\'de geçerli branch yoktur', async () => {
+  it('has no current branch on a detached HEAD', async () => {
     const repo = await newRepo();
     await git(repo, 'checkout', '-q', '--detach');
     expect(await listBranches(repo)).toEqual({ ok: true, branches: ['main'], current: null });
   });
 
-  it('var olan branch\'e geçer ve yenisini açar', async () => {
+  it('switches to an existing branch and creates a new one', async () => {
     const repo = await newRepo();
     await git(repo, 'branch', 'feat/x');
 
@@ -307,78 +307,78 @@ describe('branch', () => {
     expect((await statusOf(repo)).head).toBe('fix/y');
   });
 
-  it('çakışan yerel değişiklik varken geçiş reddedilir, değişiklik korunur', async () => {
+  it('refuses to switch over a conflicting local change and keeps the change', async () => {
     const repo = await newRepo();
     await git(repo, 'switch', '-q', '-c', 'feat/x');
-    await write(repo, 'README.md', 'feat/x içeriği\n');
+    await write(repo, 'README.md', 'feat/x content\n');
     await git(repo, 'commit', '-q', '-am', 'feat: x');
     await git(repo, 'switch', '-q', 'main');
-    await write(repo, 'README.md', 'kaydedilmemiş yerel değişiklik\n');
+    await write(repo, 'README.md', 'unsaved local change\n');
 
     expect((await switchBranch(repo, 'feat/x')).ok).toBe(false);
     expect((await statusOf(repo)).head).toBe('main');
-    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('kaydedilmemiş yerel değişiklik\n');
+    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('unsaved local change\n');
   });
 
-  it('geçersiz branch adı hata döner', async () => {
+  it('returns an error for an invalid branch name', async () => {
     const repo = await newRepo();
-    expect((await createBranch(repo, 'kötü ad')).ok).toBe(false);
+    expect((await createBranch(repo, 'bad name')).ok).toBe(false);
     expect((await statusOf(repo)).head).toBe('main');
   });
 });
 
 describe('diff', () => {
-  it("değişen dosyada stage'li ve stage'siz değişiklikleri birlikte verir", async () => {
+  it('returns staged and unstaged changes of a changed file together', async () => {
     const repo = await newRepo();
-    await write(repo, 'README.md', 'readme\nstage satırı\n');
+    await write(repo, 'README.md', 'readme\nstaged line\n');
     await git(repo, 'add', '-A');
-    await write(repo, 'README.md', 'readme\nstage satırı\nyeni satır\n');
+    await write(repo, 'README.md', 'readme\nstaged line\nnew line\n');
 
     const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'README.md'));
-    expect(r.ok && r.text).toContain('+stage satırı');
-    expect(r.ok && r.text).toContain('+yeni satır');
+    expect(r.ok && r.text).toContain('+staged line');
+    expect(r.ok && r.text).toContain('+new line');
   });
 
-  it('yeni dosyanın tamamını ekleme olarak verir, yolu kaçışsız yazar', async () => {
+  it('returns a new file as all additions and writes its path unescaped', async () => {
     const repo = await newRepo();
-    await write(repo, 'boş dosya.txt', 'içerik\n');
+    await write(repo, 'boş dosya.txt', 'content\n');
 
     const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'boş dosya.txt'));
     expect(r.ok && r.text).toContain('+++ b/boş dosya.txt');
-    expect(r.ok && r.text).toContain('+içerik');
+    expect(r.ok && r.text).toContain('+content');
   });
 
-  it("commit'i olmayan repoda stage'li dosyanın diff'ini verir", async () => {
+  it('returns the diff of a staged file in a repo without commits', async () => {
     const repo = await newRepo({});
-    await write(repo, 'ilk.txt', 'ilk satır\n');
+    await write(repo, 'first.txt', 'first line\n');
     await git(repo, 'add', '-A');
 
-    const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'ilk.txt'));
-    expect(r.ok && r.text).toContain('+ilk satır');
+    const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'first.txt'));
+    expect(r.ok && r.text).toContain('+first line');
   });
 
-  it("stage'li rename'i rename olarak gösterir", async () => {
+  it('shows a staged rename as a rename', async () => {
     const repo = await newRepo();
-    await git(repo, 'mv', 'README.md', 'OKU.md');
+    await git(repo, 'mv', 'README.md', 'READ.md');
 
-    const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'OKU.md'));
+    const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'READ.md'));
     expect(r.ok && r.text).toContain('rename from README.md');
   });
 
-  it('renk ve harici diff aracı ayarlıyken düz metin verir', async () => {
+  it('returns plain text when color and an external diff tool are configured', async () => {
     const repo = await newRepo();
     await git(repo, 'config', 'color.ui', 'always');
     await git(repo, 'config', 'diff.external', '/usr/bin/false');
-    await write(repo, 'README.md', 'readme\nyeni satır\n');
+    await write(repo, 'README.md', 'readme\nnew line\n');
 
     const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'README.md'));
-    expect(r.ok && r.text).toContain('+yeni satır');
+    expect(r.ok && r.text).toContain('+new line');
     expect(r.ok && r.text).not.toContain('\u001B[');
   });
 });
 
-describe('inceleme bulguları', () => {
-  it('unstageAll yarıda kalmış merge durumunu silmez', async () => {
+describe('review findings', () => {
+  it('unstageAll keeps an unfinished merge', async () => {
     const repo = await newRepo();
     await git(repo, 'switch', '-q', '-c', 'feat/x');
     await write(repo, 'a.txt', 'x\n');
@@ -396,11 +396,11 @@ describe('inceleme bulguları', () => {
     expect(await exists(join(repo, '.git', 'MERGE_HEAD'))).toBe(true);
   });
 
-  it('.git klasörü geçersiz olan satır üst klasördeki repoda işlem yapmaz', async () => {
+  it('does not act on the parent repo for a row whose .git folder is invalid', async () => {
     const outer = await newRepo();
-    await write(outer, 'gizli.env', 'x\n');
+    await write(outer, 'secret.env', 'x\n');
     const inner = join(outer, 'inner');
-    await mkdir(join(inner, '.git'), { recursive: true }); // boş .git: repo değil
+    await mkdir(join(inner, '.git'), { recursive: true }); // empty .git: not a repo
 
     expect((await getStatus(inner)).ok).toBe(false);
     expect((await stageAll(inner)).ok).toBe(false);
@@ -409,25 +409,25 @@ describe('inceleme bulguları', () => {
     expect(await commitCount(outer)).toBe(1);
   });
 
-  it('köşeli parantezli yol başka dosyalarla eşleşmez', async () => {
+  it('does not match other files with a bracketed path', async () => {
     const repo = await newRepo();
     await write(repo, 'app/[slug]/page.tsx', 'a\n');
     await write(repo, 'app/u/page.tsx', 'a\n');
     await git(repo, 'add', '-A');
-    await git(repo, 'commit', '-q', '-m', 'feat: sayfalar');
-    await write(repo, 'app/[slug]/page.tsx', 'a\nslug değişti\n');
-    await write(repo, 'app/u/page.tsx', 'a\nu değişti\n');
+    await git(repo, 'commit', '-q', '-m', 'feat: pages');
+    await write(repo, 'app/[slug]/page.tsx', 'a\nslug changed\n');
+    await write(repo, 'app/u/page.tsx', 'a\nu changed\n');
 
     const diff = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'app/[slug]/page.tsx'));
-    expect(diff.ok && diff.text).toContain('+slug değişti');
-    expect(diff.ok && diff.text).not.toContain('u değişti');
+    expect(diff.ok && diff.text).toContain('+slug changed');
+    expect(diff.ok && diff.text).not.toContain('u changed');
 
     expect((await stageFile(repo, await fileOf(repo, 'app/[slug]/page.tsx'))).ok).toBe(true);
     expect(await fileOf(repo, 'app/[slug]/page.tsx')).toMatchObject({ x: 'M', y: '.' });
     expect(await fileOf(repo, 'app/u/page.tsx')).toMatchObject({ x: '.', y: 'M' });
   });
 
-  it('yıldızlı ve iki noktayla başlayan dosya adları yalnız kendilerini stage eder', async () => {
+  it('stages only the file itself for names with a star or a leading colon', async () => {
     const repo = await newRepo();
     await write(repo, '*.txt', 'x\n');
     await write(repo, 'other.txt', 'x\n');
@@ -442,13 +442,13 @@ describe('inceleme bulguları', () => {
     expect(await fileOf(repo, ':colon.txt')).toMatchObject({ x: 'A' });
   });
 
-  it('çakışmalı dosya varken stageAll reddeder, çakışma çözülmüş sayılmaz', async () => {
+  it('stageAll refuses while a file is conflicted, so the conflict is not marked resolved', async () => {
     const repo = await repoWithConflict();
     expect(await stageAll(repo)).toEqual({ ok: false, error: 'Conflicted files present; resolve them outside edi' });
     expect(await fileOf(repo, 'README.md')).toMatchObject({ kind: 'conflicted' });
   });
 
-  it('çakışmalı dosya varken tümünü commit etme reddedilir', async () => {
+  it('refuses to commit everything while a file is conflicted', async () => {
     const repo = await repoWithConflict();
     const before = await commitCount(repo);
     expect(await commit(repo, 'feat: x', { addAll: true })).toEqual({
@@ -460,15 +460,15 @@ describe('inceleme bulguları', () => {
   });
 });
 
-describe('ertelenen bulgular', () => {
-  it('etiketle aynı adlı branch kısa adıyla listelenir', async () => {
+describe('deferred findings', () => {
+  it('lists a branch named like a tag by its short name', async () => {
     const repo = await newRepo();
     await git(repo, 'tag', 'release');
     await git(repo, 'switch', '-q', '-c', 'release');
     expect(await listBranches(repo)).toEqual({ ok: true, branches: ['main', 'release'], current: 'release' });
   });
 
-  it("upstream'i silinmiş branch'te push branch'i yeniden yayınlar", async () => {
+  it('push republishes a branch whose upstream was deleted', async () => {
     const repo = await newRepo();
     await addBareRemote(repo);
     await git(repo, 'switch', '-q', '-c', 'feat');
@@ -483,7 +483,7 @@ describe('ertelenen bulgular', () => {
     expect(await statusOf(repo)).toMatchObject({ upstream: 'origin/feat', ahead: 0 });
   });
 
-  it('etiketle aynı adlı yeni branch push edilir', async () => {
+  it('pushes a new branch named like a tag', async () => {
     const repo = await newRepo();
     await addBareRemote(repo);
     await git(repo, 'tag', 'v1');
@@ -494,18 +494,18 @@ describe('ertelenen bulgular', () => {
     expect(await git(repo, 'ls-remote', 'origin', 'refs/tags/v1')).toBe('');
   });
 
-  it('çok satırlı, tireyle başlayan ve özel karakterli mesaj aynen commit edilir', async () => {
+  it('commits a multi-line message with a leading dash and special characters as is', async () => {
     const repo = await newRepo();
     await write(repo, 'a.txt', 'x\n');
-    const message = '-m fix: x\n\nbody with "quotes", `ticks` and $(touch pwned)\n# kare ile başlayan satır\n--amend';
+    const message = '-m fix: x\n\nbody with "quotes", `ticks` and $(touch pwned)\n# a line starting with a hash\n--amend';
 
     expect(await commit(repo, `${message}\n\n  `, { addAll: true })).toEqual({ ok: true, message: 'Committed' });
     expect(await git(repo, 'log', '-1', '--format=%B')).toBe(`${message}\n\n`);
     expect(await exists(join(repo, 'pwned'))).toBe(false);
-    expect(await commitCount(repo)).toBe(2); // --amend seçenek olarak yorumlanmadı
+    expect(await commitCount(repo)).toBe(2); // --amend was not read as an option
   });
 
-  it('tire ile başlayan branch adı reddedilir', async () => {
+  it('rejects a branch name starting with a dash', async () => {
     const repo = await newRepo();
     const invalid = { ok: false, error: 'Invalid branch name' };
     expect(await switchBranch(repo, '--detach')).toEqual(invalid);
@@ -515,56 +515,56 @@ describe('ertelenen bulgular', () => {
     expect((await git(repo, 'symbolic-ref', 'HEAD')).trim()).toBe('refs/heads/main');
   });
 
-  it('çakışmalı dosya varken unstageAll reddeder; çakışma kaydı silinmez', async () => {
+  it('unstageAll refuses while a file is conflicted and keeps the conflict entry', async () => {
     const repo = await repoWithConflict();
-    // Çakışmanın yanında temiz birleşmiş, stage'li bir dosya da olsun.
-    await write(repo, 'temiz.txt', 'x\n');
-    await git(repo, 'add', '--', 'temiz.txt');
+    // Add a cleanly merged, staged file next to the conflict.
+    await write(repo, 'clean.txt', 'x\n');
+    await git(repo, 'add', '--', 'clean.txt');
 
     expect(await unstageAll(repo)).toEqual({ ok: false, error: 'Conflicted files present; resolve them outside edi' });
     expect(await fileOf(repo, 'README.md')).toMatchObject({ kind: 'conflicted' });
-    expect(await fileOf(repo, 'temiz.txt')).toMatchObject({ x: 'A' });
+    expect(await fileOf(repo, 'clean.txt')).toMatchObject({ x: 'A' });
   });
 
-  it('hiçbir şey stage\'li değilken başarısız olan "tümünü commit et" index\'i eski hâline döndürür', async () => {
+  it('restores the index when "commit everything" fails with nothing staged', async () => {
     const repo = await newRepo();
     const hook = join(repo, '.git', 'hooks', 'pre-commit');
     await writeFile(hook, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
     await chmod(hook, 0o755);
-    await write(repo, 'README.md', 'bozuk\n');
-    await write(repo, 'yeni.txt', 'x\n');
+    await write(repo, 'README.md', 'broken\n');
+    await write(repo, 'new.txt', 'x\n');
 
     const result = await commit(repo, 'feat: x', { addAll: true });
     expect(result.ok).toBe(false);
     expect(await commitCount(repo)).toBe(1);
-    // Düzeltilen dosyanın eski hâli index'te kalıp sonraki commit'e sessizce girmesin.
+    // The old version of the fixed file must not stay in the index and slip into the next commit.
     expect((await statusOf(repo)).files.some(isStaged)).toBe(false);
-    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('bozuk\n'); // çalışma ağacına dokunulmaz
-    expect(await fileOf(repo, 'yeni.txt')).toMatchObject({ kind: 'untracked' });
+    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('broken\n'); // the working tree is untouched
+    expect(await fileOf(repo, 'new.txt')).toMatchObject({ kind: 'untracked' });
   });
 
-  it('önceden stage\'li dosya varken başarısız olan commit index\'e dokunmaz', async () => {
+  it('leaves the index alone when a commit fails with files already staged', async () => {
     const repo = await newRepo();
     const hook = join(repo, '.git', 'hooks', 'pre-commit');
     await writeFile(hook, '#!/bin/sh\nexit 1\n');
     await chmod(hook, 0o755);
-    await write(repo, 'README.md', 'değişti\n');
+    await write(repo, 'README.md', 'changed\n');
     await git(repo, 'add', '--', 'README.md');
-    await write(repo, 'yeni.txt', 'x\n');
+    await write(repo, 'new.txt', 'x\n');
 
     expect((await commit(repo, 'feat: x', { addAll: false })).ok).toBe(false);
     expect(await fileOf(repo, 'README.md')).toMatchObject({ x: 'M', y: '.' });
-    expect(await fileOf(repo, 'yeni.txt')).toMatchObject({ kind: 'untracked' });
+    expect(await fileOf(repo, 'new.txt')).toMatchObject({ kind: 'untracked' });
   });
 
-  it('commit\'siz repoda başarısız olan "tümünü commit et" de index\'i boşaltır', async () => {
+  it('empties the index when "commit everything" fails in a repo without commits', async () => {
     const repo = await newRepo({ commit: false });
     const hook = join(repo, '.git', 'hooks', 'pre-commit');
     await writeFile(hook, '#!/bin/sh\nexit 1\n');
     await chmod(hook, 0o755);
-    await write(repo, 'ilk.txt', 'x\n');
+    await write(repo, 'first.txt', 'x\n');
 
     expect((await commit(repo, 'feat: x', { addAll: true })).ok).toBe(false);
-    expect(await fileOf(repo, 'ilk.txt')).toMatchObject({ kind: 'untracked' });
+    expect(await fileOf(repo, 'first.txt')).toMatchObject({ kind: 'untracked' });
   });
 });

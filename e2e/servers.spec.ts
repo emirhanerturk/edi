@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { launch, makeRepo, tmpDir } from './helpers.js';
 
-test('terminalde başlayan sunucu durum çubuğunda ve sekmede görünür, kapanınca kaybolur', async () => {
+test('a server started in a terminal shows in the status bar and the tab, and goes away when it stops', async () => {
   const dir = await tmpDir();
   const repo = await makeRepo(dir, 'alpha');
-  // 40000–48999 arasında boş bir portta dinler ve portu bir dosyaya yazar (listen(0)'ın verdiği
-  // rastgele portlar sunucu sayılmaz).
+  // Listens on a free port between 40000 and 48999 and writes the port to a file (random ports
+  // from listen(0) do not count as servers).
   await writeFile(
     join(repo, 'server.cjs'),
     [
@@ -35,7 +35,7 @@ test('terminalde başlayan sunucu durum çubuğunda ve sekmede görünür, kapan
     await counter.click();
     const item = page.getByRole('menuitem');
     await expect(item).toHaveText(`localhost:${port}alpha · node server.cjs`);
-    // Satıra tıklamak gerçek tarayıcıyı açar; testte tıklanmaz.
+    // Clicking the row opens the real browser; the test does not click it.
     await page.keyboard.press('Escape');
 
     await page.locator('.term-host.active').click();

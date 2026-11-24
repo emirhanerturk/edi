@@ -1,5 +1,5 @@
-// Sekmelerin xterm örnekleri. React'in dışında tutulur: terminal, yeniden çizimlerde
-// yok edilip yeniden kurulamayacak kadar durum taşır (geçmiş, imleç, seçim).
+// The tabs' xterm instances. Kept outside React: a terminal carries too much state (history,
+// cursor, selection) to be torn down and rebuilt on rerenders.
 import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -44,7 +44,7 @@ let container: HTMLElement | null = null;
 let activeId: number | null = null;
 let observer: ResizeObserver | null = null;
 
-/** Terminallerin çizileceği alan. Alan değişince etkin terminal yeniden boyutlanır. */
+/** The area terminals are drawn into. When the area changes, the active terminal is resized. */
 export function setContainer(element: HTMLElement | null): void {
   observer?.disconnect();
   observer = null;
@@ -63,7 +63,7 @@ function fitActive(): void {
   edi.pty.resize(activeId, entry.term.cols, entry.term.rows);
 }
 
-/** Yeni bir terminal ve arkasındaki kabuğu açar. */
+/** Opens a new terminal and the shell behind it. */
 export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Promise<TerminalCreated> {
   if (!container) throw new Error('Terminal area is not ready');
   const host = document.createElement('div');
@@ -78,15 +78,15 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
     cursorBlink: true,
     scrollback: 10000,
     allowProposedApi: true,
-    // Türkçe klavyede Option'lı karakterler (@ # { } [ ] | \ ~) yazılabilsin.
+    // Let Option characters (@ # { } [ ] | \ ~) be typed on a Turkish keyboard.
     macOptionIsMeta: false,
-    // Option+tık bağlantıyı açar; imleci oraya taşıyan ok tuşları kabuğa gönderilmesin.
+    // Option+click opens a link; don't send the shell the arrow keys that move the cursor there.
     altClickMovesCursor: false,
     theme: THEME,
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
-  // http(s) bağlantıları altı çizili görünür; Option+tık varsayılan tarayıcıda açar.
+  // http(s) links are shown underlined; Option+click opens them in the default browser.
   term.loadAddon(new WebLinksAddon(linkActivator((url) => void edi.openUrl(url))));
   term.open(host);
   try {
@@ -94,7 +94,7 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
     webgl.onContextLoss(() => webgl.dispose());
     term.loadAddon(webgl);
   } catch {
-    // WebGL yoksa DOM çizimiyle devam.
+    // Without WebGL, carry on with DOM rendering.
   }
   if (host.clientWidth > 0 && host.clientHeight > 0) fit.fit();
 
@@ -111,7 +111,7 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
 
   term.onData((data) => edi.pty.write(id, data));
   term.attachCustomKeyEventHandler((event) => {
-    // Shift+Enter: Claude Code'da yeni satır (ESC + CR).
+    // Shift+Enter: new line in Claude Code (ESC + CR).
     if (event.type === 'keydown' && event.key === 'Enter' && event.shiftKey && !event.metaKey) {
       event.preventDefault();
       edi.pty.write(id, '\x1b\r');
@@ -123,7 +123,7 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
   return created;
 }
 
-/** Sekmeyi öne getirir, boyutlandırır ve klavyeyi ona verir. */
+/** Brings the tab to the front, resizes it and gives it keyboard focus. */
 export function showTerminal(id: number | null): void {
   activeId = id;
   for (const [key, entry] of entries) entry.host.classList.toggle('active', key === id);
@@ -149,7 +149,7 @@ export function disposeAllTerminals(): void {
   for (const id of [...entries.keys()]) disposeTerminal(id);
 }
 
-/** Terminal başlığı değişince çağrılır (Claude Code durumunu başlığa yazar). */
+/** Called when the terminal title changes (Claude Code writes its state into the title). */
 export function onTerminalTitle(id: number, listener: (title: string) => void): void {
   entries.get(id)?.term.onTitleChange(listener);
 }

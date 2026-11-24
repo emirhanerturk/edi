@@ -1,4 +1,4 @@
-/* Durum çubuğundaki çalışan sunucular. */
+/* Running servers in the status bar. */
 .servers {
   position: relative;
   display: flex;

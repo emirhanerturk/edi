@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ExternalIcon } from '../components/icons';
 
-/** Diff ve dosya görünümlerinin ortak başlığı: repo, yol, araya girenler ve "Open in Zed". */
+/** Shared header for the diff and file views: repo, path, extras in between and "Open in Zed". */
 export function ViewHeader({ repoName, path, children, onOpenInZed }: { repoName: string; path: string; children?: ReactNode; onOpenInZed(): void }) {
   const slash = path.lastIndexOf('/');
   return (
@@ -21,7 +21,7 @@ export function ViewHeader({ repoName, path, children, onOpenInZed }: { repoName
   );
 }
 
-/** Görünümün gövdesi yerine gösterilen kısa not. */
+/** A short note shown in place of the view's body. */
 export function ViewNote({ children, alert }: { children: ReactNode; alert?: boolean }) {
   return (
     <div className="view-note" role={alert ? 'alert' : undefined}>

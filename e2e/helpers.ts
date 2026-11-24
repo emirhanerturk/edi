@@ -9,12 +9,12 @@ import { type ElectronApplication, type Page, _electron } from '@playwright/test
 const run = promisify(execFile);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Testler yalnız geçici klasörlerde çalışır; kullanıcının repolarına dokunmaz. */
+/** Tests run only in temporary folders; they never touch the user's repositories. */
 export async function tmpDir(prefix = 'edi-e2e-'): Promise<string> {
   return realpath(await mkdtemp(join(tmpdir(), prefix)));
 }
 
-/** Kullanıcının global git ayarlarından (hook, imzalama) bağımsız git. */
+/** Git independent of the user's global git config (hooks, signing). */
 const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
 
 export async function git(cwd: string, ...args: string[]): Promise<string> {
@@ -22,7 +22,7 @@ export async function git(cwd: string, ...args: string[]): Promise<string> {
   return stdout;
 }
 
-/** `main` dalında, bir commit'i olan repo. */
+/** A repo on the `main` branch with one commit. */
 export async function makeRepo(parent: string, name: string): Promise<string> {
   const path = join(parent, name);
   await mkdir(path, { recursive: true });
@@ -35,7 +35,7 @@ export async function makeRepo(parent: string, name: string): Promise<string> {
   return path;
 }
 
-/** Yerel bir bare repo oluşturur ve `origin` olarak ekler; yolunu döner. Hiçbir şey push edilmez. */
+/** Creates a local bare repo and adds it as `origin`; returns its path. Nothing is pushed. */
 export async function addRemote(repo: string): Promise<string> {
   const bare = join(await tmpDir('edi-e2e-origin-'), 'origin.git');
   await git(repo, 'init', '-q', '--bare', '-b', 'main', bare);
@@ -49,7 +49,7 @@ export interface Launched {
   userData: string;
 }
 
-/** Uygulamayı boş bir kullanıcı verisi klasörüyle (ya da verilenle) ve görünmez pencereyle açar. */
+/** Launches the app with an empty user data folder (or the given one) and a hidden window. */
 export async function launch(opts: { openDir?: string; userData?: string; usageFile?: string } = {}): Promise<Launched> {
   const userData = opts.userData ?? (await tmpDir('edi-e2e-data-'));
   const env: Record<string, string> = {};
@@ -58,16 +58,16 @@ export async function launch(opts: { openDir?: string; userData?: string; usageF
   }
   env.EDI_USER_DATA = userData;
   env.EDI_HIDDEN = '1';
-  // Kullanıcının kabuk profili testleri yavaşlatmasın ve değiştirmesin.
+  // Keep the user's shell profile from slowing down or altering the tests.
   env.EDI_SHELL = '/bin/sh';
-  // Kullanıcının gerçek Claude kullanım dosyası okunmaz.
+  // The user's real Claude usage file is never read.
   env.EDI_USAGE_FILE = opts.usageFile ?? join(userData, 'claude-usage.json');
   if (opts.openDir) env.EDI_OPEN_DIR = opts.openDir;
 
   const app = await _electron.launch({ args: [root], env });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
-  // Görünmez pencerede soru kutusu yanıtlanamaz: testlerde varsayılan yanıt ilk düğmedir (onay).
+  // A hidden window cannot answer a dialog: in tests the default answer is the first button (confirm).
   await answerDialogs(app, 0);
   return { app, page, userData };
 }
@@ -75,9 +75,9 @@ export async function launch(opts: { openDir?: string; userData?: string; usageF
 type Asked = { message: string; detail: string; buttons: string[] };
 
 /**
- * Bundan sonra uygulamanın soracağı "çalışan süreç var" sorularını verilen düğmeyle yanıtlar ve
- * kaydeder. Sayfanın `window.confirm` kutuları da Electron'da aynı işlevden geçer; onlara
- * dokunulmaz (Playwright'ın `dialog` olayıyla yanıtlanırlar).
+ * From now on, answers the app's "running process" dialogs with the given button and records
+ * them. The page's `window.confirm` boxes go through the same function in Electron; they are
+ * left alone (they are answered through Playwright's `dialog` event).
  */
 export async function answerDialogs(app: ElectronApplication, response: number): Promise<void> {
   await app.evaluate(({ dialog }, answer) => {
@@ -95,7 +95,7 @@ export async function answerDialogs(app: ElectronApplication, response: number):
   }, response);
 }
 
-/** Şimdiye kadar sorulan soru kutuları. */
+/** The dialogs asked so far. */
 export function askedDialogs(app: ElectronApplication): Promise<Asked[]> {
   return app.evaluate(() => (globalThis as unknown as { __ediDialogs?: Asked[] }).__ediDialogs ?? []);
 }

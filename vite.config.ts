@@ -2,16 +2,16 @@ import react from '@vitejs/plugin-react';
 import { type Plugin, defineConfig } from 'vite';
 
 /**
- * Paketlenmiş sayfa yalnız kendi dosyalarını yükler: uzak betik, yazı tipi ya da istek yok.
- * Geliştirme sunucusunda uygulanmaz (anında yenileme satır içi betik kullanır).
+ * The packaged page loads only its own files: no remote scripts, fonts or requests.
+ * Not applied on the dev server (live reload uses an inline script).
  */
 function contentSecurityPolicy(): Plugin {
   const policy = [
     "default-src 'none'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'", // xterm ölçüm için satır içi stil yazar
+    "style-src 'self' 'unsafe-inline'", // xterm writes inline styles to measure
     "font-src 'self'",
-    // Dosya görünümündeki görsel ve videolar ana sürecin `edi-media:` adresinden gelir.
+    // Images and videos in the file view come from the main process's `edi-media:` scheme.
     "img-src 'self' data: edi-media:",
     "media-src edi-media:",
     "connect-src 'none'",

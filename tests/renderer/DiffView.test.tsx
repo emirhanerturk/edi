@@ -22,7 +22,7 @@ function renderPane(view: DiffView | null, mode: 'split' | 'inline' = 'split') {
 const cell = (row: HTMLElement, side: 'old' | 'new') => row.querySelector<HTMLElement>(`[data-side="${side}"]`)!;
 
 describe('DiffPane', () => {
-  it('başlıkta repo, yol ve toplamlar görünür', () => {
+  it('the header shows repo, path and totals', () => {
     renderPane(loaded);
     const header = screen.getByTestId('view-header');
     expect(within(header).getByText('quizei-app')).toBeTruthy();
@@ -31,7 +31,7 @@ describe('DiffPane', () => {
     expect(within(header).getByText('−1')).toBeTruthy();
   });
 
-  it('"Open file" dosyanın tamamını açar; silinmiş dosyada ve yüklenmeden düğme yoktur', () => {
+  it('"Open file" opens the whole file; no button for a deleted file or before loading', () => {
     const { onOpenFile } = renderPane(loaded);
     fireEvent.click(within(screen.getByTestId('view-header')).getByRole('button', { name: 'Open file' }));
     expect(onOpenFile).toHaveBeenCalledTimes(1);
@@ -46,13 +46,13 @@ describe('DiffPane', () => {
     cleanup();
     renderPane(null);
     expect(screen.queryByRole('button', { name: 'Open file' })).toBeNull();
-    // Stage'li ama çalışma ağacında duran dosya açılabilir.
+    // A staged file that is still in the working tree can be opened.
     cleanup();
     renderPane({ ok: true, diff, file: { ...file, x: 'A', y: '.' } });
     expect(screen.getByRole('button', { name: 'Open file' })).toBeTruthy();
   });
 
-  it('yan yana: numaralar, işaretler ve boş taraf', () => {
+  it('split: numbers, signs and the empty side', () => {
     renderPane(loaded);
     expect(screen.getByText('@@ -1,3 +1,4 @@ function a() {')).toBeTruthy();
     const rows = screen.getAllByTestId('diff-row');
@@ -71,7 +71,7 @@ describe('DiffPane', () => {
     expect(screen.getByText('WORKING TREE')).toBeTruthy();
   });
 
-  it('tek sütun: iki numara sütunu, satırlar diff sırasında', () => {
+  it('inline: two number columns, lines in diff order', () => {
     renderPane(loaded, 'inline');
     const rows = screen.getAllByTestId('diff-row');
     expect(rows.map((row) => row.dataset.kind)).toEqual(['context', 'del', 'add', 'add', 'context']);
@@ -79,7 +79,7 @@ describe('DiffPane', () => {
     expect(screen.queryByText('WORKING TREE')).toBeNull();
   });
 
-  it('Split / Inline seçimi bildirilir; seçili olan basılı görünür', () => {
+  it('reports the Split / Inline choice; the selected one shows as pressed', () => {
     const { onMode } = renderPane(loaded);
     const group = screen.getByRole('group', { name: 'Diff view' });
     expect(within(group).getByRole('button', { name: 'Split' }).getAttribute('aria-pressed')).toBe('true');
@@ -88,13 +88,13 @@ describe('DiffPane', () => {
     expect(onMode).toHaveBeenCalledWith('inline');
   });
 
-  it("Open in Zed düğmesi çalışır", () => {
+  it('the Open in Zed button works', () => {
     const { onOpenInZed } = renderPane(loaded);
     fireEvent.click(screen.getByRole('button', { name: 'Open in Zed' }));
     expect(onOpenInZed).toHaveBeenCalledTimes(1);
   });
 
-  it('renkler geldiyse satır metni renkli parçalardan oluşur', () => {
+  it('once colors arrive, the line text is made of colored spans', () => {
     const tokens = { old: new Map(), new: new Map([[2, [{ text: 'İK', color: '#c678dd' }, { text: 'İ', color: '#98c379' }]]]) };
     render(<DiffPane repoName="r" path="a.ts" view={loaded} mode="split" tokens={tokens} onMode={() => undefined} onOpenInZed={() => undefined} onOpenFile={() => undefined} />);
     const code = cell(screen.getAllByTestId('diff-row')[1]!, 'new').querySelector('.code')!;
@@ -104,36 +104,36 @@ describe('DiffPane', () => {
     ]);
   });
 
-  it('ikili dosyada diff yerine not gösterir', () => {
+  it('shows a note instead of the diff for a binary file', () => {
     renderPane({ ok: true, diff: { hunks: [], added: 0, removed: 0, binary: true }, file });
     expect(screen.getByText('Binary file — no diff to show')).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Diff view' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Open in Zed' })).toBeTruthy();
   });
 
-  it('dosyada değişiklik kalmadıysa bunu söyler', () => {
+  it('says so when the file has no changes left', () => {
     renderPane({ ok: false, error: 'File is not in the list of changes' });
     expect(screen.getByText('No changes left in this file')).toBeTruthy();
   });
 
-  it('yalnız adı ya da izni değişen dosyada içerik farkı olmadığını söyler', () => {
+  it('says there are no content changes when only the name or mode changed', () => {
     renderPane({ ok: true, diff: { hunks: [], added: 0, removed: 0, binary: false }, file: { ...file, origPath: 'app/old.tsx', x: 'R', y: '.' } });
     expect(screen.getByText('No content changes')).toBeTruthy();
     expect(screen.getByText(/Renamed from app\/old\.tsx/)).toBeTruthy();
   });
 
-  it('çok büyük diff için uyarı değil, sakin bir not', () => {
+  it('a calm note, not an alert, for a very large diff', () => {
     renderPane({ ok: false, error: 'This diff is too large to show' });
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByText('This diff is too large to show — open the file in Zed')).toBeTruthy();
   });
 
-  it('başka hatayı olduğu gibi gösterir', () => {
+  it('shows other errors as they are', () => {
     renderPane({ ok: false, error: 'fatal: bad revision' });
     expect(screen.getByRole('alert').textContent).toContain('fatal: bad revision');
   });
 
-  it('yüklenirken başlık durur, satır yoktur', () => {
+  it('keeps the header and shows no lines while loading', () => {
     renderPane(null);
     expect(screen.getByTestId('view-header')).toBeTruthy();
     expect(screen.queryAllByTestId('diff-row')).toHaveLength(0);

@@ -1,5 +1,5 @@
-// `edi-media://` adresinin karşılığı: keşfedilmiş bir reponun içindeki görsel ve video dosyaları.
-// Electron'a bağlı değildir; protokol kaydı ipc.ts'tedir.
+// What `edi-media://` URLs resolve to: image and video files inside a discovered repo.
+// Doesn't depend on Electron; the protocol is registered in ipc.ts.
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
@@ -9,7 +9,7 @@ import { mediaOf } from '../shared/media.js';
 const SAFE = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' };
 const notFound = () => new Response('Not found', { status: 404, headers: SAFE });
 
-/** `bytes=a-b`, `bytes=a-`, `bytes=-n`; karşılanamazsa null. */
+/** `bytes=a-b`, `bytes=a-`, `bytes=-n`; null if it can't be satisfied. */
 function parseRange(header: string, size: number): { start: number; end: number } | null {
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
   if (!match || (match[1] === '' && match[2] === '')) return null;
@@ -28,8 +28,8 @@ function parseRange(header: string, size: number): { start: number; end: number 
 }
 
 /**
- * İsteği karşılar. Repo yolu keşfedilmiş listede (`repoOf`), dosya repo içinde (bağlar çözülerek)
- * ve görsel/video uzantılı olmalıdır; değilse 404. Byte aralığı istenirse (video) 206.
+ * Serves the request. The repo path must be in the discovered list (`repoOf`), and the file inside the repo (with links resolved)
+ * and with an image/video extension; otherwise 404. If a byte range is requested (video), 206.
  */
 export async function serveMedia(repoOf: (repoPath: string) => string | null, requestUrl: string, range: string | null): Promise<Response> {
   let url: URL;

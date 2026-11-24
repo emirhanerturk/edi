@@ -1,23 +1,23 @@
-// Orta panelin sekme mantığı: saf işlevler, durumu değiştirmez, yenisini döner.
+// The center panel's tab logic: pure functions that don't change the state but return a new one.
 
-/** Orta panelde açılabilen şey: bir dosyanın diff'i, içeriği ya da bir commit. */
+/** What can be opened in the center panel: a file's diff, its content or a commit. */
 export interface CenterTarget {
   kind: 'diff' | 'file' | 'commit';
   repoPath: string;
-  /** Repoya göre göreli yol; commit için tam commit kimliği. */
+  /** Path relative to the repo; the full commit ID for a commit. */
   path: string;
 }
 
 export interface CenterTab extends CenterTarget {
   id: string;
-  /** Kalıcı sekme. Önizleme sekmesi (false) bir sonraki tek tıkta yerini yenisine bırakır. */
+  /** Permanent tab. A preview tab (false) gives up its place to a new one on the next single click. */
   pinned: boolean;
 }
 
 export interface CenterState {
   tabs: CenterTab[];
   active: string | null;
-  /** Panel görünür mü. Kapalıyken sekmeler durur. */
+  /** Whether the panel is visible. The tabs stay while it's closed. */
   open: boolean;
 }
 
@@ -26,8 +26,8 @@ export const EMPTY_CENTER: CenterState = { tabs: [], active: null, open: false }
 export const tabId = (t: CenterTarget) => `${t.kind}:${t.repoPath}:${t.path}`;
 
 /**
- * Tek tık (`pin` false) önizleme sekmesi açar; varsa eskisinin yerine geçer. Çift tık kalıcı
- * yapar. Zaten açık olan bir şey için sekmesine geçilir. Panel kapalıysa açılır.
+ * A single click (`pin` false) opens a preview tab, replacing the old one if there is one. A double
+ * click makes it permanent. For something already open, switches to its tab. Opens the panel if closed.
  */
 export function openTarget(s: CenterState, target: CenterTarget, pin: boolean): CenterState {
   const id = tabId(target);
@@ -41,7 +41,7 @@ export function openTarget(s: CenterState, target: CenterTarget, pin: boolean): 
   return { tabs, active: id, open: true };
 }
 
-/** Etkin sekme kapanınca sağındaki (yoksa solundaki) öne gelir; son sekmeyle panel de kapanır. */
+/** When the active tab closes, the one to its right (or else its left) comes forward; the last tab closes the panel too. */
 export function closeCenterTab(s: CenterState, id: string): CenterState {
   const index = s.tabs.findIndex((tab) => tab.id === id);
   if (index === -1) return s;
@@ -60,14 +60,14 @@ export function pinCenterTab(s: CenterState, id: string): CenterState {
   return { ...s, tabs: s.tabs.map((tab) => (tab.id === id ? { ...tab, pinned: true } : tab)) };
 }
 
-/** Paneli gizler ya da gösterir. Gösterilecek sekme yoksa kapalı kalır. */
+/** Hides or shows the panel. Stays closed if there's no tab to show. */
 export function setPanelOpen(s: CenterState, open: boolean): CenterState {
   return { ...s, open: open && s.tabs.length > 0 };
 }
 
 /**
- * Çalışma alanı değişince sekmeleri ona uydurur: klasör değiştiyse hepsi kapanır, bir repo
- * kaybolduysa onun sekmeleri kapanır.
+ * Fits the tabs to a changed workspace: if the folder changed, they all close; if a repo
+ * disappeared, its tabs close.
  */
 export function syncCenter(s: CenterState, prevDir: string | null, dir: string | null, repoPaths: string[]): CenterState {
   if (dir !== prevDir || dir === null) return s.tabs.length === 0 && !s.open ? s : EMPTY_CENTER;
@@ -77,7 +77,7 @@ export function syncCenter(s: CenterState, prevDir: string | null, dir: string |
   if (tabs.length === 0) return EMPTY_CENTER;
   let active = s.active;
   if (!tabs.some((tab) => tab.id === active)) {
-    // Etkin sekme gittiyse eski sırada ondan sonraki ilk kalan, yoksa sonuncu.
+    // If the active tab went away: the first remaining one after it in the old order, else the last.
     const from = s.tabs.findIndex((tab) => tab.id === s.active);
     active = (s.tabs.slice(from + 1).find((tab) => known.has(tab.repoPath)) ?? tabs[tabs.length - 1]!).id;
   }

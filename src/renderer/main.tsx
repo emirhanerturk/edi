@@ -15,6 +15,6 @@ import './git/git.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 
-// StrictMode kullanılmıyor: geliştirmede etkileri iki kez çalıştırır, bu da her açılışta
-// fazladan bir kabuk süreci başlatıp öldürmek demek.
+// No StrictMode: in development it runs effects twice, which means starting and killing an
+// extra shell process on every launch.
 createRoot(document.getElementById('root')!).render(<App />);

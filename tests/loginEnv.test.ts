@@ -7,19 +7,19 @@ import { makeTmpDir } from './helpers/tmpRepo.js';
 const M = '__EDI_ENV_7f3a__';
 
 describe('parseEnvBlock', () => {
-  it("kabuğun bastığı gürültüyü atlar; değerde '=' ve satır sonu olabilir", () => {
-    const out = `nvm yüklendi\nMerhaba!\n${M}PATH=/a:/b\0MULTI=bir\niki\0EQ=x=y\0${M}\nçıkış mesajı`;
-    expect(parseEnvBlock(out, M)).toEqual({ PATH: '/a:/b', MULTI: 'bir\niki', EQ: 'x=y' });
+  it("skips the noise the shell prints; values may contain '=' and newlines", () => {
+    const out = `nvm loaded\nHello!\n${M}PATH=/a:/b\0MULTI=one\ntwo\0EQ=x=y\0${M}\nexit message`;
+    expect(parseEnvBlock(out, M)).toEqual({ PATH: '/a:/b', MULTI: 'one\ntwo', EQ: 'x=y' });
   });
 
-  it('işaretler yoksa null', () => {
+  it('returns null without the markers', () => {
     expect(parseEnvBlock('PATH=/a\0', M)).toBeNull();
     expect(parseEnvBlock(`${M}PATH=/a\0`, M)).toBeNull();
   });
 });
 
 describe('readLoginEnv', () => {
-  /** Bayrakları yok sayıp verilen komutu sh ile çalıştıran sahte kabuk; önce gürültü basar. */
+  /** A fake shell that ignores its flags and runs the given command with sh; it prints noise first. */
   async function fakeShell(body: string): Promise<string> {
     const path = join(await makeTmpDir(), 'fake-shell');
     await writeFile(path, `#!/bin/sh\n${body}\n`);
@@ -27,25 +27,25 @@ describe('readLoginEnv', () => {
     return path;
   }
 
-  it('giriş kabuğunun ortamını okur', async () => {
-    const shell = await fakeShell('echo "oh-my-zsh yüklendi"\nlast=""; for a in "$@"; do last="$a"; done\nFROM_RC=evet\nexport FROM_RC\nexec /bin/sh -c "$last"');
+  it("reads the login shell's environment", async () => {
+    const shell = await fakeShell('echo "oh-my-zsh loaded"\nlast=""; for a in "$@"; do last="$a"; done\nFROM_RC=yes\nexport FROM_RC\nexec /bin/sh -c "$last"');
     const env = await readLoginEnv(shell);
-    expect(env?.FROM_RC).toBe('evet');
+    expect(env?.FROM_RC).toBe('yes');
     expect(env?.PATH).toBeTruthy();
   });
 
-  it('rc dosyası arka planda bir iş bıraksa da ortam hemen okunur', async () => {
-    // Arka plandaki iş stdout'u açık tutar; kabuğun bitişini beklemek zaman aşımına düşürürdü.
-    const shell = await fakeShell('sleep 5 &\nlast=""; for a in "$@"; do last="$a"; done\nexport FROM_RC=evet\n/bin/sh -c "$last"');
+  it('reads the environment right away even when the rc file leaves a background job', async () => {
+    // The background job holds stdout open; waiting for the shell to exit would hit the timeout.
+    const shell = await fakeShell('sleep 5 &\nlast=""; for a in "$@"; do last="$a"; done\nexport FROM_RC=yes\n/bin/sh -c "$last"');
     const started = Date.now();
     const env = await readLoginEnv(shell, { timeoutMs: 3000 });
-    expect(env?.FROM_RC).toBe('evet');
+    expect(env?.FROM_RC).toBe('yes');
     expect(Date.now() - started).toBeLessThan(1500);
   });
 
-  it('kabuk hata verirse ya da yanıt vermezse null; uzun sürmez', async () => {
+  it('returns null quickly when the shell fails or does not respond', async () => {
     expect(await readLoginEnv(await fakeShell('exit 3'))).toBeNull();
-    expect(await readLoginEnv('/olmayan/kabuk')).toBeNull();
+    expect(await readLoginEnv('/no/such/shell')).toBeNull();
     const started = Date.now();
     expect(await readLoginEnv(await fakeShell('sleep 5'), { timeoutMs: 200 })).toBeNull();
     expect(Date.now() - started).toBeLessThan(2000);
@@ -53,7 +53,7 @@ describe('readLoginEnv', () => {
 });
 
 describe('mergeLoginEnv', () => {
-  it('giriş kabuğunun değerleri eklenir; kabuğa ve uygulamaya özgü olanlar alınmaz', () => {
+  it("adds the login shell's values but skips shell- and app-specific ones", () => {
     const base = { PATH: '/usr/bin:/bin', HOME: '/Users/u', ELECTRON_RUN_AS_NODE: undefined, EDI_HIDDEN: '1' };
     const login = {
       PATH: '/Users/u/.nvm/bin:/usr/bin:/bin',

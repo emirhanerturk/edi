@@ -2,8 +2,8 @@ import { useApp } from '../store';
 import { CloseIcon, WarningIcon } from './icons';
 
 /**
- * Orta panelin ya da Git sekmesinin başlattığı bir görünüm işleminin (Open in Zed) hatası.
- * Panel kapalıyken de görünsün diye pencerenin altında, durum çubuğunun üstünde durur.
+ * Error from a view action (Open in Zed) started by the center panel or the Git tab.
+ * Sits at the bottom of the window, above the status bar, so it shows even when the panel is closed.
  */
 export function ViewErrorBar() {
   const error = useApp((s) => s.centerError);

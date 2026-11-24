@@ -12,20 +12,20 @@ afterEach(async () => {
   await Promise.all(created.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-/** Gerçek yolu çözülmüş geçici klasör; test bitince silinir. */
+/** A temp directory with its real path resolved; removed after the test. */
 export async function makeTmpDir(): Promise<string> {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'edi-')));
   created.push(dir);
   return dir;
 }
 
-/** Sıfır dışı çıkışta throw eder. */
+/** Throws on a non-zero exit. */
 export async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await run('git', args, { cwd });
   return stdout;
 }
 
-/** `main` dalında, yerel kullanıcı adı ayarlı repo. `commit: true` ise README ile ilk commit atılır. */
+/** A repo on `main` with a local user name set. With `commit: true` it gets an initial commit with a README. */
 export async function initRepo(parent: string, name: string, opts: { commit?: boolean } = {}): Promise<string> {
   const path = join(parent, name);
   await mkdir(path, { recursive: true });
@@ -40,7 +40,7 @@ export async function initRepo(parent: string, name: string, opts: { commit?: bo
   return path;
 }
 
-/** Yerel bir bare repo oluşturur, `origin` olarak ekler ve yolunu döner. */
+/** Creates a local bare repo, adds it as `origin` and returns its path. */
 export async function addBareRemote(repoPath: string): Promise<string> {
   const bare = join(await makeTmpDir(), 'origin.git');
   await git(repoPath, 'init', '-q', '--bare', '-b', 'main', bare);

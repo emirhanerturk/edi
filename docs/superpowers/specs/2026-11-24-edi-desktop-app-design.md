@@ -1,468 +1,484 @@
-# edi — masaüstü uygulaması: tasarım
+# edi — desktop app: design
 
-Tarih: 2026-11-24
+Date: 2026-11-24
 
-Bu belge, `2026-11-24-edi-multi-repo-git-tui-design.md` belgesinin **arayüz**
-kısmının yerini alır. O belgedeki git davranışı ve karşı hedefler geçerlidir;
-burada uygulamaya uyarlanmış halleriyle yeniden yazılmıştır. İkisi çelişirse bu
-belge geçerlidir.
+This document replaces the **interface** part of
+`2026-11-24-edi-multi-repo-git-tui-design.md`. The git behavior and anti-goals in that
+document still hold; here they are rewritten as adapted to the app. Where the two
+conflict, this document wins.
 
-Görsel tasarımın kaynağı: `docs/design/edi-ui/` (tuvalin dosyaları) ve aynı
-tuvalin canlı hali <https://claude.ai/artifact/H9e4gijgVcFaK4s9mKkKbH>. Ölçüler,
-renkler ve metinler için o dosyalar esas alınır; bu belge davranışı anlatır.
+Source of the visual design: `docs/design/edi-ui/` (the canvas files) and the live
+version of the same canvas at <https://claude.ai/artifact/H9e4gijgVcFaK4s9mKkKbH>.
+Those files are authoritative for sizes, colors and copy; this document describes
+behavior.
 
-## Amaç ve neden
+## Goal and rationale
 
-Kullanıcı sekiz civarı repoyla aynı anda çalışıyor ve işinin çoğunu terminalde,
-Claude Code ile yapıyor. Zed'in düzenini (solda terminaller, ortada dosya/diff,
-sağda dosyalar ve git) seviyor ama Zed'in git paneli bir seferde tek repo
-gösteriyor. İstediği şey bir IDE değil; kendi deyişiyle "git destekli terminal
-yönetim aracı": terminaller ve Claude Code oturumları solda, **tüm repoların**
-durumu ve geçmişi sağda, bakmak istediği dosya ya da diff ortada.
+The user works with around eight repos at once and does most of their work in the
+terminal, with Claude Code. They like Zed's layout (terminals on the left, file/diff
+in the center, files and git on the right), but Zed's git panel shows one repo at a
+time. What they want is not an IDE; in their own words, a "git-backed terminal
+management tool": terminals and Claude Code sessions on the left, the status and
+history of **all repos** on the right, and the file or diff they want to look at in
+the center.
 
-Önce bunu Zed'in terminal sekmesinde yaşayan bir TUI olarak planladık. Git
-çekirdeği o plan için yazıldı (`src/git/*`, 100 test). Sonra bir günlük Electron
-denemesi yaptık (`spike/electron-terminal`); kullanıcı kendi zsh profiliyle,
-Türkçe klavyeyle, Shift+Enter ve yapıştırmayla sorunsuz çalıştığını doğruladı ve
-kendi uygulamamızı yazmaya karar verdi.
+We first planned this as a TUI living in a Zed terminal tab. The git core was written
+for that plan (`src/git/*`, 100 tests). Then we did a one-day Electron spike
+(`spike/electron-terminal`); the user confirmed that it worked without problems with
+their own zsh profile, a Turkish keyboard, Shift+Enter and pasting, and decided to
+write our own app.
 
-## Hedefler
+## Goals
 
-- Bir klasördeki tüm git repolarının branch, ahead/behind ve değişiklik durumunu
-  tek listede, canlı görmek; o listeden stage, commit, push, pull, fetch ve
-  branch değiştirme yapmak.
-- Aynı pencerede birden çok terminal sekmesi; Claude Code çalışan sekmeyi
-  simgesinden tanımak ve yanıt bekleyeni ayırt etmek.
-- Tüm repoların son commit'lerini tek zaman çizelgesinde görmek; bir commit'e
-  tıklayıp içeriğine bakmak.
-- Bir dosyaya ya da değişikliğe bakmak (salt okunur) ve tek tıkla Zed'de açmak.
+- See the branch, ahead/behind and change status of every git repo in a folder in a
+  single live list; stage, commit, push, pull, fetch and switch branches from that
+  list.
+- Multiple terminal tabs in the same window; recognize the tab running Claude Code by
+  its icon and tell apart the one waiting for a reply.
+- See the latest commits of all repos in a single timeline; click a commit to look at
+  its contents.
+- Look at a file or a change (read-only) and open it in Zed with one click.
 
-## Hedef olmayanlar (ilk sürüm)
+## Non-goals (first version)
 
-- Orta panelde düzenleme. Dosyalar salt okunur; düzenleme için "Open in Zed".
-- Arama (dosya adı ya da içerik).
-- Uygulama kapanınca terminal oturumlarını saklayıp geri getirmek.
-- Yapay zekâyla commit mesajı üretme.
-- Stash, merge, rebase, çakışma çözme, cherry-pick, commit graph'ı.
-- Satır/hunk bazında stage. Discard (değişikliği geri alma).
-- Ayar ekranı ve ayar dosyası; vurgu rengi, yazı tipi, kısayollar sabittir.
-  (Tasarımdaki dişli düğmesi ilk sürümde yok.)
-- Birden çok pencere, birden çok çalışma klasörü.
-- İmzalama, notarization, otomatik güncelleme, başkasına dağıtım.
-- Yalnız remote'ta olan branch'ler; HEAD dışındaki branch'lerin geçmişi.
-- Görsel önizleme. İkili dosyalar "binary file" notuyla gösterilir.
+- Editing in the center panel. Files are read-only; "Open in Zed" for editing.
+- Search (file name or content).
+- Saving terminal sessions when the app closes and restoring them.
+- AI-generated commit messages.
+- Stash, merge, rebase, conflict resolution, cherry-pick, commit graph.
+- Line/hunk-level staging. Discard (reverting a change).
+- Settings screen and settings file; accent color, font and shortcuts are fixed.
+  (The gear button in the design is not in the first version.)
+- Multiple windows, multiple working folders.
+- Signing, notarization, auto-update, distribution to others.
+- Remote-only branches; history of branches other than HEAD.
+- Image preview. Binary files are shown with a "binary file" note.
 
-## Karşı hedefler
+## Anti-goals
 
-- Kullanıcının istemediği hiçbir şey remote'a gitmez, hiçbir değişiklik
-  silinmez. Şu git komutları kodda hiçbir yolla çalıştırılmaz: `reset --hard`,
-  `checkout -- <yol>`, `restore` (çalışma ağacına), `clean`, force push,
+- Nothing goes to the remote that the user didn't ask for, and no change is deleted.
+  The following git commands are never run by any path in the code: `reset --hard`,
+  `checkout -- <path>`, `restore` (on the working tree), `clean`, force push,
   `rebase`, `--no-verify`, `fetch --prune`.
-- Otomatik fetch/pull/push yok; hepsi kullanıcının tıklamasıyla.
-- Uygulama terminallere kendi başına komut yazmaz. Tek istisna: "yeni Claude
-  oturumu" düğmesi, yeni açtığı sekmeye `claude` yazar.
-- Bir repodaki hata diğer repoları bozmaz.
-- Ağ isteği yok: yazı tipleri uygulamaya gömülür, telemetri yok.
-- edi çakışmayı çözülmüş işaretlemez.
+- No automatic fetch/pull/push; all of them happen on the user's click.
+- The app never types commands into terminals on its own. The only exception: the
+  "new Claude session" button types `claude` into the tab it has just opened.
+- An error in one repo doesn't break the other repos.
+- No network requests: fonts are embedded in the app, no telemetry.
+- edi doesn't mark a conflict as resolved.
 
-## Kısıtlar
+## Constraints
 
-- macOS (Apple silicon), Node 24, git 2.50. Go/Rust kurulu değil.
-- npm 12 kurulum betiklerini engelliyor: node-pty'nin hazır ikilisi kullanılır
-  ve `spawn-helper` çalıştırılabilir yapılır; Electron ikilisi ayrıca indirilir.
-- Zed CLI PATH'te olmayabilir; `/Applications/Zed.app/Contents/MacOS/cli` var.
-- Kullanıcının commit kuralı Conventional Commits; edi mesajı doğrulamaz ya da
-  değiştirmez.
-- Arayüz dili İngilizce.
+- macOS (Apple silicon), Node 24, git 2.50. Go/Rust are not installed.
+- npm 12 blocks install scripts: node-pty's prebuilt binary is used and
+  `spawn-helper` is made executable; the Electron binary is downloaded separately.
+- The Zed CLI may not be on PATH; `/Applications/Zed.app/Contents/MacOS/cli` exists.
+- The user's commit convention is Conventional Commits; edi doesn't validate or
+  change the message.
+- The interface language is English.
 
-## Yaklaşımlar
+## Approaches
 
-1. **Zed'in terminal sekmesinde TUI** — en ucuzu; çekirdeği yazıldı. Ama dosya
-   ve diff görünümü terminalde zayıf, Claude sekmesini işaretleyemiyor ve Zed'in
-   sağ panelinde yaşayamıyor (Zed eklentileri panel ekleyemiyor).
-2. **Kendi masaüstü uygulaması, Electron (seçilen)** — üç panelin tamamı bizim.
-   Bedeli: terminal kalitesi ve paketleme bizim sorumluluğumuz. Terminal riski
-   denemeyle kapandı.
-3. **Tauri** — daha hafif, ama Rust kurulu değil ve pty tarafı sıfırdan
-   denenmeli. Elendi.
-4. **Zed fork'u** — panel tam yerinde olurdu; Rust/GPUI ve fork bakımı tek
-   kişilik bir araç için fazla pahalı. Elendi.
+1. **TUI in a Zed terminal tab** — the cheapest; its core is already written. But file
+   and diff views are weak in a terminal, it can't mark the Claude tab, and it can't
+   live in Zed's right panel (Zed extensions can't add panels).
+2. **Our own desktop app, Electron (chosen)** — all three panels are ours. The cost:
+   terminal quality and packaging are our responsibility. The terminal risk was
+   closed by the spike.
+3. **Tauri** — lighter, but Rust isn't installed and the pty side would have to be
+   tried from scratch. Rejected.
+4. **A Zed fork** — the panel would be exactly where it belongs; Rust/GPUI and
+   maintaining a fork are too expensive for a one-person tool. Rejected.
 
-Kullanıcı denemeden sonra 2'yi seçti.
+The user picked 2 after the spike.
 
-## Pencere
+## Window
 
-Tek pencere. Üstte başlık çubuğu, altında durum çubuğu, arada üç panel: sol
-(terminaller), orta (dosya/diff/commit), sağ (Git, History, Files).
+A single window. A title bar on top, a status bar at the bottom, and three panels in
+between: left (terminals), center (file/diff/commit), right (Git, History, Files).
 
-- **Başlık çubuğu:** macOS trafik ışıkları, "edi", ortada klasör düğmesi
-  (`~/studios/quizei`), sağda bu klasör altında açık Claude Code oturumlarının
-  sayısı ("2 sessions"; hiç yoksa gizli).
-- **Klasör düğmesi:** son klasörler ve "Choose folder…" içeren menü açar.
-  Klasör değiştirmek açık terminalleri kapatır; çalışan süreç varsa önce sorar.
-- **Açılış:** son açılan klasör hâlâ duruyorsa onunla açılır; yoksa boş durum
-  ekranı ("Open a folder", son klasörler listesi).
-- **Paneller:** aralarındaki çizgiden sürüklenerek genişletilir; genişlikler
-  hatırlanır. Orta panel kapalıyken sol panel boşalan yeri alır.
-- **Durum çubuğu:** solda "8 repositories", değişikliği olan repo sayısı,
-  push bekleyen repo sayısı; sağda orta panelde açık olan şeye göre kısa bilgi.
-- **Çıkış:** çalışan süreci olan terminal varsa çıkmadan önce sorar.
+- **Title bar:** macOS traffic lights, "edi", the folder button in the middle
+  (`~/studios/quizei`), and on the right the number of open Claude Code sessions under
+  this folder ("2 sessions"; hidden when there are none).
+- **Folder button:** opens a menu with recent folders and "Choose folder…".
+  Switching folders closes the open terminals; if a process is running, it asks first.
+- **Startup:** if the last opened folder still exists, the app opens with it;
+  otherwise an empty-state screen ("Open a folder", a list of recent folders).
+- **Panels:** resized by dragging the line between them; widths are remembered. When
+  the center panel is closed, the left panel takes the freed space.
+- **Status bar:** on the left "8 repositories", the number of repos with changes and
+  the number of repos waiting to push; on the right, brief info depending on what is
+  open in the center panel.
+- **Quit:** if a terminal has a running process, it asks before quitting.
 
-Repo keşfi TUI belgesindeki gibidir: açılan klasörün bir alt seviyesindeki
-`.git` içeren klasörler, ada göre; klasörün kendisi repoysa yalnız o. Hiç repo
-yoksa terminaller yine çalışır, sağ panel "No git repositories in this folder"
-der.
+Repo discovery is as in the TUI document: folders one level below the opened folder
+that contain `.git`, by name; if the folder itself is a repo, only that one. If there
+are no repos, the terminals still work and the right panel says "No git repositories
+in this folder".
 
-### Hangi Claude Code oturumları sayılır
+### Which Claude Code sessions count
 
-Başlık çubuğundaki sayı ve repo satırındaki Claude işareti, bu makinede **bir
-terminalde** çalışan (tty'si olan) ve çalışma dizini açık klasörün içinde olan
-Claude Code oturumlarını gösterir; edi'nin kendi sekmelerindekiler de, başka bir
-terminal uygulamasındakiler de sayılır. Terminali olmayan oturumlar (ör. Zed'in
-agent panelinin arka planda çalıştırdığı) sayılmaz. Çalışma dizini bir reponun
-içindeyse o reponun satırında işaret görünür. (Benim kararım: başka bir yerde
-aynı repoda çalışan bir Claude'u bilmek işe yarar; görünmeyen arka plan
-süreçlerini saymak ise sayıyı anlamsızlaştırır.) `src/sessions.ts` buna göre
-tty süzgeci kazanır.
+The count in the title bar and the Claude mark on a repo row show the Claude Code
+sessions on this machine that run **in a terminal** (have a tty) and whose working
+directory is inside the open folder; both those in edi's own tabs and those in
+another terminal app count. Sessions without a terminal (e.g. the ones Zed's agent
+panel runs in the background) don't count. If the working directory is inside a
+repo, the mark appears on that repo's row. (My call: knowing about a Claude working in
+the same repo somewhere else is useful; counting invisible background processes makes
+the number meaningless.) `src/sessions.ts` gains a tty filter accordingly.
 
-## Sol panel: terminaller
+## Left panel: terminals
 
-- Her sekme kullanıcının giriş kabuğunu (login + interactive) çalıştıran gerçek
-  bir pty'dir; çalışma dizini açık klasördür. Repo satırındaki terminal düğmesi
-  sekmeyi o reponun dizininde açar.
-- Kabuğa verilen ortamdan `CLAUDECODE`, `CLAUDE_CODE_*` ve `ELECTRON_*`
-  değişkenleri çıkarılır.
-- Klavye: Option tuşu Meta sayılmaz (Türkçe klavyede `@ # [ ]` yazılabilsin),
-  Shift+Enter yeni satır gönderir (`ESC CR`), Cmd+C/Cmd+V kopyala/yapıştır.
-- **Sekme çubuğu:** sekmeler, sağda `+` (yeni terminal) ve Claude simgeli düğme
-  (yeni Claude oturumu). Sekme adı öndeki sürecin komutudur (`npm run dev`);
-  boşta kabuğun adıdır (`zsh`). Adlar alt satıra geçmez; yer daralınca üç
-  noktayla kısalır. Her sekmede kapatma çarpısının yeri ayrılır: aktif sekmede görünür,
-  diğerlerinde sekmenin üzerine gelince görünür ve tıklanır (2026-11-24, kullanıcı istedi).
-- **Claude sekmesi:** bir sekmenin tty'sinde Claude Code öndeyken sekme adı
-  `claude`, simgesi turuncu Claude işareti (`#D97757`) olur; Claude kapanınca
-  sekme normale döner. Kullanıcı Claude'u düğmeyle de açsa, düz sekmede `claude`
-  yazarak da açsa aynı şekilde tanınır. Tespit süreç adına değil tty'ye göre
-  yapılır (node-pty süreç adını sürüm numarası olarak veriyor).
-- **Yanıt bekleyen Claude:** aşağıda "Yanıt bekleme işareti" bölümü.
-- **Süreç bitince:** sekme kapanmaz; adının yanında soluk "exited" yazar,
-  kullanıcı kapatır. (Benim kararım: çıktı okunabilsin.)
-- **Kısayollar:** Cmd+T yeni terminal, Cmd+Shift+T yeni Claude oturumu, Cmd+W
-  aktif sekmeyi kapat (süreç çalışıyorsa sorar), Cmd+1…9 sekmeye geç, Cmd+O
-  klasör aç. Cmd+W ve Cmd+R pencereyi kapatmaz/yenilemez.
+- Each tab is a real pty running the user's login shell (login + interactive); its
+  working directory is the open folder. The terminal button on a repo row opens the
+  tab in that repo's directory.
+- The `CLAUDECODE`, `CLAUDE_CODE_*` and `ELECTRON_*` variables are removed from the
+  environment passed to the shell.
+- Keyboard: the Option key is not treated as Meta (so `@ # [ ]` can be typed on a
+  Turkish keyboard), Shift+Enter sends a newline (`ESC CR`), Cmd+C/Cmd+V copy/paste.
+- **Tab bar:** the tabs, and on the right `+` (new terminal) and a button with the
+  Claude icon (new Claude session). A tab's name is its foreground process's command
+  (`npm run dev`); when idle, it is the shell's name (`zsh`). Names don't wrap to a
+  second line; when space runs short they are truncated with an ellipsis. Each tab
+  reserves space for its close cross: on the active tab it is visible, on the others
+  it appears and becomes clickable on hover (2026-11-24, requested by the user).
+- **Claude tab:** while Claude Code is in the foreground on a tab's tty, the tab's
+  name becomes `claude` and its icon the orange Claude mark (`#D97757`); when Claude
+  exits, the tab returns to normal. It is recognized the same way whether the user
+  opens Claude with the button or by typing `claude` in a plain tab. Detection goes by
+  tty, not by process name (node-pty reports the process name as a version number).
+- **Claude waiting for a reply:** see the "Waiting-for-reply mark" section below.
+- **When the process ends:** the tab doesn't close; a faint "exited" appears next to
+  its name and the user closes it. (My call: so the output stays readable.)
+- **Shortcuts:** Cmd+T new terminal, Cmd+Shift+T new Claude session, Cmd+W close the
+  active tab (asks if a process is running), Cmd+1…9 switch to a tab, Cmd+O open a
+  folder. Cmd+W and Cmd+R don't close/reload the window.
 
-### Yanıt bekleme işareti
+### Waiting-for-reply mark
 
-Claude Code yanıt beklerken (izin soruyor ya da sırayı kullanıcıya bırakmış)
-sekmesinde sarı bir zil simgesi görünür; kullanıcı o sekmeye geçince ya da
-Claude yeniden çalışmaya başlayınca kaybolur.
+While Claude Code is waiting for a reply (asking for permission or having handed the
+turn back to the user), a yellow bell icon appears on its tab; it disappears when the
+user switches to that tab or Claude starts working again.
 
-Mekanizma (benim kararım; yarısı doğrulandı):
+Mechanism (my call; half verified):
 
-- Claude Code durumunu çalıştığı terminale kendisi bildiriyor. 2.1.331 ile
-  denendi: boşta beklerken terminal başlığını `✳ Claude Code` yapıyor (OSC 0) ve
-  açılışta terminale "OSC 7501 Program Status" protokolünü destekleyip
-  desteklemediğini soruyor (`OSC 7501 ; ?`). Bu bilgi sekmenin kendi pty
-  akışından gelir: ayar değişikliği, hook ya da süreç eşleştirmesi gerekmez ve
-  kullanıcı Claude'u nasıl açarsa açsın çalışır.
-- **İlk tercih:** sekmenin başlığındaki durum işaretini okumak. Çalışırken ve
-  izin sorarken başlığın ne olduğu henüz gözlenmedi; bu kısmın ilk işi bunu
-  gerçek bir oturumda kaydetmek ve kuralı gözleme göre yazmaktır.
-- **Yedek:** `claude agents --json` (Claude Code'un oturum durumunu dışarıdan
-  okumak için belgelediği yol; `status: busy | waiting | idle` ve `pid` verir),
-  pid → tty eşleştirmesiyle.
-- Kullanıcının `~/.claude/settings.json` dosyasına dokunulmaz, hook enjekte
-  edilmez, `claude` komutu sarmalanmaz, `TERM_PROGRAM` başka bir terminal gibi
-  gösterilmez.
-- İkisi de güvenilir çıkmazsa zil ilk sürümden çıkarılır ve kullanıcıya
-  söylenir: yanlış çalan zil, hiç olmayan zilden kötüdür.
+- Claude Code reports its own state to the terminal it runs in. Tried with 2.1.331:
+  while idle it sets the terminal title to `✳ Claude Code` (OSC 0), and at startup it
+  asks the terminal whether it supports the "OSC 7501 Program Status" protocol
+  (`OSC 7501 ; ?`). This information comes from the tab's own pty stream: no settings
+  change, hook or process matching is needed, and it works however the user opens
+  Claude.
+- **First choice:** read the state mark in the tab's title. What the title is while
+  working and while asking for permission hasn't been observed yet; the first job of
+  this part is to record that in a real session and write the rule based on the
+  observation.
+- **Fallback:** `claude agents --json` (the path Claude Code documents for reading
+  session state from outside; it gives `status: busy | waiting | idle` and `pid`),
+  with pid → tty matching.
+- The user's `~/.claude/settings.json` file is not touched, no hook is injected, the
+  `claude` command is not wrapped, and `TERM_PROGRAM` is not made to look like another
+  terminal.
+- If neither proves reliable, the bell is dropped from the first version and the user
+  is told: a bell that rings wrongly is worse than no bell at all.
 
-## Orta panel
+## Center panel
 
-Varsayılan olarak kapalıdır. Sağ panelde bir dosyaya, değişikliğe ya da
-commit'e tıklanınca açılır. Sekme çubuğunun sağ ucundaki çarpı paneli kapatır;
-sekmeler yerinde kalır ve bir şeye tıklanınca panel aynı sekmelerle geri gelir.
-Son sekme kapatılınca panel de kapanır.
+Closed by default. It opens when a file, change or commit is clicked in the right
+panel. The cross at the right end of the tab bar closes the panel; the tabs stay in
+place, and when something is clicked the panel comes back with the same tabs. Closing
+the last tab closes the panel too.
 
-- **Sekmeler:** tek tıklama önizleme sekmesi açar (bir sonraki tek tıklama aynı
-  sekmeyi değiştirir); çift tıklama sekmeyi kalıcı yapar. Zaten açık olan şeye
-  tıklamak o sekmeye geçer. (Benim kararım: diff'ler arasında gezerken sekme
-  birikmesin.)
-- **Diff görünümü** (Git sekmesinden): dosyanın HEAD'e göre tüm değişikliği
-  (stage'li + stage'siz birlikte). Üstte repo ve yol, `+7 −3`, "Split / Inline"
-  seçimi (hatırlanır), "Open file" (dosyanın tamamı; diff sekmesi kalıcı olur ve yerinde
-  kalır, dosya önizleme sekmesinde açılır; çalışma ağacından silinmiş dosyada yok) ve
-  "Open in Zed". Yeni (untracked) dosya diff yerine dosya
-  görünümünde "new file" rozetiyle açılır. Henüz commit'i olmayan repoda da
-  çalışır.
-- **Dosya görünümü** (Files sekmesinden): salt okunur, satır numaralı, sözdizimi
-  renkli. Üstte yol, "Read-only" notu ve "Open in Zed". Görsel (png, jpg, gif, webp,
-  avif, bmp, ico, svg) ve video (mp4, m4v, webm, ogv, mov) önizlenir, boyut sınırı
-  olmadan: ana süreç bunları `edi-media://` adresinden, yalnız keşfedilmiş repoların
-  içinden (bağlar çözülerek) ve video ileri sarılabilsin diye byte aralığıyla verir;
-  sayfanın CSP'si bu adrese yalnız `img-src`/`media-src` olarak izin verir, `connect-src`
-  kapalı kalır. Diğer 1 MB'tan büyük ya da ikili dosyalar gösterilmez; yerine kısa bir
-  not ve "Open in Zed" çıkar.
-- **Commit görünümü** (History sekmesinden): başlık (Conventional Commits öneki
-  soluk), gövde metni, yazar (adı; üzerine gelince e-postası), repo, branch, göreli zaman, toplam `+/−`, kısa hash ve
-  kopyalama düğmesi; altında değişen dosyalar alt alta, her biri satır içi
-  diff'iyle. Dosya başlığı diff'i açıp kapatır; 400 satırı aşan diff kapalı
-  gelir; bilgi satırındaki tek düğme hepsini kapatır (biri açıksa) ya da açar. Commit
-  push edildiyse (bir uzak dal içeriyorsa) ve o uzak repo GitHub'daysa "GitHub" düğmesi
-  commit sayfasını tarayıcıda açar; ağa çıkılmaz, adresteki kimlik bilgisi atılır
-  (2026-11-24, kullanıcı istedi).
-- **Open in Zed:** sırayla PATH'teki `zed`, `/Applications/Zed.app/Contents/MacOS/cli`,
-  `open -a Zed`. Hepsi başarısızsa hata gösterilir.
-- Dosya diskte değişirse açık görünüm, o reponun bir sonraki durum yoklamasında
-  yenilenir.
+- **Tabs:** a single click opens a preview tab (the next single click replaces the
+  same tab); a double click makes the tab permanent. Clicking something already open
+  switches to that tab. (My call: so tabs don't pile up while browsing through diffs.)
+- **Diff view** (from the Git tab): the file's entire change against HEAD (staged +
+  unstaged together). At the top: the repo and path, `+7 −3`, a "Split / Inline"
+  choice (remembered), "Open file" (the whole file; the diff tab becomes permanent and
+  stays in place, the file opens in the preview tab; absent for a file deleted from
+  the working tree) and "Open in Zed". A new (untracked) file opens in the file view
+  with a "new file" badge instead of a diff. Also works in a repo with no commits yet.
+- **File view** (from the Files tab): read-only, with line numbers, syntax
+  highlighted. At the top: the path, a "Read-only" note and "Open in Zed". Images
+  (png, jpg, gif, webp, avif, bmp, ico, svg) and videos (mp4, m4v, webm, ogv, mov) are
+  previewed, with no size limit: the main process serves them from an `edi-media://`
+  address, only from inside the discovered repos (with links resolved), and with byte
+  ranges so videos can be seeked; the page's CSP allows this address only as
+  `img-src`/`media-src`, and `connect-src` stays closed. Other files larger than 1 MB,
+  or binary files, are not shown; a short note and "Open in Zed" appear instead.
+- **Commit view** (from the History tab): the subject (Conventional Commits prefix
+  faint), the body text, the author (name; email on hover), repo, branch, relative
+  time, total `+/−`, short hash and a copy button; below that, the changed files one
+  under another, each with its inline diff. A file header expands and collapses its
+  diff; a diff over 400 lines starts collapsed; the single button in the info line
+  collapses them all (if any is expanded) or expands them all. If the commit has been
+  pushed (some remote branch contains it) and that remote repo is on GitHub, a
+  "GitHub" button opens the commit page in the browser; no network access is made,
+  and credentials in the URL are stripped (2026-11-24, requested by the user).
+- **Open in Zed:** in order, `zed` on PATH, `/Applications/Zed.app/Contents/MacOS/cli`,
+  `open -a Zed`. If all of them fail, an error is shown.
+- If the file changes on disk, the open view refreshes on that repo's next status
+  poll.
 
-## Sağ panel
+## Right panel
 
-Üç sekme: **Git** (değişen dosya sayısı rozetiyle), **History**, **Files**.
+Three tabs: **Git** (with a badge for the number of changed files), **History**,
+**Files**.
 
 ### Git
 
-Tüm repolar alt alta. Değişikliği olan repolar açık, temiz olanlar kapalı gelir;
-kullanıcı elle açıp kapattıysa oturum boyunca o tercih geçerlidir.
+All repos one under another. Repos with changes start expanded, clean ones collapsed;
+if the user expanded or collapsed one by hand, that preference holds for the session.
 
-**Kapalı repo satırı** (soldan sağa): ad (yer daralınca kısalır); içinde Claude
-Code oturumu varsa Claude işareti; boşluk; branch; durum (`✓` ya da değişiklik
-sayısı); ve gerekiyorsa en sağda tek bir eşitleme düğmesi. Sayı düğmenin
-üstünde yazar; ayrıca `↑1` gibi bir yazı gösterilmez. Tasarım dosyalarındaki
-tüm satırlar bu biçimdedir.
+**Collapsed repo row** (left to right): the name (truncated when space runs short);
+the Claude mark if a Claude Code session is inside it; a gap; the branch; the status
+(`✓` or the number of changes); and, when needed, a single sync button at the far
+right. The count is written on the button; no separate text like `↑1` is shown. All
+rows in the design files are in this form.
 
-| Durum | Düğme | Yaptığı |
+| State | Button | What it does |
 |---|---|---|
-| Geride (`↓n`) | "Pull n" | `git pull --ff-only` |
-| Yalnız ileride (`↑n`) | "Push n" | `git push` |
-| Upstream yok, commit var | "Publish branch" | `git push -u origin <branch>` |
-| Eşit | yok | |
+| Behind (`↓n`) | "Pull n" | `git pull --ff-only` |
+| Only ahead (`↑n`) | "Push n" | `git push` |
+| No upstream, has commits | "Publish branch" | `git push -u origin <branch>` |
+| Even | none | |
 
-Hem ileride hem gerideyse "Pull n" gösterilir; fast-forward mümkün değilse
-git'in hatası gösterilir, edi zorlamaz. Upstream'i olmayan branch'te hiç commit
-yoksa düğme gösterilmez. Düğmelerin görünümü: "Push" dolu (vurgu rengi), "Pull"
-sarı yazılı çerçeveli, "Publish branch" nötr çerçeveli.
+If it is both ahead and behind, "Pull n" is shown; if a fast-forward isn't possible,
+git's error is shown and edi doesn't force it. If a branch without an upstream has no
+commits, no button is shown. Button styles: "Push" filled (accent color), "Pull"
+outlined with yellow text, "Publish branch" with a neutral outline.
 
-**Açık repo:** başlıkta ad, branch düğmesi, pull, push ve "bu repoda terminal
-aç"; altında commit kutusu ve dosya grupları.
+**Expanded repo:** the header has the name, the branch button, pull, push and "open a
+terminal in this repo"; below it, the commit box and the file groups.
 
-- **Dosya grupları:** "Staged" ve "Changes"; her dosyada durum harfi (M, A, D,
-  R, `?`; silinen dosyanın adı üstü çizili), ad, klasör ve tek dosyayı
-  stage/unstage eden düğme; grup başlığında hepsini stage/unstage eden düğme.
-  Bir kısmı stage'li dosya iki grupta da görünür ve "partly staged" etiketi
-  taşır. Yeni dosyalar klasör olarak değil tek tek listelenir.
-- **Çakışmalar:** ayrı "Conflicts" grubu (`U`), her dosyada "Open in Zed".
-  Çakışmalı dosya edi'den stage edilemez; çakışma varken "tümünü stage et" ve
-  "Commit all" reddedilir. Repo başlığında "merging" etiketi görünür.
-- **Commit kutusu:** çok satırlı metin alanı (ilk satır başlık, gerisi gövde).
-  Cmd+Enter commit eder. Mesaj boşken düğme pasiftir.
-  - Stage'li dosya varsa düğme "Commit · N files"; yalnız stage'liler commit
-    edilir.
-  - Hiçbir şey stage'li değilse düğme "Commit all · N files" olur ve altında
-    "Nothing is staged. This commits every change, new files included." yazar;
-    basılınca `git add -A` + commit. Ayrıca onay sorulmaz. (Benim kararım:
-    düğmenin adı ve notu onayın yerini tutuyor.)
-  - Düğmenin yanındaki ok tek seçenekli bir menü açar: "Commit and push".
-  - Hook'lar normal çalışır; hook reddederse hatası gösterilir.
-- **Branch menüsü:** yerel branch'ler, geçerli olan işaretli; seçince
-  `git switch`. "New branch…" ad sorar ve `git switch -c` yapar. Git reddederse
-  (kaydedilmemiş değişiklik) hata gösterilir, zorlanmaz.
-- **Meşgul ve hata:** süren işlemde repo satırında dönen işaret ve "Pushing…"
-  gibi bir yazı. Aynı repoda aynı anda tek yazma işlemi çalışır; ikincisi
-  istenirse "Another operation is still running" denir. Hata, reponun altında
-  kırmızı bir kutuda git'in en bilgilendirici satırıyla gösterilir; reddedilen
-  push'ta kutuda "Pull" düğmesi olur; "Dismiss" kutuyu kapatır.
-- **Sekme başlığındaki düğmeler:** tüm repolarda fetch; repoları yeniden tara.
-- Kimlik bilgisi isteyen git komutu arayüzü kilitlemez (`GIT_TERMINAL_PROMPT=0`);
-  başarısız olur ve hatası gösterilir. Credential helper ve SSH agent normal
-  çalışır.
+- **File groups:** "Staged" and "Changes"; each file has a status letter (M, A, D,
+  R, `?`; a deleted file's name is struck through), the name, the folder and a button
+  that stages/unstages that single file; the group header has a button that
+  stages/unstages them all. A partly staged file appears in both groups and carries a
+  "partly staged" label. New files are listed one by one, not as folders.
+- **Conflicts:** a separate "Conflicts" group (`U`), with "Open in Zed" on each file.
+  A conflicted file can't be staged from edi; while there are conflicts, "stage all"
+  and "Commit all" are refused. A "merging" label appears in the repo header.
+- **Commit box:** a multi-line text area (the first line is the subject, the rest the
+  body). Cmd+Enter commits. While the message is empty, the button is disabled.
+  - If there are staged files, the button reads "Commit · N files"; only the staged
+    ones are committed.
+  - If nothing is staged, the button becomes "Commit all · N files" and below it
+    reads "Nothing is staged. This commits every change, new files included.";
+    pressing it does `git add -A` + commit. No extra confirmation is asked. (My call:
+    the button's name and note stand in for a confirmation.)
+  - The arrow next to the button opens a one-item menu: "Commit and push".
+  - Hooks run normally; if a hook rejects, its error is shown.
+- **Branch menu:** local branches, with the current one checked; choosing one runs
+  `git switch`. "New branch…" asks for a name and runs `git switch -c`. If git refuses
+  (uncommitted changes), the error is shown; nothing is forced.
+- **Busy and error:** while an operation runs, a spinner and text like "Pushing…" on
+  the repo row. Only one write operation runs at a time in the same repo; if a second
+  one is requested, "Another operation is still running" is shown. An error is shown
+  in a red box under the repo with git's most informative line; for a rejected push
+  the box has a "Pull" button; "Dismiss" closes the box.
+- **Buttons in the tab header:** fetch in all repos; rescan the repos.
+- A git command that asks for credentials doesn't lock the interface
+  (`GIT_TERMINAL_PROMPT=0`); it fails and its error is shown. Credential helpers and
+  the SSH agent work normally.
 
 ### History
 
-Tüm repoların geçerli branch'lerindeki (HEAD) commit'leri tek listede, yeniden
-eskiye, gün başlıkları altında ("Today", "Yesterday", "This week", daha eskiler
-tarihle). Repo başına son 50 commit okunur; listenin sonundaki "Load 50 more"
-her repodan 50 tane daha getirir.
+The commits on the current branches (HEAD) of all repos in a single list, newest to
+oldest, under day headings ("Today", "Yesterday", "This week", older ones by date).
+The last 50 commits per repo are read; "Load 50 more" at the end of the list fetches
+50 more from each repo.
 
-Birleşik liste eksik göstermez: daha eski commit'i kalmış repoların yüklenen en
-eski commit'lerinden en yenisi sınırdır ve liste o sınırdan eskiyi göstermez
-(yoksa hareketli bir reponun eski günleri "o gün commit yokmuş" gibi görünür).
-"Load 50 more" sınırı geriye iter. Tüm commit'leri yüklenmiş repolar sınırı
-belirlemez. (Benim kararım.)
+The merged list doesn't show gaps: among the repos that still have older commits, the
+newest of their oldest loaded commits is the cutoff, and the list shows nothing older
+than that cutoff (otherwise an active repo's older days would look as if "there were
+no commits that day"). "Load 50 more" pushes the cutoff back. Repos whose commits are
+all loaded don't set the cutoff. (My call.)
 
-- **Satır:** başlık (Conventional Commits öneki soluk), altında repo adı, göreli
-  zaman ve sağda kısa hash. Yazar, o reponun `user.email` değerinden farklıysa
-  adıyla gösterilir; kullanıcının kendi commit'lerinde gösterilmez.
-- **Push edilmemiş commit:** upstream'de olmayan commit'in satırında yukarı ok.
-- **Sürüm satırı:** etiketli bir commit'in başlığı etiketin kendisiyse (`1.86.0`
-  ↔ `v1.86.0`) ince bir etiket satırı olarak gösterilir; değilse normal satırda
-  etiket rozeti görünür.
-- **Merge commit'leri** soluk gösterilir.
-- **Süzme:** "All repositories" menüsünden tek repo seçilir. Tek repoda satırda
-  repo adı yazmaz ve push edilmiş/edilmemiş commit'lerin arasına `origin/main`
-  çizgisi girer.
-- **Düzen seçimi:** "Timeline" (yukarıdaki) ve "By repo": her repo başlığının
-  altında son üç commit tek satırlık; hiç yakın commit'i olmayan repolar kapalı
-  ve son commit zamanıyla. Seçim hatırlanır.
-- Bir commit'e tıklamak orta panelde commit görünümünü açar.
-- Liste; o repoda commit, pull ya da fetch yapılınca, HEAD değişince ve yenile
-  düğmesiyle güncellenir.
+- **Row:** the subject (Conventional Commits prefix faint), below it the repo name and
+  the relative time, and on the right the short hash. The author is shown by name if
+  different from that repo's `user.email` value; it isn't shown on the user's own
+  commits.
+- **Unpushed commit:** an up arrow on the row of a commit that isn't in the upstream.
+- **Release row:** if a tagged commit's subject is the tag itself (`1.86.0`
+  ↔ `v1.86.0`), it is shown as a thin tag row; otherwise a tag badge appears on the
+  normal row.
+- **Merge commits** are shown faint.
+- **Filtering:** a single repo is picked from the "All repositories" menu. With a
+  single repo, rows don't show the repo name, and an `origin/main` line goes between
+  the pushed and unpushed commits.
+- **Layout choice:** "Timeline" (the one above) and "By repo": under each repo heading
+  its last three commits, one line each; repos with no recent commits are collapsed
+  and show their last commit time. The choice is remembered.
+- Clicking a commit opens the commit view in the center panel.
+- The list updates when a commit, pull or fetch is made in that repo, when HEAD
+  changes, and with the refresh button.
 
 ### Files
 
-Açık klasördeki repolar en üst düzeyde, Git sekmesindeki gibi ayrı bölümler olarak
-(aynı satır yüksekliği; açık repo vurgulu); her birinin altında çalışma ağacı.
-`.gitignore`'a takılan dosyalar ve klasörler soluk gösterilir (2026-11-24, kullanıcı
-istedi). Yok sayılan bir klasörün içi git'ten gelmez; klasör açılınca yalnız o seviye
-diskten okunur (en çok 2.000 kayıt, fazlası "N more not shown"), kapanınca unutulur.
-İçindekiler de soluk ve açılabilir (ör. `node_modules`, `ios`, `dist`). Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
-klasörler nokta ile işaretlenir. Bir dosyaya tıklamak dosya görünümünü açar.
-Sekme başlığındaki düğme tüm klasörleri kapatır. Açık klasörün kendisi tek bir
-repoysa ağaç doğrudan o reponun içeriğiyle başlar.
+The repos in the open folder at the top level, as separate sections like in the Git
+tab (same row height; an expanded repo highlighted); under each one, its working
+tree. Files and folders matched by `.gitignore` are shown faint (2026-11-24, requested
+by the user). An ignored folder's contents don't come from git; when the folder is
+expanded, only that level is read from disk (at most 2,000 entries, the rest shown as
+"N more not shown"), and it is forgotten when collapsed. Its contents are also faint
+and expandable (e.g. `node_modules`, `ios`, `dist`). Changed files are marked with
+their status letter and color, and folders containing changes with a dot. Clicking a
+file opens the file view. The button in the tab header collapses all folders. If the
+open folder itself is a single repo, the tree starts directly with that repo's
+contents.
 
-## Yenileme
+## Refreshing
 
-- Her repo ~2 saniyede bir `git status` ile yoklanır (`--no-optional-locks`);
-  bir repo için önceki yoklama bitmeden yenisi başlamaz. Her işlemden sonra
-  ilgili repo hemen yenilenir.
-- Claude Code oturumları ve sekmelerin öndeki süreçleri ~3 saniyede bir
-  yoklanır. Tespit başarısız olursa işaret gösterilmez, hata da gösterilmez.
-- Dosya sistemi izleme yok.
+- Each repo is polled with `git status` about every 2 seconds
+  (`--no-optional-locks`); for a given repo, a new poll doesn't start before the
+  previous one finishes. After every operation, the affected repo is refreshed
+  immediately.
+- Claude Code sessions and the tabs' foreground processes are polled about every 3
+  seconds. If detection fails, the mark isn't shown, and no error is shown either.
+- No file system watching.
 
-## Görsel dil
+## Visual language
 
-One Dark tabanlı koyu tema; açık tema yok.
+A dark theme based on One Dark; no light theme.
 
-- **Yüzeyler:** terminal/orta panel `#282C34`, paneller ve çubuklar `#21252B`,
-  açık repo `#252930`, giriş alanları `#1B1D23`, seçili satır `#2F343E`,
-  çizgiler `#181A1F`.
-- **Metin:** birincil `#D7DAE0`, ikincil `#ABB2BF`, soluk `#969DA8`.
-- **Vurgu:** nötr açık gri `#D7DAE0` (ana düğme, aktif sekme çizgisi, seçili
-  satır işareti, push sayacı); üstündeki metin `#1B1D23`.
-- **İşaret renkleri:** sarı `#E5C07B` (değişmiş, pull edilecek, zil), yeşil
-  `#98C379` (yeni, eklenen satır, temiz), kırmızı `#E06C75` (silinmiş, silinen
-  satır, hata, çakışma), camgöbeği `#56B6C2` (yeniden adlandırılmış, hunk
-  başlığı), Claude turuncusu `#D97757` (yalnız Claude Code için).
-- **Yazı:** arayüz IBM Plex Sans 13 px; yollar, branch'ler, hash'ler, commit
-  mesajı ve kod IBM Plex Mono 12 px. İkisi de uygulamaya gömülür. Terminal
-  denemedeki yazı tipi yığınını kullanır (`SF Mono`, Menlo, Monaco).
-- Simgeler çizgisel SVG'dir; emoji yok.
+- **Surfaces:** terminal/center panel `#282C34`, panels and bars `#21252B`, expanded
+  repo `#252930`, input fields `#1B1D23`, selected row `#2F343E`, lines `#181A1F`.
+- **Text:** primary `#D7DAE0`, secondary `#ABB2BF`, faint `#969DA8`.
+- **Accent:** neutral light gray `#D7DAE0` (primary button, active tab underline,
+  selected row marker, push counter); the text on it is `#1B1D23`.
+- **Signal colors:** yellow `#E5C07B` (modified, to be pulled, bell), green
+  `#98C379` (new, added line, clean), red `#E06C75` (deleted, removed line, error,
+  conflict), cyan `#56B6C2` (renamed, hunk header), Claude orange `#D97757` (only for
+  Claude Code).
+- **Type:** interface in IBM Plex Sans 13 px; paths, branches, hashes, commit
+  messages and code in IBM Plex Mono 12 px. Both are embedded in the app. The terminal
+  uses the font stack from the spike (`SF Mono`, Menlo, Monaco).
+- Icons are line SVGs; no emoji.
 
-## Teknik kararlar (benim kararlarım)
+## Technical decisions (my calls)
 
-- **Electron + React + TypeScript.** Terminal: `@xterm/xterm` (WebGL çizim) ve
-  `node-pty`; ikisi de denemede doğrulandı.
-- **Süreç ayrımı:** git, pty ve dosya okuma ana süreçte; arayüz, `contextIsolation`
-  açık, `nodeIntegration` kapalı bir pencerede. Arayüz ana sürece dar ve tipli
-  bir köprüden erişir: bir repo yolu ve bir işlem adı gönderir, hiçbir zaman
-  serbest komut göndermez; ana süreç yolun keşfedilmiş repolardan biri olduğunu
-  doğrular.
-- **Git** yalnız `git` CLI ile, mevcut `src/git/*` üzerinden; git çıktısı
-  İngilizceye sabitlenir (`LC_ALL=C`) ki hata satırı seçimi yerel ayara bağlı
-  olmasın.
-- **Diff ve dosya görünümü** kendi bileşenimiz: unified diff çekirdekte
-  ayrıştırılır, renklendirme Shiki ile (One Dark Pro teması). Monaco
-  kullanılmaz. (Neden: salt okunur, commit görünümünde çok sayıda diff alt alta
-  ve tasarımla birebir.)
-- **Kalıcı durum** (son klasör, son klasörler, panel genişlikleri, diff ve
-  history düzeni, pencere konumu) Electron'un kullanıcı veri klasöründe tek bir
-  JSON dosyasında.
-- **Paketleme:** geliştirirken `npm run dev`; `npm run dist` Dock'a
-  konabilecek, imzasız bir `edi.app` üretir.
-- **Testler:** git çekirdeği geçici dizinlerde gerçek repolarla (bugünkü gibi;
-  yeni log, commit içeriği ve dosya listesi işlevleri dahil); diff ayrıştırıcı
-  ve history birleştirme birim testle; arayüz bileşenleri bileşen testleriyle;
-  ana akışlar (klasör aç, repoları gör, stage, commit, terminalde komut çalıştır,
-  diff aç) Playwright'ın Electron desteğiyle, geçici bir çalışma klasöründe.
-  Hiçbir test `~/studios` altındaki gerçek repolara dokunmaz.
+- **Electron + React + TypeScript.** Terminal: `@xterm/xterm` (WebGL rendering) and
+  `node-pty`; both were verified in the spike.
+- **Process separation:** git, pty and file reading in the main process; the
+  interface in a window with `contextIsolation` on and `nodeIntegration` off. The
+  interface reaches the main process through a narrow, typed bridge: it sends a repo
+  path and an operation name, never a free-form command; the main process verifies
+  that the path is one of the discovered repos.
+- **Git** only through the `git` CLI, via the existing `src/git/*`; git output is
+  pinned to English (`LC_ALL=C`) so that picking the error line doesn't depend on the
+  locale.
+- **Diff and file view** are our own components: the unified diff is parsed in the
+  core, highlighting is done with Shiki (One Dark Pro theme). Monaco is not used.
+  (Why: read-only, many diffs stacked in the commit view, and a one-to-one match with
+  the design.)
+- **Persistent state** (last folder, recent folders, panel widths, diff and history
+  layout, window position) in a single JSON file in Electron's user data folder.
+- **Packaging:** `npm run dev` during development; `npm run dist` produces an
+  unsigned `edi.app` that can be put in the Dock.
+- **Tests:** the git core with real repos in temporary directories (as today;
+  including the new log, commit contents and file list functions); the diff parser
+  and history merging with unit tests; interface components with component tests; the
+  main flows (open a folder, see the repos, stage, commit, run a command in the
+  terminal, open a diff) with Playwright's Electron support, in a temporary working
+  folder. No test touches the real repos under `~/studios`.
 
-## Mevcut koddan kalan ve giden
+## What stays and what goes from the existing code
 
-- **Kalır:** `src/git/exec.ts`, `discover.ts`, `status.ts`, `actions.ts`,
-  `src/sessions.ts` ve testleri.
-- **Değişir:** çekirdekteki Türkçe metinler (hata mesajları, etiketler)
-  İngilizce olur. `RepoStatus`'a HEAD'in commit kimliği eklenir.
-- **Eklenir:** commit geçmişi, tek commit'in içeriği, izlenen/izlenmeyen dosya
-  listesi, dosya okuma, tty'ye göre süreç tespiti.
-- **Gider:** Ink TUI bağımlılıkları (`ink`, `ink-testing-library`), `bin`
-  girdisi, `src/ui/rows.ts` içindeki TUI'ye özgü kısımlar, `diffRepo`,
-  ve uygulamanın terminali çalışınca `spike/electron-terminal`.
-- **Bu işle birlikte kapanacak, incelemeden kalan küçük bulgular:** etiketle
-  aynı adlı branch'in `heads/…` görünmesi; `-` ile başlayan ref adları ve
-  `refs/heads/<branch>` ile push; upstream'i silinmiş branch'te push; silinmiş
-  repo klasörünün `spawn git ENOENT` göstermesi; arka plana süreç atan hook'ta
-  yanlış zaman aşımı; kopya kayıtlarında `origPath`.
-- **Açık kalan:** commit'siz SHA-256 repoda diff tabanı.
+- **Stays:** `src/git/exec.ts`, `discover.ts`, `status.ts`, `actions.ts`,
+  `src/sessions.ts` and their tests.
+- **Changes:** the Turkish strings in the core (error messages, labels) become
+  English. HEAD's commit id is added to `RepoStatus`.
+- **Added:** commit history, a single commit's contents, the tracked/untracked file
+  list, file reading, process detection by tty.
+- **Goes:** the Ink TUI dependencies (`ink`, `ink-testing-library`), the `bin`
+  entry, the TUI-specific parts of `src/ui/rows.ts`, `diffRepo`,
+  and, once the app's terminal works, `spike/electron-terminal`.
+- **Small findings left over from review, to be closed along with this work:** a
+  branch with the same name as a tag showing up as `heads/…`; ref names starting with
+  `-`, and pushing with `refs/heads/<branch>`; pushing on a branch whose upstream was
+  deleted; a deleted repo folder showing `spawn git ENOENT`; a wrong timeout on a hook
+  that sends a process to the background; `origPath` on copy entries.
+- **Left open:** the diff base in a SHA-256 repo with no commits.
 
-## Yapana bırakılanlar
+## Left to the implementer
 
-- Dosya/modül yapısı, state yönetimi, bileşen ayrımı, derleme araçları.
-- Köprünün (IPC) tam biçimi.
-- Yoklama aralıklarının tam değerleri, pencere arka plandayken yavaşlatma.
-- Panellerin en küçük genişlikleri, uzun listelerde sanallaştırma.
-- Yan yana diff'te silinen ve eklenen satırların eşleştirilmesi.
-- Göreli zaman biçimi ve gün gruplarının sınırları.
+- File/module structure, state management, component split, build tooling.
+- The exact shape of the bridge (IPC).
+- The exact poll interval values, slowing down while the window is in the background.
+- Minimum panel widths, virtualization of long lists.
+- Pairing removed and added lines in the side-by-side diff.
+- The relative time format and the boundaries of the day groups.
 
-## Sonradan eklenenler
+## Later additions
 
-Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış şeyler.
+Things the user asked for after the design was approved, not yet planned.
 
-- **`edi <path>` komutu (2026-11-24):** herhangi bir terminalde `edi <path>` yazınca
-  o klasör edi'de açılır; `edi .` bulunulan klasörü açar. Paketleme planına (plan 4)
-  aittir: komut, kurulu uygulamayı başlatan küçük bir betiktir (PATH'e konur),
-  uygulama da başlatılırken verilen klasörü açar. Uygulama zaten açıksa aynı pencere
-  o klasöre geçer; çalışan terminal varsa klasör değiştirmedeki soru burada da sorulur.
-  Yol verilmezse uygulama son klasörle açılır.
-  **Kurulum (kullanıcı seçti, 2026-11-24):** `npm run dist` uygulamayı üretir,
-  `/Applications/edi.app`'e kopyalar ve `~/.local/bin/edi` bağını kurar (`~/.local/bin`
-  kullanıcının PATH'inde; yönetici şifresi gerekmez). Yeniden çalıştırılınca günceller.
-  edi açıkken kurulum yapılmaz ("önce edi'den çık"); orada edi'ye ait olmayan bir
-  `edi.app` ya da `~/.local/bin/edi` varsa üzerine yazılmaz.
-- **Giriş kabuğu ortamı (plan 4):** Dock'tan açılan uygulama kullanıcının kabuk
-  ayarlarını (PATH: nvm'deki node, Homebrew) almaz; git hook'ları (ör. husky) "node
-  bulunamadı" diye düşer. Paketli uygulama açılırken giriş kabuğunun ortamı bir kez
-  okunur (`$SHELL -ilc`, zaman aşımıyla) ve ana sürecin ortamına eklenir; okunamazsa
-  eldeki ortamla devam edilir.
-- **Uygulama ikonu (2026-11-24):** kullanıcı "Wordmark" seçeneğini seçti
-  (`docs/design/icon/wordmark.svg`). Plan 4'te `.icns` bundan üretilir.
+- **`edi <path>` command (2026-11-24):** typing `edi <path>` in any terminal opens
+  that folder in edi; `edi .` opens the current folder. It belongs to the packaging
+  plan (plan 4): the command is a small script that launches the installed app (put
+  on PATH), and the app opens the folder given to it at launch. If the app is already
+  open, the same window switches to that folder; if a terminal is running, the
+  question asked when switching folders is asked here too. With no path, the app opens
+  with the last folder.
+  **Installation (chosen by the user, 2026-11-24):** `npm run dist` builds the app,
+  copies it to `/Applications/edi.app` and installs the `~/.local/bin/edi` link
+  (`~/.local/bin` is on the user's PATH; no admin password needed). Running it again
+  updates them. Installation doesn't happen while edi is open ("quit edi first"); if
+  an `edi.app` or `~/.local/bin/edi` that doesn't belong to edi is there, it isn't
+  overwritten.
+- **Login shell environment (plan 4):** an app launched from the Dock doesn't get the
+  user's shell settings (PATH: node from nvm, Homebrew); git hooks (e.g. husky) fail
+  with "node not found". When the packaged app starts, the login shell's environment
+  is read once (`$SHELL -ilc`, with a timeout) and added to the main process's
+  environment; if it can't be read, the app carries on with the environment it has.
+- **App icon (2026-11-24):** the user picked the "Wordmark" option
+  (`docs/design/icon/wordmark.svg`). In plan 4, the `.icns` is generated from it.
 
-- **Çalışan sunucular (2026-11-24, kullanıcı onayladı):** edi'nin terminallerinde ayağa
-  kalkan geliştirme sunucuları (ör. `npm run dev` ile `localhost:5173`) listelenir, adrese
-  tıklanınca varsayılan tarayıcıda açılır. Amaç: terminale dönüp adres aramadan sunucuya
-  ulaşmak.
-  - **Bulma (kullanıcının seçtiği yol):** terminal çıktısından değil, süreç ağacından.
-    3 saniyelik süreç yoklamasında, edi terminallerinin tty'sinde çalışan ve kabuk olmayan
-    süreçlerin dinlemeye açtığı TCP portları `lsof -nP -a -iTCP -sTCP:LISTEN -p <pid'ler>`
-    ile okunur. Böylece çıktı kaydırılıp gitse de görünür, sunucu kapanınca en geç bir
-    yoklamada kaybolur. Hiçbir sekmede kabuk dışında süreç yoksa `lsof` çalıştırılmaz.
-  - Yalnız `localhost`'tan erişilebilen dinlemeler sayılır: `*`, `0.0.0.0`, `[::]`,
-    `127.x.x.x`, `[::1]`. Yalnız belirli bir ağ adresinde dinleyen alınmaz. Aynı port IPv4
-    ve IPv6'da dinlenirse tek sayılır. İşletim sisteminin `listen(0)` isteyene rastgele
-    verdiği aralıktaki portlar (macOS'ta 49152 ve üstü) sayılmaz: bunlar kimsenin yazmadığı
-    iç portlardır (vite eklentileri, workerd). Claude Code sürecinin kendisi de sayılmaz
-    (kendi iç portunu açar); onun başlattığı sunucular sayılır.
-  - Sunucunun reposu, dinleyen sürecin çalışma dizininden bulunur (`lsof -d cwd`); hiçbir
-    repoda değilse repo adı gösterilmez.
-  - Liste yalnız değişince sayfaya gönderilir.
-  - **Gösterim (benim önerim, kullanıcı onayladı):** durum çubuğunun sağında `● N servers`
-    sayacı; sunucu yoksa gizli. Tıklayınca menü: her satırda `localhost:PORT`, repo adı ve
-    sekmenin başlığı (ör. `npm run dev`). Satıra tıklamak `http://localhost:PORT/`
-    adresini varsayılan tarayıcıda açar. Sunucunun çalıştığı terminal sekmesinde port
-    küçük bir etiket olarak görünür (birden çok portta ilki ve `+N`).
-  - **Yapılmayanlar:** edi sunuculara istek atmaz (yoklama, sağlık denetimi yok), sunucu
-    durdurmaz ya da yeniden başlatmaz, terminal çıktısını okumaz. edi dışında başlayan
-    sunucular (Docker, başka terminal uygulaması) görünmez.
-  - **Ödünleşim:** porta bakarak `https` anlaşılamaz; adres hep `http://` ile açılır.
-    HTTPS kullanan dev sunucusuna terminaldeki adrese Option+tık ile ulaşılır.
-  - Terminaldeki `http(s)://…` adresleri Option+tık ile tarayıcıda açılır (yapıldı).
-- **Claude kullanım limitleri (2026-11-24, kullanıcı istedi ve köprüyü seçti):** üst çubukta,
-  oturum sayısının yanında 5 saatlik ve haftalık limit: kullanılan yüzde, küçük bir çubuk ve
-  sıfırlanma zamanı (bugünse "15:10", değilse "Fri 28 Nov 09:00", yerel saat). %70'ten itibaren
-  sarı, %90'dan itibaren kırmızı; ipucunda tam metin ve verinin yaşı. Claude Code bu sayıları
-  yalnız durum satırı komutuna verir (`rate_limits.five_hour` / `seven_day`, `used_percentage`,
-  `resets_at`), bu yüzden edi paketin içinde bir köprü taşır (`Resources/edi-statusline`):
-  kullanıcı onu `~/.claude/settings.json`'da `statusLine` olarak kendisi ayarlar (edi bu dosyaya
-  dokunmaz). Köprü yalnız `rate_limits`'i `~/Library/Application Support/edi/claude-usage.json`'a
-  yazar, durum satırına bir şey basmaz; edi dosyayı 5 sn'de bir okur, sıfırlanma anı geçen
-  pencereyi göstermez, dosya yoksa göstergeyi hiç çizmez. Ağa çıkılmaz; Anthropic'e doğrudan
-  sorma seçeneği "ağ yok" kuralı ve giriş anahtarına erişim yüzünden seçilmedi.
+- **Running servers (2026-11-24, approved by the user):** development servers that
+  come up in edi's terminals (e.g. `localhost:5173` via `npm run dev`) are listed, and
+  clicking an address opens it in the default browser. Goal: reach the server without
+  going back to the terminal to look for the address.
+  - **Finding them (the path the user chose):** from the process tree, not from the
+    terminal output. In the 3-second process poll, the TCP ports opened for listening
+    by non-shell processes running on the ttys of edi's terminals are read with
+    `lsof -nP -a -iTCP -sTCP:LISTEN -p <pids>`. That way a server is visible even after
+    the output has scrolled away, and when it shuts down it disappears within one poll
+    at most. If no tab has a process other than the shell, `lsof` isn't run.
+  - Only listeners reachable from `localhost` count: `*`, `0.0.0.0`, `[::]`,
+    `127.x.x.x`, `[::1]`. A listener on only a specific network address isn't taken.
+    If the same port listens on both IPv4 and IPv6, it counts once. Ports in the range
+    the operating system hands out at random to callers of `listen(0)` (49152 and
+    above on macOS) don't count: these are internal ports nobody configured (vite
+    plugins, workerd). The Claude Code process itself doesn't count either (it opens
+    its own internal port); servers it starts do count.
+  - The server's repo is found from the listening process's working directory
+    (`lsof -d cwd`); if it isn't in any repo, no repo name is shown.
+  - The list is sent to the page only when it changes.
+  - **Display (my suggestion, approved by the user):** a `● N servers` counter on the
+    right of the status bar; hidden when there are no servers. Clicking it opens a
+    menu: each row has `localhost:PORT`, the repo name and the tab's title (e.g.
+    `npm run dev`). Clicking a row opens `http://localhost:PORT/` in the default
+    browser. On the terminal tab where the server runs, the port appears as a small
+    label (with several ports, the first one and `+N`).
+  - **Out of scope:** edi doesn't send requests to the servers (no polling, no health
+    checks), doesn't stop or restart servers, and doesn't read terminal output.
+    Servers started outside edi (Docker, another terminal app) aren't visible.
+  - **Trade-off:** `https` can't be told from the port; the address always opens with
+    `http://`. A dev server using HTTPS is reached with Option+click on the address in
+    the terminal.
+  - `http(s)://…` addresses in the terminal open in the browser with Option+click
+    (done).
+- **Claude usage limits (2026-11-24, requested by the user, who also chose the
+  bridge):** in the top bar, next to the session count, the 5-hour and weekly limits:
+  the percentage used, a small bar and the reset time ("15:10" if today, otherwise
+  "Fri 28 Nov 09:00", local time). Yellow from 70%, red from 90%; the tooltip has the
+  full text and the age of the data. Claude Code gives these numbers only to the
+  status line command (`rate_limits.five_hour` / `seven_day`, `used_percentage`,
+  `resets_at`), so edi ships a bridge inside the package (`Resources/edi-statusline`):
+  the user sets it up themselves as `statusLine` in `~/.claude/settings.json` (edi
+  doesn't touch that file). The bridge only writes `rate_limits` to
+  `~/Library/Application Support/edi/claude-usage.json` and prints nothing to the
+  status line; edi reads the file every 5 s, doesn't show a window whose reset time
+  has passed, and doesn't draw the indicator at all if the file doesn't exist. No
+  network access; the option of asking Anthropic directly wasn't chosen because of the
+  "no network" rule and because it would need access to the login key.

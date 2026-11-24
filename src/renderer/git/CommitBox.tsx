@@ -5,15 +5,15 @@ import type { CommitTarget } from './model';
 export interface CommitBoxProps {
   target: CommitTarget;
   message: string;
-  /** Repoda süren bir işlem var. */
+  /** An operation is in progress in the repo. */
   busy: boolean;
-  /** Repoda remote var: "Commit and push" seçilebilir. */
+  /** The repo has a remote: "Commit and push" can be chosen. */
   canPush: boolean;
   onChange(message: string): void;
   onCommit(o: { all: boolean; push: boolean }): void;
 }
 
-/** Commit mesajı ve düğmesi. İlk satır başlık, gerisi gövdedir; Cmd+Enter commit eder. */
+/** Commit message and button. The first line is the subject, the rest the body; Cmd+Enter commits. */
 export function CommitBox({ target, message, busy, canPush, onChange, onCommit }: CommitBoxProps) {
   const menu = usePopover<HTMLDivElement>();
   const ready = target.enabled && !busy && message.trim() !== '';

@@ -3,16 +3,16 @@ import type { ServerInfo } from '../../shared/api';
 export interface ServerRow {
   port: number;
   url: string;
-  /** Dinleyen sürecin çalışma dizinini içeren repo; yoksa null. */
+  /** The repo containing the listening process's working directory; null if none. */
   repoName: string | null;
-  /** Sunucunun çalıştığı sekmenin başlığı (ör. `npm run dev`); sekme yoksa null. */
+  /** Title of the tab the server runs in (e.g. `npm run dev`); null if there's no tab. */
   tabTitle: string | null;
   tabId: number;
 }
 
 const inside = (dir: string, root: string) => dir === root || dir.startsWith(root.endsWith('/') ? root : `${root}/`);
 
-/** Durum çubuğu menüsünün satırları. Repo, çalışma dizinini içeren en uzun (en içteki) repo yoludur. */
+/** Rows of the status bar menu. The repo is the longest (innermost) repo path containing the working directory. */
 export function serverRows(servers: ServerInfo[], tabs: { id: number; title: string }[], repos: { name: string; path: string }[]): ServerRow[] {
   return servers.map((server) => {
     const cwd = server.cwd;
@@ -30,7 +30,7 @@ export function serverRows(servers: ServerInfo[], tabs: { id: number; title: str
   });
 }
 
-/** Sekmedeki port etiketi: ilk port ve kalanların sayısı (`5173 +1`); yoksa null. */
+/** Port label on a tab: the first port and the count of the rest (`5173 +1`); null if none. */
 export function tabPorts(servers: ServerInfo[], tabId: number): string | null {
   const ports = servers.filter((server) => server.tabId === tabId).map((server) => server.port);
   if (ports.length === 0) return null;

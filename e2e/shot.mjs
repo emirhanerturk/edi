@@ -1,5 +1,5 @@
-// Geliştirme yardımcısı: uygulamayı gizli pencerede açar ve ekran görüntüsü alır.
-// Kullanım: node e2e/shot.mjs <çıktı.png> [açılacak klasör] [bekleme ms]
+// Development helper: launches the app in a hidden window and takes a screenshot.
+// Usage: node e2e/shot.mjs <out.png> [folder to open] [wait ms]
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';

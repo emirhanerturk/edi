@@ -30,7 +30,7 @@ afterEach(cleanup);
 const server = (tabId: number, port: number, cwd: string | null = null): ServerInfo => ({ tabId, port, pid: port, cwd });
 
 describe('serverRows', () => {
-  it('repo, çalışma dizinini içeren en uzun repo yolu; sekme başlığı; localhost adresi', () => {
+  it('repo is the longest repo path containing the working directory; tab title; localhost URL', () => {
     const repos = [
       { name: 'web', path: '/w/web' },
       { name: 'web-admin', path: '/w/web/admin' },
@@ -49,7 +49,7 @@ describe('serverRows', () => {
 });
 
 describe('tabPorts', () => {
-  it('ilk port ve kalanların sayısı', () => {
+  it('the first port and a count of the rest', () => {
     const servers = [server(1, 5173), server(1, 24678), server(1, 9229), server(2, 3000)];
     expect(tabPorts(servers, 1)).toBe('5173 +2');
     expect(tabPorts(servers, 2)).toBe('3000');
@@ -60,12 +60,12 @@ describe('tabPorts', () => {
 describe('ServersMenu', () => {
   const rows = serverRows([server(2, 3000), server(1, 5173, '/w/web')], [{ id: 1, title: 'npm run dev' }], [{ name: 'web', path: '/w/web' }]);
 
-  it('sunucu yoksa hiçbir şey çizmez', () => {
+  it('renders nothing without servers', () => {
     const { container } = render(<ServersMenu rows={[]} onOpen={() => undefined} />);
     expect(container.innerHTML).toBe('');
   });
 
-  it('sayaç; menüde adres, repo ve sekme; satıra tık adresi açar ve menüyü kapatır', () => {
+  it('a counter; the menu shows URL, repo and tab; clicking a row opens the URL and closes the menu', () => {
     const onOpen = vi.fn();
     render(<ServersMenu rows={rows} onOpen={onOpen} />);
     const button = screen.getByRole('button', { name: '2 servers' });
@@ -79,14 +79,14 @@ describe('ServersMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('tek sunucu tekil yazılır', () => {
+  it('a single server is written in the singular', () => {
     render(<ServersMenu rows={rows.slice(1)} onOpen={() => undefined} />);
     expect(screen.getByRole('button', { name: '1 server' })).toBeTruthy();
   });
 });
 
-describe('store ve sekme etiketi', () => {
-  it('servers olayı store’a yazılır, sekmede port görünür, klasör değişince boşalır', async () => {
+describe('store and tab label', () => {
+  it('the servers event goes into the store, the port shows on the tab, and the list empties when the folder changes', async () => {
     connect();
     useApp.setState({
       tabs: [{ id: 1, title: 'npm run dev', claude: false, waiting: false, busy: true, exited: false, claudeUntil: 0, titleState: null }],
@@ -99,7 +99,7 @@ describe('store ve sekme etiketi', () => {
     expect(screen.getByTestId('tab-port').textContent).toBe('5173 +1');
 
     act(() => bridge.handlers.workspace!({ ...useApp.getState().workspace, dir: '/w' }));
-    act(() => bridge.handlers.workspace!({ ...useApp.getState().workspace, dir: '/baska' }));
+    act(() => bridge.handlers.workspace!({ ...useApp.getState().workspace, dir: '/other' }));
     expect(useApp.getState().servers).toEqual([]);
   });
 });

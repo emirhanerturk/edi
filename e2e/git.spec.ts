@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { addRemote, git, launch, makeRepo, tmpDir } from './helpers.js';
 
-test('değişen dosya birkaç saniye içinde Git sekmesinde görünür', async () => {
+test('a changed file shows in the Git tab within a few seconds', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
   await addRemote(await makeRepo(dir, 'beta'));
@@ -15,32 +15,32 @@ test('değişen dosya birkaç saniye içinde Git sekmesinde görünür', async (
     await expect(rows.nth(0)).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('file-row')).toHaveCount(0);
 
-    await writeFile(join(alpha, 'README.md'), 'değişti\n');
-    await writeFile(join(alpha, 'yeni.txt'), 'x\n');
+    await writeFile(join(alpha, 'README.md'), 'changed\n');
+    await writeFile(join(alpha, 'new.txt'), 'x\n');
     await expect(page.getByTestId('file-row')).toHaveCount(2, { timeout: 10_000 });
     await expect(rows.nth(0)).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByTestId('git-badge')).toHaveText('2');
-    // Kapalı satırda tek eşitleme düğmesi: remote var, branch henüz yayınlanmamış.
+    // A collapsed row has one sync button: there is a remote, but the branch is not published yet.
     await expect(rows.nth(1).getByTestId('sync-button')).toHaveText('Publish branch');
-    // Remote'u olmayan repoda yayınlanacak yer yok: düğme de yok.
+    // A repo without a remote has nowhere to publish: no button either.
     await expect(rows.nth(2).getByTestId('sync-button')).toHaveCount(0);
   } finally {
     await app.close();
   }
 });
 
-test('stage edip commit edince repo temize döner', async () => {
+test('staging and committing brings the repo back to clean', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
-  await writeFile(join(alpha, 'README.md'), 'değişti\n');
-  await writeFile(join(alpha, 'yeni.txt'), 'x\n');
+  await writeFile(join(alpha, 'README.md'), 'changed\n');
+  await writeFile(join(alpha, 'new.txt'), 'x\n');
   const { app, page } = await launch({ openDir: dir });
   try {
     const row = page.getByTestId('repo-row');
     await expect(page.getByTestId('file-row')).toHaveCount(2);
     await expect(page.getByTestId('commit-button')).toHaveText('Commit all · 2 files');
 
-    // Yalnız README stage edilir: düğme "Commit · 1 file" olur.
+    // Only README is staged: the button becomes "Commit · 1 file".
     await page.locator('[data-testid="file-row"][data-path="README.md"]').getByTestId('stage-file').click();
     await expect(page.getByTestId('commit-button')).toHaveText('Commit · 1 file');
     await expect(page.getByTestId('commit-button')).toBeDisabled();
@@ -50,9 +50,9 @@ test('stage edip commit edince repo temize döner', async () => {
     await expect(page.getByTestId('file-row')).toHaveCount(1);
     await expect(page.getByTestId('commit-message')).toHaveValue('');
     expect(await git(alpha, 'log', '-1', '--format=%B')).toBe('docs: update the readme\n\nSecond paragraph.\n\n');
-    expect(await git(alpha, 'status', '--porcelain')).toBe('?? yeni.txt\n');
+    expect(await git(alpha, 'status', '--porcelain')).toBe('?? new.txt\n');
 
-    // Kalan dosya Cmd+Enter ile "Commit all" olarak commit edilir; repo temizlenir ve kapanır.
+    // Cmd+Enter commits the remaining file as "Commit all"; the repo turns clean and collapses.
     await page.getByTestId('commit-message').fill('feat: add the new file');
     await page.getByTestId('commit-message').press('Meta+Enter');
     await expect(row).toHaveAttribute('aria-expanded', 'false');
@@ -63,11 +63,11 @@ test('stage edip commit edince repo temize döner', async () => {
   }
 });
 
-test('Commit and push yerel remote\'a gönderir; kapalı satırdaki düğme push eder', async () => {
+test('Commit and push sends to the local remote; the button on the collapsed row pushes', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
   const bare = await addRemote(alpha);
-  await writeFile(join(alpha, 'yeni.txt'), 'x\n');
+  await writeFile(join(alpha, 'new.txt'), 'x\n');
   const { app, page } = await launch({ openDir: dir });
   try {
     await page.getByTestId('commit-message').fill('feat: first');
@@ -77,13 +77,13 @@ test('Commit and push yerel remote\'a gönderir; kapalı satırdaki düğme push
     await expect.poll(() => git(bare, 'log', '-1', '--format=%s', 'main').catch(() => '')).toBe('feat: first\n');
     await expect(page.getByTestId('sync-button')).toHaveCount(0);
 
-    // Terminalden atılmış gibi yeni bir commit: satırda "Push 1" çıkar, basınca gider.
-    await writeFile(join(alpha, 'iki.txt'), 'x\n');
+    // A new commit, as if made from the terminal: the row shows "Push 1", and pressing it pushes.
+    await writeFile(join(alpha, 'second.txt'), 'x\n');
     await git(alpha, 'add', '-A');
     await git(alpha, 'commit', '-q', '-m', 'feat: second');
     await expect(page.getByTestId('sync-button')).toHaveText('Push 1', { timeout: 10_000 });
     await page.getByTestId('sync-button').click();
-    // Düğme, işlem sürerken yerini "Pushing…" yazısına bırakır; bitince satır temiz görünür.
+    // While the push runs, the button gives way to "Pushing…"; when it finishes the row shows clean.
     await expect.poll(() => git(bare, 'log', '-1', '--format=%s', 'main')).toBe('feat: second\n');
     await expect(page.getByTestId('repo-row').getByLabel('Clean')).toBeVisible();
     await expect(page.getByTestId('sync-button')).toHaveCount(0);
@@ -92,13 +92,13 @@ test('Commit and push yerel remote\'a gönderir; kapalı satırdaki düğme push
   }
 });
 
-test('git hatası reponun altında gösterilir ve kapatılabilir; yeni branch açılır', async () => {
+test('a git error shows under the repo and can be dismissed; a new branch is created', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
-  await writeFile(join(alpha, 'README.md'), 'değişti\n');
+  await writeFile(join(alpha, 'README.md'), 'changed\n');
   const { app, page } = await launch({ openDir: dir });
   try {
-    // Var olan bir adla branch açmak git tarafından reddedilir.
+    // Git refuses to create a branch with an existing name.
     await page.getByTestId('branch-button').click();
     await page.getByRole('menuitem', { name: 'New branch…' }).click();
     await page.getByPlaceholder('Branch name').fill('main');
@@ -113,9 +113,9 @@ test('git hatası reponun altında gösterilir ve kapatılabilir; yeni branch a�
     await page.getByPlaceholder('Branch name').press('Enter');
     await expect(page.getByTestId('branch-button')).toContainText('feat/new-thing');
     expect(await git(alpha, 'symbolic-ref', '--short', 'HEAD')).toBe('feat/new-thing\n');
-    expect(await git(alpha, 'status', '--porcelain')).toBe(' M README.md\n'); // değişiklik yerinde
+    expect(await git(alpha, 'status', '--porcelain')).toBe(' M README.md\n'); // the change is kept
 
-    // Menüden eski branch'e dönülür.
+    // Switch back to the old branch from the menu.
     await page.getByTestId('branch-button').click();
     await page.getByRole('menuitem', { name: 'main' }).click();
     await expect(page.getByTestId('branch-button')).toContainText('main');
@@ -124,18 +124,18 @@ test('git hatası reponun altında gösterilir ve kapatılabilir; yeni branch a�
   }
 });
 
-test('branch menüsü panelin kenarında kırpılmaz; çok branch olsa da New branch görünür', async () => {
+test('the branch menu is not clipped at the panel edge; New branch stays visible with many branches', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
   for (let i = 0; i < 30; i++) await git(alpha, 'branch', `claude/a-rather-long-branch-name-for-clipping-${String(i).padStart(2, '0')}`);
-  await writeFile(join(alpha, 'README.md'), 'değişti\n');
+  await writeFile(join(alpha, 'README.md'), 'changed\n');
   const { app, page } = await launch({ openDir: dir });
   try {
     await page.getByTestId('branch-button').click();
     const menu = page.locator('.branch-menu');
     await expect(menu.getByRole('menuitem', { name: 'main' })).toBeVisible();
 
-    // Menünün dört köşesinin hemen içinde en üstteki öğe menünün kendisi olmalı (kırpılmış değil).
+    // Just inside each of the menu's four corners, the topmost element must be the menu itself (not clipped).
     const corners = await menu.evaluate((el) => {
       const r = el.getBoundingClientRect();
       const points = [
@@ -151,11 +151,11 @@ test('branch menüsü panelin kenarında kırpılmaz; çok branch olsa da New br
     });
     expect(corners).toEqual({ inside: [true, true, true, true], inViewport: true });
 
-    // Uzun ad kısaltılmadan sığar.
+    // A long name fits without truncation.
     const first = menu.getByRole('menuitem', { name: 'claude/a-rather-long-branch-name-for-clipping-00' }).locator('.menu-item-text');
     expect(await first.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
-    // Liste kaysa da "New branch…" altta sabit durur.
+    // "New branch…" stays fixed at the bottom even when the list scrolls.
     await expect(menu.getByRole('menuitem', { name: 'New branch…' })).toBeInViewport();
     await menu.getByRole('menuitem', { name: 'claude/a-rather-long-branch-name-for-clipping-29' }).scrollIntoViewIfNeeded();
     await expect(menu.getByRole('menuitem', { name: 'New branch…' })).toBeInViewport();

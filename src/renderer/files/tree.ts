@@ -1,22 +1,22 @@
-// Files sekmesinin saf mantığı: dosya listesinden ağaç, ağaçtan ekrandaki satırlar.
+// Pure logic of the Files tab: a tree from the file list, and on-screen rows from the tree.
 import type { DirEntry, FileChange } from '../../git/types';
 import { fileLetter } from '../git/model';
 
 export interface TreeNode {
   name: string;
-  /** Repoya göre göreli yol. */
+  /** Path relative to the repo. */
   path: string;
   kind: 'dir' | 'file';
   children: TreeNode[];
-  /** Değişen dosyanın durum harfi; değişmemişse ya da klasörse null. */
+  /** The changed file's status letter; null if unchanged or a folder. */
   letter: string | null;
-  /** Klasörün içinde (herhangi bir derinlikte) değişiklik var. Dosyada her zaman false. */
+  /** The folder has a change inside it (at any depth). Always false for a file. */
   dirty: boolean;
-  /** `.gitignore`'a takılıyor: soluk gösterilir. Yok sayılan klasörün içi listelenmez. */
+  /** Matched by `.gitignore`: shown dimmed. An ignored folder's contents aren't listed. */
   ignored: boolean;
 }
 
-/** Çalışma ağacından kalkmış dosya: listede gösterilmez. */
+/** A file gone from the working tree: not shown in the list. */
 const isGone = (f: FileChange) => f.kind === 'changed' && (f.y === 'D' || (f.y === '.' && f.x === 'D'));
 
 const byName = (a: TreeNode, b: TreeNode) => {
@@ -27,15 +27,15 @@ const byName = (a: TreeNode, b: TreeNode) => {
 };
 
 /**
- * Dosya listesini klasör ağacına çevirir. Değişiklik listesindeki dosyalar da eklenir: dosya
- * listesi bir yoklama geriden gelse de yeni dosya hemen görünür. Silinen dosyalar listelenmez,
- * ama bulundukları klasör değişiklik içerir sayılır.
+ * Turns the file list into a folder tree. Files in the change list are added too: even if the file
+ * list lags one poll behind, a new file shows up right away. Deleted files aren't listed,
+ * but the folder they were in counts as containing a change.
  */
 export function buildTree(
   files: string[],
   changes: FileChange[],
   ignored: string[] = [],
-  /** Yüklenmiş yok sayılan klasörlerin içi: klasör yolu → tek seviye kayıtlar. */
+  /** Contents of loaded ignored folders: folder path → one level of entries. */
   loaded: Record<string, DirEntry[]> = {},
 ): TreeNode[] {
   const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
@@ -73,7 +73,7 @@ export function buildTree(
     });
   }
 
-  // Yok sayılanlar: klasör `/` ile biter ve içi boş kalır.
+  // Ignored entries: a folder ends with `/` and stays empty.
   for (const entry of ignored) {
     if (entry.endsWith('/')) {
       dirOf(entry.slice(0, -1)).ignored = true;
@@ -84,7 +84,7 @@ export function buildTree(
     }
   }
 
-  // Açılıp okunmuş yok sayılan klasörlerin içi; içindeki her şey de yok sayılmıştır.
+  // Contents of ignored folders that were expanded and read; everything inside them is ignored too.
   for (const [dir, entries] of Object.entries(loaded)) {
     for (const entry of entries) {
       const path = `${dir}/${entry.name}`;
@@ -97,7 +97,7 @@ export function buildTree(
     }
   }
 
-  // Değişikliği içeren her klasör (silinen dosyanınki de) işaretlenir; ağaçta olmayan klasör atlanır.
+  // Every folder containing a change (including a deleted file's) is marked; folders not in the tree are skipped.
   for (const change of changes) {
     let dir = parentPath(change.path);
     while (dir !== '') {
@@ -115,7 +115,7 @@ export function buildTree(
   return root.children;
 }
 
-/** Yol, yok sayılan bir klasörün kendisi ya da içinde mi (`ignored`: `listFiles`'ın listesi). */
+/** Whether the path is an ignored folder itself or inside one (`ignored`: the list from `listFiles`). */
 export function insideIgnored(path: string, ignored: string[]): boolean {
   return ignored.some((entry) => entry.endsWith('/') && (`${path}/` === entry || path.startsWith(entry)));
 }
@@ -126,7 +126,7 @@ export interface TreeRow {
   open: boolean;
 }
 
-/** Ağacı, açık klasörlerin içi dahil, ekrandaki sırasıyla satırlara çevirir. */
+/** Turns the tree, including the contents of expanded folders, into rows in on-screen order. */
 export function flattenTree(nodes: TreeNode[], isOpen: (path: string) => boolean, depth = 0): TreeRow[] {
   const rows: TreeRow[] = [];
   for (const node of nodes) {

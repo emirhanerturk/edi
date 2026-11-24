@@ -1,6 +1,6 @@
-// `npm run dist`'in kurulum adımı: edi.app'i /Applications'a kopyalar, `edi` komutunu
-// ~/.local/bin'e bağlar. edi'ye ait olmayan bir uygulamanın ya da komutun üzerine yazmaz;
-// edi açıkken kurmaz. Her denetim, hiçbir şey değişmeden önce yapılır.
+// The install step of `npm run dist`: copies edi.app to /Applications and links the `edi` command
+// into ~/.local/bin. It never overwrites an app or a command that is not edi's, and does not
+// install while edi is open. Every check runs before anything changes.
 import { execFile } from 'node:child_process';
 import { lstat, mkdir, readlink, rm, symlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -10,12 +10,12 @@ const run = promisify(execFile);
 
 export const BUNDLE_ID = 'dev.edi.app';
 
-/** Kurulu uygulamanın içindeki komut betiği. */
+/** The command script inside the installed app. */
 export const commandIn = (appPath) => join(appPath, 'Contents', 'Resources', 'edi');
 
 const exists = (path) => lstat(path).then(() => true, () => false);
 
-/** `appPath`'te uygulama yok mu, edi mi, başka bir şey mi. */
+/** Whether `appPath` holds no app, edi, or something else. */
 export async function checkTarget(appPath) {
   if (!(await exists(appPath))) return 'missing';
   try {
@@ -26,7 +26,7 @@ export async function checkTarget(appPath) {
   }
 }
 
-/** `linkPath` yok mu, `target`'a giden bağımız mı, başka bir şey mi. */
+/** Whether `linkPath` is missing, our link to `target`, or something else. */
 export async function checkLink(linkPath, target) {
   const info = await lstat(linkPath).catch(() => null);
   if (!info) return 'missing';
@@ -34,17 +34,17 @@ export async function checkLink(linkPath, target) {
   return (await readlink(linkPath)) === target ? 'ours' : 'foreign';
 }
 
-/** Kurulu edi çalışıyor mu. */
+/** Whether the installed edi is running. */
 export async function isRunning(appPath) {
   try {
     await run('pgrep', ['-f', `${appPath}/Contents/MacOS/`]);
     return true;
   } catch {
-    return false; // pgrep eşleşme yoksa 1 ile çıkar.
+    return false; // pgrep exits with 1 when nothing matches.
   }
 }
 
-/** Kurulumun denetimleri; bir şey tutmazsa hata verir. Hiçbir şeye dokunmaz. */
+/** The install checks; throws if anything is off. Touches nothing. */
 export async function preflight({ appPath, linkPath, isRunning: running = isRunning }) {
   if (await running(appPath)) throw new Error('Quit edi before installing');
   const target = await checkTarget(appPath);
@@ -54,9 +54,9 @@ export async function preflight({ appPath, linkPath, isRunning: running = isRunn
   return undefined;
 }
 
-/** Kurar; yapılanları satır satır döner. Bir denetim tutmazsa hiçbir şeye dokunmadan hata verir. */
+/** Installs; returns what was done, one line per step. If a check fails, throws without touching anything. */
 export async function install({ built, appPath, linkPath, isRunning: running = isRunning }) {
-  // Paketleme sürerken durum değişmiş olabilir: denetimler kurmadan hemen önce yeniden yapılır.
+  // Things may have changed while packaging: the checks run again right before installing.
   await preflight({ appPath, linkPath, isRunning: running });
   const target = await checkTarget(appPath);
   const command = commandIn(appPath);

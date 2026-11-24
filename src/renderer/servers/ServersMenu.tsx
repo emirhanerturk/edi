@@ -2,7 +2,7 @@ import { usePopover } from '../components/usePopover';
 import type { ServerRow } from './model';
 import './servers.css';
 
-/** Durum çubuğunda çalışan sunucuların sayacı; tıklayınca liste, satıra tıklamak adresi tarayıcıda açar. */
+/** Counter of running servers in the status bar; clicking shows the list, clicking a row opens the address in the browser. */
 export function ServersMenu({ rows, onOpen }: { rows: ServerRow[]; onOpen(url: string): void }) {
   const { open, setOpen, ref } = usePopover<HTMLDivElement>();
   if (rows.length === 0) return null;

@@ -7,7 +7,7 @@ import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 const OID = 'a'.repeat(40);
 
 describe('githubCommitUrl', () => {
-  it("GitHub'ın ssh ve https adreslerinden commit sayfası", () => {
+  it('builds the commit page from GitHub ssh and https URLs', () => {
     for (const url of [
       'git@github.com:quizei/app.git',
       'git@github.com:quizei/app',
@@ -20,11 +20,11 @@ describe('githubCommitUrl', () => {
     }
   });
 
-  it('adresteki kullanıcı adı ve token bağlantıya taşınmaz', () => {
+  it('does not carry the user name or token from the URL into the link', () => {
     expect(githubCommitUrl('https://me:ghp_secret@github.com/quizei/app.git', OID)).toBe(`https://github.com/quizei/app/commit/${OID}`);
   });
 
-  it("GitHub olmayan, eksik ya da tuhaf adreslerde null", () => {
+  it('returns null for non-GitHub, incomplete or odd URLs', () => {
     for (const url of ['git@gitlab.com:quizei/app.git', 'https://github.com/quizei', '/tmp/origin.git', 'https://github.com.evil.dev/a/b', 'https://github.com/a/b/c', 'https://github.com/a/b?x', '']) {
       expect(githubCommitUrl(url, OID), url).toBeNull();
     }
@@ -32,7 +32,7 @@ describe('githubCommitUrl', () => {
 });
 
 describe('commitWebUrl', () => {
-  it("push edilmiş commit için uzak reponun commit sayfası; push edilmemiş ya da uzak yoksa null", async () => {
+  it("returns the remote's commit page for a pushed commit; null when unpushed or without a remote", async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const first = (await git(repo, 'rev-parse', 'HEAD')).trim();
     expect(await commitWebUrl(repo, first)).toBeNull();
@@ -43,10 +43,10 @@ describe('commitWebUrl', () => {
     await git(repo, 'add', '-A');
     await git(repo, 'commit', '-q', '-m', 'feat: b');
     const local = (await git(repo, 'rev-parse', 'HEAD')).trim();
-    // Yerel bir bare repo GitHub değildir.
+    // A local bare repo is not GitHub.
     expect(await commitWebUrl(repo, first)).toBeNull();
 
-    // Ağa çıkmadan: adres GitHub'a çevrilir, uzak dallar olduğu gibi kalır.
+    // Without going online: the URL is switched to GitHub and the remote branches stay as they are.
     await git(repo, 'remote', 'set-url', 'origin', 'git@github.com:quizei/app.git');
     expect(await commitWebUrl(repo, first)).toBe(`https://github.com/quizei/app/commit/${first}`);
     expect(await commitWebUrl(repo, local)).toBeNull();

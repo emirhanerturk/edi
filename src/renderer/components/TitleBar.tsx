@@ -11,7 +11,7 @@ export function TitleBar() {
   const workspace = useApp((s) => s.workspace);
   const sessions = workspace.rootSessions + workspace.repos.reduce((sum, repo) => sum + repo.claude, 0);
   const usage = useApp((s) => s.usage);
-  // Sıfırlanma zamanının "bugün" mü olduğu ve verinin yaşı için.
+  // To tell whether the reset time is "today", and for the data's age.
   const now = useNow(30_000);
 
   return (

@@ -3,7 +3,7 @@ import type { FileChange } from '../../src/git/types';
 import { type TreeNode, buildTree, flattenTree, insideIgnored } from '../../src/renderer/files/tree';
 
 const change = (path: string, x: string, y: string, kind: FileChange['kind'] = 'changed'): FileChange => ({ path, origPath: null, x, y, kind });
-/** Ağacı okunur biçimde: klasör "ad/", değişen dosya "ad M", değişiklik içeren klasör "ad/ ●". */
+/** The tree in readable form: folder "name/", changed file "name M", folder with changes "name/ ●". */
 const show = (nodes: TreeNode[], depth = 0): string[] =>
   nodes.flatMap((node) => [
     `${'  '.repeat(depth)}${node.name}${node.kind === 'dir' ? '/' : ''}${node.letter ? ` ${node.letter}` : ''}${node.kind === 'dir' && node.dirty ? ' ●' : ''}`,
@@ -11,12 +11,12 @@ const show = (nodes: TreeNode[], depth = 0): string[] =>
   ]);
 
 describe('buildTree', () => {
-  it('klasörler önce, sonra dosyalar; ikisi de büyük-küçük harf gözetmeden ada göre', () => {
+  it('folders first, then files; both by name, ignoring case', () => {
     const tree = buildTree(['b.ts', 'A.md', 'src/z.ts', 'src/lib/a.ts', 'Docs/x.md', 'c.ts', 'src/B.ts'], []);
     expect(show(tree)).toEqual(['Docs/', '  x.md', 'src/', '  lib/', '    a.ts', '  B.ts', '  z.ts', 'A.md', 'b.ts', 'c.ts']);
   });
 
-  it("yok sayılan dosyalar ve klasörler ağaçta yerini alır, işaretlidir; klasörün içi boştur", () => {
+  it('ignored files and folders take their place in the tree, marked; the folder is empty', () => {
     const tree = buildTree(['src/a.ts', '.gitignore'], [], ['node_modules/', '.env', 'src/debug.log', 'src/out/']);
     const flat = (nodes: TreeNode[]): string[] =>
       nodes.flatMap((node) => [`${node.path}${node.kind === 'dir' ? '/' : ''}${node.ignored ? ' (ignored)' : ''}`, ...flat(node.children)]);
@@ -32,7 +32,7 @@ describe('buildTree', () => {
     expect(tree[0]!.children).toEqual([]);
   });
 
-  it('yüklenmiş yok sayılan klasörlerin içi ağaca eklenir; içindekiler de yok sayılmış sayılır', () => {
+  it("a loaded ignored folder's contents join the tree and count as ignored too", () => {
     const tree = buildTree(['a.ts'], [], ['node_modules/'], {
       node_modules: [
         { name: 'react', dir: true },
@@ -51,7 +51,7 @@ describe('buildTree', () => {
     ]);
   });
 
-  it('insideIgnored: yok sayılan klasörün kendisi ve içindekiler', () => {
+  it('insideIgnored: the ignored folder itself and what is inside it', () => {
     const ignored = ['node_modules/', 'ios/Pods/', '.env'];
     expect(['node_modules', 'node_modules/react', 'ios/Pods/x', 'ios', 'node_modules2', '.env', 'src'].map((path) => insideIgnored(path, ignored))).toEqual([
       true,
@@ -64,14 +64,14 @@ describe('buildTree', () => {
     ]);
   });
 
-  it('yollar ve ad alanları doğru', () => {
+  it('paths and name fields are correct', () => {
     const tree = buildTree(['src/lib/a.ts'], []);
     expect(tree[0]).toMatchObject({ name: 'src', path: 'src', kind: 'dir' });
     expect(tree[0]!.children[0]).toMatchObject({ name: 'lib', path: 'src/lib', kind: 'dir' });
     expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false, ignored: false });
   });
 
-  it('değişen dosyalar harfini alır, onları içeren klasörler işaretlenir', () => {
+  it('changed files get their letter and the folders containing them are marked', () => {
     const tree = buildTree(
       ['app/game/play.tsx', 'app/game/result.tsx', 'lib/x.ts', 'README.md', 'new.ts'],
       [change('app/game/play.tsx', '.', 'M'), change('new.ts', '?', '?', 'untracked'), change('README.md', 'A', '.')],
@@ -79,22 +79,22 @@ describe('buildTree', () => {
     expect(show(tree)).toEqual(['app/ ●', '  game/ ●', '    play.tsx M', '    result.tsx', 'lib/', '  x.ts', 'new.ts ?', 'README.md A']);
   });
 
-  it('silinen dosya listelenmez ama klasörü değişiklik içerir', () => {
+  it('a deleted file is not listed, but its folder counts as changed', () => {
     const tree = buildTree(['src/a.ts'], [change('src/gone.ts', '.', 'D')]);
     expect(show(tree)).toEqual(['src/ ●', '  a.ts']);
   });
 
-  it('dosya listesi henüz eskiyse değişiklik listesindeki yeni dosyalar yine görünür', () => {
-    const tree = buildTree(['README.md'], [change('src/yeni.ts', '?', '?', 'untracked'), change('src/eski.ts', 'D', '.')]);
-    expect(show(tree)).toEqual(['src/ ●', '  yeni.ts ?', 'README.md']);
+  it('new files from the change list still show while the file list is stale', () => {
+    const tree = buildTree(['README.md'], [change('src/new.ts', '?', '?', 'untracked'), change('src/old.ts', 'D', '.')]);
+    expect(show(tree)).toEqual(['src/ ●', '  new.ts ?', 'README.md']);
   });
 
-  it('yeniden adlandırılan dosya yeni adıyla görünür', () => {
+  it('a renamed file shows under its new name', () => {
     const tree = buildTree(['b.ts'], [{ path: 'b.ts', origPath: 'a.ts', x: 'R', y: '.', kind: 'changed' }]);
     expect(show(tree)).toEqual(['b.ts R']);
   });
 
-  it('boş listede boş ağaç', () => {
+  it('an empty list gives an empty tree', () => {
     expect(buildTree([], [])).toEqual([]);
   });
 });
@@ -102,14 +102,14 @@ describe('buildTree', () => {
 describe('flattenTree', () => {
   const tree = buildTree(['src/lib/a.ts', 'src/b.ts', 'README.md'], []);
 
-  it('kapalı klasörün içi listelenmez', () => {
+  it("a closed folder's contents are not listed", () => {
     expect(flattenTree(tree, () => false).map((row) => [row.node.path, row.depth, row.open])).toEqual([
       ['src', 0, false],
       ['README.md', 0, false],
     ]);
   });
 
-  it('açık klasörlerin içi derinliğiyle listelenir', () => {
+  it("open folders' contents are listed with their depth", () => {
     const open = new Set(['src', 'src/lib']);
     expect(flattenTree(tree, (path) => open.has(path)).map((row) => [row.node.path, row.depth, row.open])).toEqual([
       ['src', 0, true],
@@ -120,7 +120,7 @@ describe('flattenTree', () => {
     ]);
   });
 
-  it('başlangıç derinliği verilebilir', () => {
+  it('accepts a starting depth', () => {
     expect(flattenTree(tree, () => false, 1).map((row) => row.depth)).toEqual([1, 1]);
   });
 });

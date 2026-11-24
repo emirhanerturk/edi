@@ -24,7 +24,7 @@ export function busyLabel(op: GitOp): string {
 const UNKNOWN_REPO: OpResult = { ok: false, error: 'Unknown repository' };
 const INVALID: OpResult = { ok: false, error: 'Invalid operation' };
 
-/** Sayfadan gelen işlem doğru biçimde mi. Sayfa güvenilir sayılmaz: her alan denetlenir. */
+/** Whether an operation from the page is well formed. The page isn't trusted: every field is checked. */
 function isValidOp(op: unknown): op is GitOp {
   if (typeof op !== 'object' || op === null) return false;
   const o = op as Record<string, unknown>;
@@ -49,8 +49,8 @@ function isValidOp(op: unknown): op is GitOp {
 }
 
 /**
- * Sayfanın istediği git işlemlerini çalıştırır. Repo yolu keşfedilmiş listeyle doğrulanır,
- * bir repoda aynı anda tek işlem çalışır ve her işlemden sonra durum yeniden okunur.
+ * Runs the git operations the page requests. The repo path is validated against the discovered list,
+ * only one operation runs in a repo at a time, and the status is reread after each operation.
  */
 export class GitOps {
   private readonly running = new Set<string>();
@@ -70,14 +70,14 @@ export class GitOps {
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     } finally {
-      // Önce durum, sonra etiket: sayfa "bitti" ile birlikte güncel durumu görür.
+      // Status first, then the label: the page sees the current status together with "done".
       await this.ws.refresh(repo.path);
       this.running.delete(repo.path);
       this.ws.setBusy(repo.path, null);
     }
   }
 
-  /** Remote'u olan, o an başka işlemi olmayan tüm repolarda fetch. */
+  /** Fetches in every repo that has a remote and no other operation running. */
   async fetchAll(): Promise<{ repoPath: string; result: OpResult }[]> {
     const targets = this.ws.view().repos.filter((repo) => repo.hasRemote && !this.running.has(repo.path));
     return Promise.all(targets.map(async (repo) => ({ repoPath: repo.path, result: await this.run(repo.path, { op: 'fetch' }) })));
@@ -93,7 +93,7 @@ export class GitOps {
     switch (op.op) {
       case 'stage':
       case 'unstage': {
-        // Sayfanın gönderdiği nesne değil, reponun şu anki durumundaki kayıt kullanılır.
+        // Uses the entry from the repo's current status, not the object the page sent.
         const current = await getStatus(repo);
         if (!current.ok) return { ok: false, error: current.error };
         const file = current.status.files.find((candidate) => candidate.path === op.file.path);

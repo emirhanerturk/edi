@@ -1,6 +1,6 @@
-// Uygulama ikonu: docs/design/icon/wordmark.svg → build/icon.icns. Electron ile çalışır
-// (`npm run icon`): SVG, IBM Plex Mono gömülü olarak gizli bir pencerede çizilir, macOS'un
-// sips ve iconutil araçları iconset'i ve .icns'i üretir.
+// App icon: docs/design/icon/wordmark.svg → build/icon.icns. Runs with Electron
+// (`npm run icon`): the SVG is drawn in a hidden window with IBM Plex Mono embedded, and macOS's
+// sips and iconutil tools produce the iconset and the .icns.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,7 +28,7 @@ app.whenReady().then(async () => {
     const win = new BrowserWindow({ width: SIZE, height: SIZE, show: false, transparent: true, frame: false, useContentSize: true, webPreferences: { offscreen: true } });
     win.webContents.setZoomFactor(1);
     await win.loadFile(page);
-    // Yazı tipi yüklenmeden çizilirse yedek yazı tipi görünür.
+    // Drawing before the font loads would show the fallback font.
     await win.webContents.executeJavaScript('document.fonts.ready.then(() => document.fonts.check("600 270px \'IBM Plex Mono\'"))').then((ok) => {
       if (!ok) throw new Error('IBM Plex Mono did not load');
     });

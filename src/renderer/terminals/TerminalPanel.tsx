@@ -3,7 +3,7 @@ import { useApp } from '../store';
 import { TabBar } from './TabBar';
 import { setContainer } from './terminals';
 
-/** Sol panel: sekme çubuğu ve etkin terminal. */
+/** Left panel: the tab bar and the active terminal. */
 export function TerminalPanel() {
   const dir = useApp((s) => s.workspace.dir);
   const tabCount = useApp((s) => s.tabs.length);
@@ -14,7 +14,7 @@ export function TerminalPanel() {
     return () => setContainer(null);
   }, []);
 
-  // Terminaller açık klasöre aittir: klasör değişince hepsi kapanır ve yeni klasörde bir tane açılır.
+  // Terminals belong to the open folder: when the folder changes, they all close and one opens in the new folder.
   useEffect(() => {
     const { resetTabs, newTab } = useApp.getState();
     resetTabs();

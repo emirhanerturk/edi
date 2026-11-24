@@ -1,4 +1,4 @@
-/* Orta panel: dosya ve diff görünümü. */
+/* Center panel: file and diff view. */
 .center {
   flex: 1 1 0;
   min-width: 360px;
@@ -42,8 +42,8 @@
   color: var(--muted);
 }
 
-/* Orta panel açıkken terminaller kayıtlı genişliğinde durur; pencere daralınca önce onlar daralır. */
-/* Sol ve orta panelin zemini aynıdır: aralarındaki ayrımı bu çizgi gösterir (sağ paneldekiyle aynı). */
+/* With the center panel open the terminals keep their saved width; when the window narrows, they shrink first. */
+/* The left and center panels share a background: this line marks the split between them (same as the right panel's). */
 .app-body.with-center > .terminals {
   flex: 0 1 var(--left-width, 492px);
   min-width: 320px;
@@ -66,7 +66,7 @@
   font-size: 12px;
 }
 
-/* Görünüm başlığı: repo / yol, sayılar, düğmeler. */
+/* View header: repo / path, counts, buttons. */
 .view-header {
   height: 40px;
   flex: none;
@@ -97,7 +97,7 @@
   min-width: 40px;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* Uzun yol baştan kısalır: dosya adı görünür kalır. */
+  /* A long path is shortened from the start: the file name stays visible. */
   direction: rtl;
   text-align: left;
   color: var(--text-2);
@@ -172,7 +172,7 @@
   color: var(--red);
 }
 
-/* Diff gövdesi. Uzun satırlar kırılır: iki sütun da hizalı kalır, yatay kaydırma olmaz. */
+/* Diff body. Long lines wrap: both columns stay aligned and there's no horizontal scroll. */
 .diff-body {
   flex: 1;
   min-height: 0;
@@ -218,7 +218,7 @@
 
 .diff-row {
   min-height: 22px;
-  /* Görünmeyen satırlar çizilmez: uzun diff'ler akıcı kalır. */
+  /* Off-screen rows aren't rendered: long diffs stay smooth. */
   content-visibility: auto;
   contain-intrinsic-size: auto 22px;
 }
@@ -290,7 +290,7 @@
   font-family: var(--sans);
 }
 
-/* Eğik yazının son harfi kırpılmasın. */
+/* Don't clip the last letter of italic text. */
 .center-tab[data-preview='true'] .tab-title {
   padding-right: 2px;
 }
@@ -313,7 +313,7 @@
   font-size: 12px;
 }
 
-/* Salt okunur dosya: satır numarası ve metin. Uzun satırlar kırılır. */
+/* Read-only file: line number and text. Long lines wrap. */
 .file-body {
   flex: 1;
   min-height: 0;
@@ -350,7 +350,7 @@
   tab-size: 2;
 }
 
-/* Commit görünümü (History.dc.html, orta panel) */
+/* Commit view (History.dc.html, center panel) */
 .commit-view {
   overflow-y: auto;
 }
@@ -545,7 +545,7 @@
   width: 11px;
 }
 
-/* Görsel ve video önizlemesi: ortada, sığmazsa küçülür; şeffaf görsel için dama zemin. */
+/* Image and video preview: centered, shrinks if it doesn't fit; checkerboard background for transparent images. */
 .media-body {
   flex: 1;
   min-height: 0;

@@ -8,14 +8,14 @@ import { Code } from './DiffPane';
 import { MAX_DIFF_LINES, diffRows } from './diffRows';
 import { ViewNote } from './ViewHeader';
 
-/** Diff'i bundan uzun dosya kapalı başlar. */
+/** A file with a diff longer than this starts collapsed. */
 export const COLLAPSE_LINES = 400;
-/** Açık başlayan dosyaların satır toplamı bunu geçince kalanlar kapalı başlar (yüzlerce dosyalı commit). */
+/** Once the line total of files starting expanded passes this, the rest start collapsed (commits with hundreds of files). */
 export const OPEN_BUDGET = 3000;
 
 const lineCount = (file: CommitFile) => file.diff.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0);
 
-/** Kapalı başlayacak dosyaların yolları. */
+/** Paths of the files that start collapsed. */
 export function initiallyCollapsed(files: CommitFile[]): Set<string> {
   const collapsed = new Set<string>();
   let budget = OPEN_BUDGET;
@@ -29,23 +29,23 @@ export function initiallyCollapsed(files: CommitFile[]): Set<string> {
 
 export interface CommitPaneProps {
   repoName: string;
-  /** Commit'in göründüğü branch (reponun geçerli branch'i). */
+  /** The branch the commit is viewed on (the repo's current branch). */
   branch: string | null;
-  /** Yüklenene kadar null. */
+  /** Null until loaded. */
   result: CommitResult | null;
   now: number;
-  /** Dosya yolu → sözdizimi renkleri. */
+  /** File path → syntax colors. */
   tokens: Map<string, DiffTokens>;
   onCopy(): void;
-  /** Commit'in GitHub sayfasını tarayıcıda açar. */
+  /** Opens the commit's GitHub page in the browser. */
   onOpenUrl(url: string): void;
 }
 
-/** Bir commit: başlık, gövde, bilgiler ve değişen her dosyanın diff'i alt alta. */
+/** A commit: subject, body, details and the diff of every changed file, one below the other. */
 export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl }: CommitPaneProps) {
   const commitOrNull = result?.ok ? result.commit : null;
-  // Kapalı dosyalar burada tutulur: başlıktaki "hepsini aç/kapat" düğmesi de değiştirir.
-  // Başka commit'e geçince 400 satırı aşanlar kapalı olarak baştan başlar.
+  // Collapsed files are kept here: the "expand/collapse all" button in the header changes them too.
+  // Switching to another commit starts over, with those over 400 lines collapsed.
   const initial = useMemo(() => (commitOrNull ? initiallyCollapsed(commitOrNull.files) : new Set<string>()), [commitOrNull]);
   const [changed, setChanged] = useState<{ oid: string; collapsed: Set<string> } | null>(null);
   const collapsed = commitOrNull && changed?.oid === commitOrNull.oid ? changed.collapsed : initial;
@@ -127,7 +127,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
   );
 }
 
-/** Başlıktaki tek düğme: en az bir dosya açıksa hepsini kapatır, hepsi kapalıysa açar. */
+/** The single header button: collapses all if at least one file is expanded, expands all if all are collapsed. */
 function AllFilesButton({ allCollapsed, onCollapse, onExpand }: { allCollapsed: boolean; onCollapse(): void; onExpand(): void }) {
   const label = allCollapsed ? 'Expand all files' : 'Collapse all files';
   return (
@@ -162,8 +162,8 @@ function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle }: CommitF
   );
 }
 
-/** `open` null: satırlar okunmadı (çok büyük commit), dosya açılamaz; yalnız sayılar. */
-// Bir dosya açılıp kapanınca yalnız o bölüm yeniden çizilir (büyük commit'lerde önemli).
+/** `open` null: lines weren't read (commit too large), the file can't be expanded; only the counts. */
+// Expanding or collapsing a file rerenders only that section (matters for large commits).
 const CommitFileSection = memo(function CommitFileSection({
   file,
   open,

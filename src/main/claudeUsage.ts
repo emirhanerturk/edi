@@ -3,15 +3,15 @@ import { join } from 'node:path';
 import type { ClaudeUsage, UsageWindow } from '../shared/api.js';
 
 /**
- * Claude kullanım limitleri. Claude Code bunları yalnız durum satırı komutuna verir;
- * `resources/edi-statusline` köprüsü `rate_limits` alanını bu dosyaya yazar, edi okur.
- * Ağa çıkılmaz.
+ * Claude usage limits. Claude Code passes them only to the status line command;
+ * the `resources/edi-statusline` bridge writes the `rate_limits` field to this file, and edi reads it.
+ * No network access.
  */
 export function usageFile(env: NodeJS.ProcessEnv, home: string): string {
   return env.EDI_USAGE_FILE || join(home, 'Library', 'Application Support', 'edi', 'claude-usage.json');
 }
 
-/** Bundan büyük dosya kullanım dosyası değildir. */
+/** A file larger than this is not a usage file. */
 const MAX_BYTES = 64 * 1024;
 
 function windowOf(value: unknown, now: number): UsageWindow | null {
@@ -19,11 +19,11 @@ function windowOf(value: unknown, now: number): UsageWindow | null {
   const { used_percentage: percent, resets_at: resetsAt } = value as Record<string, unknown>;
   if (typeof percent !== 'number' || !Number.isFinite(percent) || typeof resetsAt !== 'number' || !Number.isFinite(resetsAt)) return null;
   const at = resetsAt * 1000;
-  // Sıfırlanma anı geçtiyse yüzde artık geçerli değildir.
+  // Once the reset time has passed, the percentage is no longer valid.
   return at > now ? { percent, resetsAt: at } : null;
 }
 
-/** Köprünün yazdığı `rate_limits` JSON'u; geçerli pencere yoksa null. */
+/** The `rate_limits` JSON the bridge writes; null if there is no valid window. */
 export function parseUsage(text: string, updatedAt: number, now: number): ClaudeUsage | null {
   let data: unknown;
   try {
@@ -39,7 +39,7 @@ export function parseUsage(text: string, updatedAt: number, now: number): Claude
   return { fiveHour, week, updatedAt };
 }
 
-/** Dosyayı okur; güncellenme anı dosyanın değişme zamanıdır. Dosya yoksa ya da bozuksa null. */
+/** Reads the file; the update time is the file's modification time. Null if the file is missing or corrupt. */
 export async function readUsage(file: string, now = Date.now()): Promise<ClaudeUsage | null> {
   try {
     const info = await stat(file);

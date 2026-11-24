@@ -20,34 +20,34 @@ import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, sh
 export interface Tab {
   id: number;
   title: string;
-  /** Önde Claude Code çalışıyor. */
+  /** Claude Code is running in the foreground. */
   claude: boolean;
-  /** Claude Code yanıt bekliyor (yalnız arka plandaki sekmede gösterilir). */
+  /** Claude Code is waiting for a reply (shown only on a background tab). */
   waiting: boolean;
-  /** Kabuğun dışında bir süreç çalışıyor: kapatılırken sorulur. */
+  /** A process other than the shell is running: ask before closing. */
   busy: boolean;
-  /** Kabuk kapandı; sekme, çıktısı okunabilsin diye yerinde durur. */
+  /** The shell exited; the tab stays in place so its output can be read. */
   exited: boolean;
   /**
-   * Claude Code düğmesiyle açılan sekme, komut başlayana kadar birkaç saniye "claude" kalır;
-   * bu ana kadar gelen "önde yalnız kabuk var" bilgisi yok sayılır.
+   * A tab opened with the Claude Code button stays "claude" for a few seconds until the command starts;
+   * any "only the shell in the foreground" report until then is ignored.
    */
   claudeUntil: number;
-  /** Claude Code'un terminal başlığından okunan son durum; başlık henüz gelmediyse null. */
+  /** Last Claude Code state read from the terminal title; null if no title has arrived yet. */
   titleState: ClaudeTitleState | null;
 }
 
-/** Claude Code'un açılması için tanınan süre. */
+/** Time allowed for Claude Code to start. */
 const CLAUDE_START_MS = 8000;
 
-/** Ana süreçten gelen süreç durumlarını sekmelere işler. */
+/** Applies process states from the main process to the tabs. */
 export function applyTabStates(tabs: Tab[], states: TabState[], now: number): Tab[] {
   const byId = new Map(states.map((state) => [state.id, state]));
   return tabs.map((tab) => {
     const state = byId.get(tab.id);
     if (!state || tab.exited) return tab;
     if (!state.claude && now < tab.claudeUntil) return tab;
-    // Claude Code kapandıysa zil de, başlıktan okunan durum da geçersizdir.
+    // If Claude Code exited, both the bell and the state read from the title are stale.
     const waiting = state.claude ? tab.waiting : false;
     const titleState = state.claude ? tab.titleState : null;
     if (
@@ -64,9 +64,9 @@ export function applyTabStates(tabs: Tab[], states: TabState[], now: number): Ta
 }
 
 /**
- * Terminal başlığı değişince sekmeyi günceller. Zil, yalnız kullanıcı bakmazken olan şey için
- * yanar: arka plandaki bir Claude sekmesi çalışırken beklemeye geçtiğinde. Yeni açılmış boş
- * oturum ya da kullanıcının önünde biten yanıt zil yakmaz.
+ * Updates the tab when the terminal title changes. The bell lights only for something that happens
+ * while the user isn't looking: when a background Claude tab goes from working to waiting. A freshly
+ * opened empty session, or a reply that finishes in front of the user, doesn't light the bell.
  */
 export function applyTitle(tab: Tab, title: string, active: boolean): Tab {
   const next = claudeTitleState(title);
@@ -76,8 +76,8 @@ export function applyTitle(tab: Tab, title: string, active: boolean): Tab {
 }
 
 /**
- * Sekmeyi listeden çıkarır. Etkin sekme kapandıysa sağındaki (yoksa solundaki) öne gelir ve,
- * `activate` ile öne gelmiş gibi, zili söner.
+ * Removes the tab from the list. If the active tab closed, the one to its right (or else its left)
+ * comes to the front and, as if brought forward with `activate`, its bell goes out.
  */
 export function removeTab(tabs: Tab[], activeTab: number | null, id: number): { tabs: Tab[]; activeTab: number | null } {
   const index = tabs.findIndex((tab) => tab.id === id);
@@ -90,95 +90,95 @@ export function removeTab(tabs: Tab[], activeTab: number | null, id: number): { 
 
 export interface HistoryEntry {
   limit: number;
-  /** `historyKey` değeri: değişince log yeniden okunur. */
+  /** The `historyKey` value: the log is reread when it changes. */
   key: string;
-  /** Henüz gelmediyse null; yeniden okunurken eskisi kalır. */
+  /** Null until it arrives; the old one stays while rereading. */
   log: LogResult | null;
 }
 
-/** Repo başına son istek: geç gelen eski bir cevap yenisinin üstüne yazılmaz. */
+/** Latest request per repo: a stale reply that arrives late doesn't overwrite the newer one. */
 const historyRequests = new Map<string, number>();
 let historySerial = 0;
 
 interface AppStore {
-  /** İlk durum ana süreçten geldi mi. */
+  /** Whether the initial state has arrived from the main process. */
   ready: boolean;
   home: string;
   workspace: WorkspaceView;
   recent: RecentFolder[];
   layout: Layout;
-  /** Klasör açılamadıysa nedeni. */
+  /** Why the folder couldn't be opened. */
   openError: string | null;
   openFolder(dir: string): Promise<void>;
   dismissOpenError(): void;
-  /** Sağ panelin genişliğini, `total` genişliğindeki alana sığdırarak değiştirir. */
+  /** Changes the right panel's width, fitting it into an area `total` wide. */
   resizeRight(right: number, total: number): void;
-  /** Sol panelin (terminaller) orta panel açıkkenki genişliğini değiştirir. */
+  /** Changes the left panel's (terminals) width for when the center panel is open. */
   resizeLeft(left: number, total: number): void;
-  /** Panel genişliklerini kalıcı duruma yazar. */
+  /** Writes the panel widths to persistent state. */
   saveLayout(): void;
 
-  /** Orta panel: açık dosya ve diff sekmeleri. */
+  /** Center panel: open file and diff tabs. */
   center: CenterState;
-  /** Tek tık önizleme (`pin` false), çift tık kalıcı sekme açar; panel kapalıysa açılır. */
+  /** A single click opens a preview (`pin` false), a double click a permanent tab; opens the panel if closed. */
   openInCenter(target: CenterTarget, pin: boolean): void;
   closeCenterTab(id: string): void;
   activateCenterTab(id: string): void;
   pinCenterTab(id: string): void;
   setCenterOpen(open: boolean): void;
-  /** Diff görünümünün düzenini değiştirir ve hatırlar. */
+  /** Changes the diff view's layout and remembers it. */
   setDiffMode(mode: Layout['diffMode']): void;
-  /** Durum çubuğunun sağında, orta panelde açık olan şeyin kısa bilgisi; yoksa null. */
+  /** Short info on what's open in the center panel, at the right of the status bar; null if nothing. */
   centerInfo: string | null;
   setCenterInfo(info: string | null): void;
 
-  /** Sağ panelde seçili sekme. */
+  /** Selected tab in the right panel. */
   rightTab: 'git' | 'history' | 'files';
   setRightTab(tab: 'git' | 'history' | 'files'): void;
 
-  /** History: repo yolu → okunan log, kaç commit istendiği ve hangi durum için okunduğu. */
+  /** History: repo path → the log read, how many commits were requested and which state it was read for. */
   history: Record<string, HistoryEntry>;
-  /** History'nin süzüldüğü repo; tümü için null. */
+  /** The repo History is filtered to; null for all. */
   historyFilter: string | null;
-  /** Reponun logunu (varsayılan: önceki adetle) okur. */
+  /** Reads the repo's log (default: the previous count). */
   loadHistory(repoPath: string, limit?: number): Promise<void>;
-  /** Gösterilen ve daha fazlası olan her repodan 50 commit daha okur. */
+  /** Reads 50 more commits from every shown repo that has more. */
   loadMoreHistory(): void;
-  /** Okunmuş tüm logları yeniden okur. */
+  /** Rereads all logs that have been read. */
   refreshHistory(): void;
   setHistoryFilter(path: string | null): void;
-  /** History düzenini değiştirir ve hatırlar. */
+  /** Changes the History layout and remembers it. */
   setHistoryLayout(layout: Layout['historyLayout']): void;
-  /** Files sekmesinde açık klasörler (`repoYolu\ngöreliYol`; repo kökü için göreli yol boş). */
+  /** Open folders in the Files tab (`repoPath\nrelativePath`; the relative path is empty for the repo root). */
   filesOpen: Record<string, boolean>;
   toggleFilesDir(key: string, open: boolean): void;
   collapseFiles(): void;
 
-  /** Orta paneldeki son hata ("Zed açılamadı" gibi); yoksa null. */
+  /** Last error in the center panel (such as "Couldn't open Zed"); null if none. */
   centerError: string | null;
   dismissCenterError(): void;
-  /** Dosyayı (yol null ise repo klasörünü) Zed'de açar; açılamazsa hatayı orta panelde gösterir. */
+  /** Opens the file (or the repo folder if the path is null) in Zed; on failure, shows the error in the center panel. */
   openInZed(repoPath: string, path: string | null): Promise<void>;
 
   tabs: Tab[];
-  /** Terminallerde dinlemeye açılmış localhost portları. */
+  /** Localhost ports listening in the terminals. */
   servers: ServerInfo[];
-  /** Claude kullanım limitleri (durum satırı köprüsünden); bilinmiyorsa null. */
+  /** Claude usage limits (from the status line bridge); null if unknown. */
   usage: ClaudeUsage | null;
   activeTab: number | null;
   newTab(opts?: { claude?: boolean; repoPath?: string }): Promise<void>;
   closeTab(id: number): void;
   activate(id: number): void;
-  /** Tüm sekmeleri kapatır (klasör değişince). */
+  /** Closes all tabs (when the folder changes). */
   resetTabs(): void;
 
-  /** Git sekmesinde kullanıcının elle açıp kapattığı repolar (oturum boyunca). */
+  /** Repos in the Git tab that the user expanded or collapsed by hand (for the session). */
   expanded: Record<string, boolean>;
   toggleRepo(repoPath: string, open: boolean): void;
 
-  /** Yazılmakta olan commit mesajları (repo yolu → metin). */
+  /** Commit messages being written (repo path → text). */
   drafts: Record<string, string>;
-  /** Son git işleminin hatası (repo yolu → git'in satırı). */
+  /** Error from the last git operation (repo path → git's line). */
   errors: Record<string, string>;
   setDraft(repoPath: string, message: string): void;
   dismissError(repoPath: string): void;
@@ -202,10 +202,10 @@ export const useApp = create<AppStore>((set, get) => ({
   openError: null,
   async openFolder(dir) {
     const result = await edi.openFolder(dir);
-    if (!result.ok && result.cancelled) return; // Kullanıcı vazgeçti: hata değil.
+    if (!result.ok && result.cancelled) return; // The user cancelled: not an error.
     set({ openError: result.ok ? null : `${dir}: ${result.error}` });
   },
-  // Sürüklenen panelin genişliği değişir; ötekinin kayıtlı değeri korunur (dar pencerede CSS daraltır).
+  // The dragged panel's width changes; the other's saved value is kept (CSS shrinks it in a narrow window).
   resizeRight(right, total) {
     set((state) => ({ layout: { ...state.layout, right: clampWidths({ left: state.layout.left, right, total, center: state.center.open }).right } }));
   },
@@ -293,10 +293,10 @@ export const useApp = create<AppStore>((set, get) => ({
     try {
       created = await openTerminal(opts);
     } catch {
-      return; // Klasör bu arada kapandı ya da terminal alanı henüz yok.
+      return; // The folder closed in the meantime, or the terminal area doesn't exist yet.
     }
     if (get().workspace.dir !== dir) {
-      // Terminal açılırken klasör değişti: bu terminal eski klasöre ait.
+      // The folder changed while the terminal was opening: this terminal belongs to the old folder.
       edi.pty.close(created.id);
       disposeTerminal(created.id);
       return;
@@ -350,7 +350,7 @@ export const useApp = create<AppStore>((set, get) => ({
     const result = await edi.git(repoPath, op);
     set((state) => ({
       errors: result.ok ? without(state.errors, repoPath) : { ...state.errors, [repoPath]: result.error },
-      // Commit atıldıysa mesaj temizlenir (push'u başarısız olsa bile commit yerindedir).
+      // If the commit went through, the message is cleared (the commit stays even if its push failed).
       drafts: op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) ? without(state.drafts, repoPath) : state.drafts,
     }));
   },
@@ -374,21 +374,21 @@ function keepHistory(state: AppStore, workspace: WorkspaceView): Pick<AppStore, 
   return { history, historyFilter };
 }
 
-/** Ana süreçten ilk durumu alır ve değişikliklere abone olur. Dönen işlev abonelikleri kaldırır. */
+/** Gets the initial state from the main process and subscribes to changes. The returned function unsubscribes. */
 export function connect(): () => void {
   const off = [
     edi.on('workspace', (workspace) =>
       useApp.setState((state) => ({
         workspace,
-        // Klasör değiştiyse ya da bir repo kaybolduysa ona ait sekmeler kapanır.
+        // If the folder changed or a repo disappeared, its tabs close.
         center: syncCenter(state.center, state.workspace.dir, workspace.dir, workspace.repos.map((repo) => repo.path)),
-        // Başka klasöre geçince Files ağacı kapalı başlar.
+        // Switching to another folder starts the Files tree collapsed.
         filesOpen: workspace.dir === state.workspace.dir ? state.filesOpen : {},
-        // Eski klasörün hatası yeni klasörde anlamsızdır.
+        // The old folder's error means nothing in the new folder.
         centerError: workspace.dir === state.workspace.dir ? state.centerError : null,
-        // History: başka klasörde baştan; kaybolan repoların logları ve süzgeci atılır.
+        // History: starts over in another folder; logs and the filter of vanished repos are dropped.
         ...keepHistory(state, workspace),
-        // Eski klasörün terminalleri kapandı; sunucuları da gider (sonraki yoklama da boş gönderir).
+        // The old folder's terminals closed; their servers go too (the next poll also sends an empty list).
         servers: workspace.dir === state.workspace.dir ? state.servers : [],
       })),
     ),

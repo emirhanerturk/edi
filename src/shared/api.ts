@@ -1,6 +1,6 @@
 /**
- * Ana süreç ile sayfa arasındaki sözleşme. Yalnız tür içerir: sayfa Node'a erişemez,
- * bu dosyadan çalışan kod almaz.
+ * The contract between the main process and the page. It holds only types: the page can't reach Node
+ * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus } from '../git/types.js';
@@ -10,24 +10,24 @@ export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, Fi
 export interface RepoView {
   name: string;
   path: string;
-  /** Durum okunamadıysa null; nedeni `error`'da. */
+  /** Null if the status couldn't be read; the reason is in `error`. */
   status: RepoStatus | null;
   error: string | null;
-  /** Süren işlemin etiketi ("Pushing…"); yoksa null. */
+  /** Label of the operation in progress ("Pushing…"); null if none. */
   busy: string | null;
-  /** Bu repoda, bir terminalde açık Claude Code oturumu sayısı. */
+  /** Number of Claude Code sessions open in a terminal in this repo. */
   claude: number;
-  /** Repoda en az bir remote tanımlı; yoksa push/pull/publish yapılacak yer yoktur. */
+  /** The repo has at least one remote; without one there is nowhere to push, pull or publish to. */
   hasRemote: boolean;
 }
 
 export interface WorkspaceView {
-  /** Açık klasör; yoksa null. */
+  /** The open folder; null if none. */
   dir: string | null;
   repos: RepoView[];
-  /** Klasörün içinde ama hiçbir repoda olmayan Claude Code oturumları. */
+  /** Claude Code sessions inside the folder but in no repo. */
   rootSessions: number;
-  /** Durumların son okunduğu an (epoch ms). */
+  /** When the statuses were last read (epoch ms). */
   refreshedAt: number;
 }
 
@@ -50,7 +50,7 @@ export interface AppState {
   layout: Layout;
 }
 
-/** Sayfanın bir repoda isteyebileceği işlemler. Serbest biçimli komut yoktur. */
+/** Operations the page can request on a repo. There are no free-form commands. */
 export type GitOp =
   | { op: 'stage'; file: FileChange }
   | { op: 'unstage'; file: FileChange }
@@ -67,60 +67,60 @@ export type OpResult = { ok: true; message: string } | { ok: false; error: strin
 
 export type BranchList = { ok: true; branches: string[]; current: string | null } | { ok: false; error: string };
 
-/** Bir dosyanın HEAD'e göre değişikliği ve durum kaydı. */
+/** A file's change against HEAD and its status entry. */
 export type DiffView = { ok: true; diff: ParsedDiff; file: FileChange } | { ok: false; error: string };
 
-/** `cancelled`: kullanıcı, çalışan terminaller sorusunda vazgeçti; bu bir hata değildir. */
+/** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
 
 export interface NewTerminal {
   cols: number;
   rows: number;
-  /** Verilirse terminal bu repoda açılır; yoksa açık klasörde. Keşfedilmiş bir repo yolu olmalıdır. */
+  /** If given, the terminal opens in this repo; otherwise in the open folder. Must be a discovered repo path. */
   repoPath?: string;
-  /** Terminalde Claude Code başlatılır. */
+  /** Starts Claude Code in the terminal. */
   claude?: boolean;
 }
 
 export interface TerminalCreated {
   id: number;
-  /** Sekmenin ilk başlığı (kabuğun adı). */
+  /** The tab's initial title (the shell's name). */
   title: string;
 }
 
-/** Bir sekmenin, terminalinde önde çalışan sürece göre durumu. */
+/** A tab's state, based on the foreground process in its terminal. */
 export interface TabState {
   id: number;
   title: string;
   claude: boolean;
-  /** Kabuğun dışında bir süreç çalışıyor. */
+  /** A process other than the shell is running. */
   busy: boolean;
 }
 
-/** Bir edi terminalinde dinlemeye açılmış localhost portu. */
+/** A localhost port opened for listening in an edi terminal. */
 export interface ServerInfo {
   tabId: number;
   port: number;
   pid: number;
-  /** Dinleyen sürecin çalışma dizini; okunamadıysa null. */
+  /** The listening process's working directory; null if it couldn't be read. */
   cwd: string | null;
 }
 
-/** Ana sürecin sayfaya kendiliğinden gönderdiği olaylar. */
-/** Bir kullanım penceresi: kullanılan yüzde (100'ü aşabilir) ve sıfırlanma anı (ms). */
+/** A usage window: the percentage used (can exceed 100) and the reset time (ms). */
 export interface UsageWindow {
   percent: number;
   resetsAt: number;
 }
 
-/** Claude kullanım limitleri; Claude Code'un durum satırı köprüsünden. */
+/** Claude usage limits, from Claude Code's status line bridge. */
 export interface ClaudeUsage {
   fiveHour: UsageWindow | null;
   week: UsageWindow | null;
-  /** Verinin yazıldığı an (ms). */
+  /** When the data was written (ms). */
   updatedAt: number;
 }
 
+/** Events the main process sends to the page on its own. */
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
   recent: [recent: RecentFolder[]];
@@ -128,37 +128,37 @@ export interface EdiEvents {
   'pty:exit': [id: number];
   tabs: [tabs: TabState[]];
   servers: [servers: ServerInfo[]];
-  /** Claude kullanım limitleri değişti (ya da geçerli pencere kalmadı: null). */
+  /** Claude usage limits changed (or no valid window is left: null). */
   usage: [usage: ClaudeUsage | null];
 }
 
-/** Sayfaya `window.edi` olarak verilen köprü. Görevler ilerledikçe büyür. */
+/** The bridge given to the page as `window.edi`. */
 export interface EdiApi {
   getState(): Promise<AppState>;
-  /** Sistem klasör seçicisini açar; seçilirse klasör açılır. */
+  /** Opens the system folder picker; if a folder is chosen, it is opened. */
   chooseFolder(): Promise<void>;
   openFolder(dir: string): Promise<OpenResult>;
   rescan(): Promise<void>;
-  /** Panel genişliği gibi düzen tercihlerini kaydeder; ana süreç doğrular. */
+  /** Saves layout preferences such as panel width; the main process validates them. */
   setLayout(patch: Partial<Layout>): void;
-  /** `repoPath` keşfedilmiş bir reponun yolu olmalıdır; ana süreç doğrular. */
+  /** `repoPath` must be the path of a discovered repo; the main process validates it. */
   git(repoPath: string, op: GitOp): Promise<OpResult>;
-  /** Remote'u olan tüm repolarda fetch; repo başına sonucu döner. */
+  /** Fetches in every repo that has a remote; returns the result per repo. */
   fetchAll(): Promise<{ repoPath: string; result: OpResult }[]>;
   branches(repoPath: string): Promise<BranchList>;
-  /** Değişen bir dosyanın HEAD'e göre diff'i (stage'li ve stage'siz birlikte). */
+  /** A changed file's diff against HEAD (staged and unstaged together). */
   diff(repoPath: string, filePath: string): Promise<DiffView>;
-  /** `filePath` repoya göre görelidir ve repo içinde kalmalıdır; ana süreç doğrular. */
+  /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
-  /** Çalışma ağacındaki dosyalar; `.gitignore`'a takılanlar ayrı listede (klasörün içi olmadan). */
+  /** Files in the working tree; those caught by `.gitignore` are in a separate list (without folder contents). */
   listFiles(repoPath: string): Promise<FileList>;
-  /** Repo içindeki bir klasörün tek seviyesi; yok sayılan klasörün içini göstermek için. */
+  /** One level of a folder inside the repo; used to show the contents of an ignored folder. */
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
-  /** Son bilinen Claude kullanım limitleri; köprü kurulmamışsa ya da süresi geçtiyse null. */
+  /** The last known Claude usage limits; null if the bridge isn't set up or the data has expired. */
   claudeUsage(): Promise<ClaudeUsage | null>;
-  /** Dosyayı, `filePath` null ise repo klasörünü Zed'de açar. */
+  /** Opens the file in Zed, or the repo folder if `filePath` is null. */
   openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
-  /** Terminaldeki bir web bağlantısını varsayılan tarayıcıda açar (yalnız http/https). */
+  /** Opens a web link from the terminal in the default browser (http/https only). */
   openUrl(url: string): Promise<OpResult>;
   log(repoPath: string, count: number): Promise<LogResult>;
   commit(repoPath: string, oid: string): Promise<CommitResult>;
@@ -166,9 +166,9 @@ export interface EdiApi {
     create(o: NewTerminal): Promise<TerminalCreated>;
     write(id: number, data: string): void;
     resize(id: number, cols: number, rows: number): void;
-    /** Terminali ve içinde çalışanı kapatır. */
+    /** Closes the terminal and whatever is running in it. */
     close(id: number): void;
   };
-  /** Dönen işlev aboneliği kaldırır. */
+  /** The returned function removes the subscription. */
   on<K extends keyof EdiEvents>(channel: K, listener: (...args: EdiEvents[K]) => void): () => void;
 }

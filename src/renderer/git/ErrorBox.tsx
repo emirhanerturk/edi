@@ -1,7 +1,7 @@
 import { WarningIcon } from '../components/icons';
 import { isRejectedPush } from './model';
 
-/** Reponun altındaki hata kutusu: git'in en bilgilendirici satırı. */
+/** Error box under the repo: git's most informative line. */
 export function ErrorBox({ error, onPull, onDismiss }: { error: string; onPull?: () => void; onDismiss(): void }) {
   const rejected = isRejectedPush(error);
   return (

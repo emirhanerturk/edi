@@ -6,7 +6,7 @@ import { makeTmpDir } from './helpers/tmpRepo.js';
 
 const script = join(import.meta.dirname, '..', 'resources', 'edi');
 
-/** PATH'in başına argümanlarını satır satır yazan sahte bir `open` koyup betiği çalıştırır. */
+/** Puts a fake `open` that logs its arguments line by line at the front of PATH, then runs the script. */
 async function runEdi(cwd: string, args: string[]): Promise<{ code: number; stderr: string; open: string[] }> {
   const bin = await makeTmpDir();
   const log = join(bin, 'open.log');
@@ -25,33 +25,33 @@ async function runEdi(cwd: string, args: string[]): Promise<{ code: number; stde
   });
 }
 
-describe('edi komutu', () => {
-  it('argümansız: uygulamayı açar ya da öne getirir', async () => {
+describe('edi command', () => {
+  it('opens the app or brings it to the front when given no arguments', async () => {
     expect(await runEdi(await makeTmpDir(), [])).toEqual({ code: 0, stderr: '', open: ['-a', '/Apps/edi.app'] });
   });
 
-  it('klasörü mutlak ve gerçek yoluyla yeni bir kopyaya verir (açık kopya devralır)', async () => {
+  it('passes the folder by its absolute real path to a new instance (the running one takes over)', async () => {
     const root = await realpath(await makeTmpDir());
-    await mkdir(join(root, 'boş luk', '-tire'), { recursive: true });
+    await mkdir(join(root, 'boş luk', '-dash'), { recursive: true });
     expect((await runEdi(root, ['.'])).open).toEqual(['-n', '-a', '/Apps/edi.app', '--args', `--open=${root}`]);
     expect((await runEdi(root, ['boş luk'])).open).toEqual(['-n', '-a', '/Apps/edi.app', '--args', `--open=${join(root, 'boş luk')}`]);
-    expect((await runEdi(join(root, 'boş luk'), ['-tire'])).open).toEqual([
+    expect((await runEdi(join(root, 'boş luk'), ['-dash'])).open).toEqual([
       '-n',
       '-a',
       '/Apps/edi.app',
       '--args',
-      `--open=${join(root, 'boş luk', '-tire')}`,
+      `--open=${join(root, 'boş luk', '-dash')}`,
     ]);
   });
 
-  it('klasör değilse ya da yoksa hata verir, uygulamayı açmaz', async () => {
+  it('fails without opening the app when the path is not a folder or does not exist', async () => {
     const root = await makeTmpDir();
-    await writeFile(join(root, 'dosya.txt'), 'x');
-    expect(await runEdi(root, ['dosya.txt'])).toEqual({ code: 1, stderr: 'edi: not a folder: dosya.txt\n', open: [] });
-    expect(await runEdi(root, ['yok'])).toEqual({ code: 1, stderr: 'edi: not a folder: yok\n', open: [] });
+    await writeFile(join(root, 'file.txt'), 'x');
+    expect(await runEdi(root, ['file.txt'])).toEqual({ code: 1, stderr: 'edi: not a folder: file.txt\n', open: [] });
+    expect(await runEdi(root, ['missing'])).toEqual({ code: 1, stderr: 'edi: not a folder: missing\n', open: [] });
   });
 
-  it('birden çok argüman: kullanım', async () => {
+  it('prints usage when given more than one argument', async () => {
     expect(await runEdi(await makeTmpDir(), ['a', 'b'])).toEqual({ code: 2, stderr: 'usage: edi [folder]\n', open: [] });
   });
 });

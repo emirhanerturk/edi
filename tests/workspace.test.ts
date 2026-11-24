@@ -20,17 +20,17 @@ function makeWorkspace() {
 async function until(check: () => boolean, ms = 5000): Promise<void> {
   const started = Date.now();
   while (!check()) {
-    if (Date.now() - started > ms) throw new Error('beklenen durum oluşmadı');
+    if (Date.now() - started > ms) throw new Error('the expected state never arrived');
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 }
 
 describe('Workspace', () => {
-  it('alt klasördeki repolar durumlarıyla gelir', async () => {
+  it('returns the repos in subfolders with their status', async () => {
     const dir = await makeTmpDir();
     await initRepo(dir, 'b', { commit: true });
     await initRepo(dir, 'a', { commit: true });
-    await mkdir(join(dir, 'repo-degil'));
+    await mkdir(join(dir, 'not-a-repo'));
     const { ws } = makeWorkspace();
 
     expect(await ws.open(dir)).toEqual({ ok: true, repoCount: 2 });
@@ -41,19 +41,19 @@ describe('Workspace', () => {
     expect(view.repos[0]?.status).toMatchObject({ head: 'main', files: [] });
   });
 
-  it('dosya değişince bir sonraki yoklamada görünür ve bildirilir', async () => {
+  it('shows and reports a file change on the next poll', async () => {
     const dir = await makeTmpDir();
     const repo = await initRepo(dir, 'a', { commit: true });
     const { ws, views } = makeWorkspace();
     await ws.open(dir);
 
-    await writeFile(join(repo, 'yeni.txt'), 'x\n');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
     await until(() => ws.view().repos[0]?.status?.files.length === 1);
-    expect(ws.view().repos[0]?.status?.files[0]).toMatchObject({ path: 'yeni.txt', kind: 'untracked' });
+    expect(ws.view().repos[0]?.status?.files[0]).toMatchObject({ path: 'new.txt', kind: 'untracked' });
     expect(views.at(-1)?.repos[0]?.status?.files).toHaveLength(1);
   });
 
-  it('silinen repo hata gösterir, diğerleri yenilenmeye devam eder', async () => {
+  it('shows an error for a deleted repo while the others keep refreshing', async () => {
     const dir = await makeTmpDir();
     const a = await initRepo(dir, 'a', { commit: true });
     const b = await initRepo(dir, 'b', { commit: true });
@@ -64,12 +64,12 @@ describe('Workspace', () => {
     await until(() => ws.view().repos[0]?.error !== null);
     expect(ws.view().repos[0]).toMatchObject({ name: 'a', status: null, error: 'Repository folder not found' });
 
-    await writeFile(join(b, 'yeni.txt'), 'x\n');
+    await writeFile(join(b, 'new.txt'), 'x\n');
     await until(() => ws.view().repos[1]?.status?.files.length === 1);
     expect(ws.view().repos[1]?.error).toBeNull();
   });
 
-  it('yalnız keşfedilmiş yollar repo sayılır', async () => {
+  it('treats only discovered paths as repos', async () => {
     const dir = await makeTmpDir();
     const repo = await initRepo(dir, 'a', { commit: true });
     const { ws } = makeWorkspace();
@@ -77,25 +77,25 @@ describe('Workspace', () => {
 
     expect(ws.repo(repo)?.name).toBe('a');
     expect(ws.repo(join(repo, 'src'))).toBeNull();
-    expect(ws.repo(`${repo}/../a`)).toBeNull(); // aynı klasör, ama keşfedilen yol değil
+    expect(ws.repo(`${repo}/../a`)).toBeNull(); // the same folder, but not the discovered path
     expect(ws.repo(`${repo}/`)).toBeNull();
     expect(ws.repo(dir)).toBeNull();
     expect(ws.repo('')).toBeNull();
   });
 
-  it('klasör olmayan yol reddedilir ve açık klasör değişmez', async () => {
+  it('rejects a path that is not a folder and keeps the open folder', async () => {
     const dir = await makeTmpDir();
     await initRepo(dir, 'a', { commit: true });
     const { ws } = makeWorkspace();
     await ws.open(dir);
 
-    await writeFile(join(dir, 'dosya.txt'), 'x\n');
-    expect(await ws.open(join(dir, 'dosya.txt'))).toEqual({ ok: false, error: 'Not a folder' });
-    expect(await ws.open(join(dir, 'yok'))).toEqual({ ok: false, error: 'Folder not found' });
+    await writeFile(join(dir, 'file.txt'), 'x\n');
+    expect(await ws.open(join(dir, 'file.txt'))).toEqual({ ok: false, error: 'Not a folder' });
+    expect(await ws.open(join(dir, 'missing'))).toEqual({ ok: false, error: 'Folder not found' });
     expect(ws.view().dir).toBe(dir);
   });
 
-  it('rescan yeni repoyu bulur, eskisinin durumunu korur', async () => {
+  it("rescan finds a new repo and keeps the existing one's state", async () => {
     const dir = await makeTmpDir();
     await initRepo(dir, 'a', { commit: true });
     const { ws } = makeWorkspace();
@@ -111,7 +111,7 @@ describe('Workspace', () => {
     expect(ws.view().repos[1]?.status?.head).toBe('main');
   });
 
-  it("reponun remote'u olup olmadığını bildirir; sonradan eklenen yeniden taramada görünür", async () => {
+  it('reports whether a repo has a remote, picking up one added later on rescan', async () => {
     const dir = await makeTmpDir();
     const a = await initRepo(dir, 'a', { commit: true });
     const b = await initRepo(dir, 'b', { commit: true });
@@ -125,19 +125,19 @@ describe('Workspace', () => {
     expect(ws.view().repos.map((r) => r.hasRemote)).toEqual([true, true]);
   });
 
-  it('oturum sayıları repo satırlarına ve köke yazılır', async () => {
+  it('writes session counts to the repo rows and the root', async () => {
     const dir = await makeTmpDir();
     const repo = await initRepo(dir, 'a', { commit: true });
     const { ws, views } = makeWorkspace();
     await ws.open(dir);
 
-    ws.setSessionCwds([repo, join(repo, 'src'), dir, '/baska/yer']);
+    ws.setSessionCwds([repo, join(repo, 'src'), dir, '/elsewhere']);
     expect(ws.view().repos[0]?.claude).toBe(2);
     expect(ws.view().rootSessions).toBe(1);
     expect(views.at(-1)?.rootSessions).toBe(1);
   });
 
-  it('kapatıldıktan sonra bildirim göndermez', async () => {
+  it('sends no updates after being disposed', async () => {
     const dir = await makeTmpDir();
     await initRepo(dir, 'a', { commit: true });
     const { ws, views } = makeWorkspace();

@@ -16,7 +16,7 @@ function size(bytes: number): string {
   return `${bytes} B`;
 }
 
-/** Durum çubuğunda açık dosya için kısa bilgi: dil ve satır sayısı ya da boyut. */
+/** Short status bar info for the open file: language and line count, or size. */
 export function fileInfo(path: string, content: FileContent | null): string | null {
   if (!content || !content.ok) return null;
   if (content.kind === 'binary') return `Binary · ${size(content.size)}`;
@@ -32,19 +32,19 @@ export function fileInfo(path: string, content: FileContent | null): string | nu
 
 export interface FilePaneProps {
   repoName: string;
-  /** Görsel ve videonun adresi için. */
+  /** For the image and video URL. */
   repoPath: string;
   path: string;
-  /** Yüklenene kadar null. */
+  /** Null until loaded. */
   content: FileContent | null;
-  /** Git'in henüz izlemediği dosya. */
+  /** A file git doesn't track yet. */
   isNew: boolean;
-  /** Satır başına renkli parçalar; henüz gelmediyse ya da dil bilinmiyorsa null. */
+  /** Colored tokens per line; null if they haven't arrived yet or the language is unknown. */
   tokens: Token[][] | null;
   onOpenInZed(): void;
 }
 
-/** Salt okunur dosya görünümü. */
+/** Read-only file view. */
 export function FilePane({ repoName, repoPath, path, content, isNew, tokens, onOpenInZed }: FilePaneProps) {
   return (
     <div className="center-view" data-testid="center-view" data-kind="file">
@@ -65,7 +65,7 @@ export function FilePane({ repoName, repoPath, path, content, isNew, tokens, onO
   );
 }
 
-/** Görsel ya da video, ana sürecin `edi-media://` adresinden; açılamazsa not. */
+/** Image or video, from the main process's `edi-media://` URL; a note if it can't be opened. */
 function MediaBody({ src, media, name }: { src: string; media: 'image' | 'video'; name: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   if (failed === src) return <ViewNote>{media === 'image' ? 'This image could not be shown' : 'This video could not be played'}</ViewNote>;
@@ -81,8 +81,8 @@ function MediaBody({ src, media, name }: { src: string; media: 'image' | 'video'
 }
 
 /**
- * Yoklama her 2 sn'de bağlı görünümü yeniden çizer; içerik ve renkler aynı nesne kaldıkça
- * (useView aynı veride aynı nesneyi tutar) bu gövde yeniden çizilmez.
+ * Polling rerenders the bound view every 2 s; as long as the content and colors stay the same object
+ * (useView keeps the same object for the same data) this body isn't rerendered.
  */
 const FileBody = memo(function FileBody({ content, tokens }: { content: FileContent | null; tokens: Token[][] | null }) {
   const text = content?.ok && content.kind === 'text' ? content.text : null;

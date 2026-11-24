@@ -1,15 +1,15 @@
-// Git sekmesinin saf mantığı: durumdan düğmelere, gruplara ve etiketlere.
+// Pure logic of the Git tab: from state to buttons, groups and labels.
 import type { FileChange, RepoStatus } from '../../git/types';
 
 export type SyncAction = { kind: 'pull' | 'push' | 'publish'; label: string } | null;
 
-/** Kapalı repo satırındaki tek eşitleme düğmesi. */
+/** The single sync button on a collapsed repo row. */
 export function syncAction(s: RepoStatus, hasRemote = true): SyncAction {
   if (s.detached || s.unborn) return null;
-  // Hem ileride hem gerideyse önce almak gerekir.
+  // If it's both ahead and behind, it has to pull first.
   if ((s.behind ?? 0) > 0) return { kind: 'pull', label: `Pull ${s.behind}` };
   if ((s.ahead ?? 0) > 0) return { kind: 'push', label: `Push ${s.ahead}` };
-  // Upstream hiç yok ya da uzakta silinmiş. Remote'u olmayan repoda yayınlanacak yer de yoktur.
+  // No upstream at all, or it was deleted on the remote. A repo without a remote has nowhere to publish to either.
   if (hasRemote && (s.upstream === null || s.ahead === null)) return { kind: 'publish', label: 'Publish branch' };
   return null;
 }
@@ -25,7 +25,7 @@ export interface FileGroups {
 const isStaged = (f: FileChange) => f.kind === 'changed' && f.x !== '.';
 const hasUnstaged = (f: FileChange) => f.kind === 'untracked' || (f.kind === 'changed' && f.y !== '.');
 
-/** Bir kısmı stage'li dosya hem Staged hem Changes grubunda yer alır. */
+/** A partially staged file appears in both the Staged and Changes groups. */
 export function groupFiles(s: RepoStatus): FileGroups {
   return {
     conflicts: s.files.filter((f) => f.kind === 'conflicted'),
@@ -38,24 +38,24 @@ export function isPartlyStaged(f: FileChange): boolean {
   return isStaged(f) && hasUnstaged(f);
 }
 
-/** Tüm repolarda değişen tekil dosya sayısı: Git sekmesinin rozeti. */
+/** Number of distinct changed files across all repos: the Git tab's badge. */
 export function changeTotal(repos: { status: RepoStatus | null }[]): number {
   return repos.reduce((sum, repo) => sum + (repo.status ? changeCount(repo.status) : 0), 0);
 }
 
-/** Değişen tekil dosya sayısı. */
+/** Number of distinct changed files. */
 export function changeCount(s: RepoStatus): number {
   return s.files.length;
 }
 
-/** Dosyanın, gösterildiği gruptaki durum harfi. */
+/** The file's status letter in the group it's shown in. */
 export function letter(f: FileChange, group: Group): string {
   if (f.kind === 'untracked') return '?';
   if (f.kind === 'conflicted') return 'U';
   return group === 'staged' ? f.x : f.y;
 }
 
-/** Dosyanın, grup ayrımı olmayan yerlerdeki (sekme, dosya ağacı) harfi: çalışma ağacı durumu, yoksa stage durumu. */
+/** The file's letter where there are no groups (tab, file tree): the working tree status, else the staged status. */
 export function fileLetter(f: FileChange): string {
   if (f.kind === 'untracked') return '?';
   if (f.kind === 'conflicted') return 'U';
@@ -79,7 +79,7 @@ export function splitPath(p: string): { name: string; dir: string } {
 }
 
 export interface CommitTarget {
-  /** Hiçbir şey stage'li değil: commit tüm değişiklikleri alır. */
+  /** Nothing is staged: the commit takes all changes. */
   all: boolean;
   count: number;
   label: string;
@@ -88,7 +88,7 @@ export interface CommitTarget {
 
 const files = (n: number) => `${n} ${n === 1 ? 'file' : 'files'}`;
 
-/** Commit düğmesinin neyi commit edeceği. Çakışma varken commit mümkün değildir. */
+/** What the commit button will commit. No commit is possible during a conflict. */
 export function commitTarget(g: FileGroups): CommitTarget {
   const blocked = g.conflicts.length > 0;
   if (g.staged.length > 0) {
@@ -100,13 +100,13 @@ export function commitTarget(g: FileGroups): CommitTarget {
   return { all: false, count: 0, label: 'Commit', enabled: false };
 }
 
-/** Değişikliği olan repo açık, temiz olan kapalı gelir; kullanıcı elle değiştirdiyse onun tercihi geçerlidir. */
+/** A repo with changes starts expanded, a clean one collapsed; if the user changed it by hand, their choice wins. */
 export function isExpanded(status: RepoStatus | null, preference: boolean | undefined): boolean {
   if (!status) return false;
   return preference ?? status.files.length > 0;
 }
 
-/** Uzakta yerelde olmayan commit olduğu için reddedilen push: çözümü önce pull etmektir. */
+/** A push rejected because the remote has commits that aren't local: the fix is to pull first. */
 export function isRejectedPush(error: string): boolean {
   return error.includes('[rejected]') || error.includes('fetch first') || error.includes('non-fast-forward');
 }

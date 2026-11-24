@@ -57,7 +57,7 @@ function renderPanel(expanded: Record<string, boolean> = {}) {
 const row = (name: string) => screen.getAllByTestId('repo-row').find((el) => el.getAttribute('data-repo') === name)!;
 
 describe('GitPanelView', () => {
-  it('her reponun adını, branch\'ini ve eşitleme düğmesini gösterir', () => {
+  it("shows each repo's name, branch and sync button", () => {
     renderPanel();
     expect(screen.getAllByTestId('repo-row').map((el) => el.getAttribute('data-repo'))).toEqual([
       'quizei-api',
@@ -72,14 +72,14 @@ describe('GitPanelView', () => {
     expect(within(row('quizei-api')).getByLabelText('Clean')).toBeTruthy();
   });
 
-  it('değişikliği olan repo açık gelir, dosyaları gruplarında listelenir', () => {
+  it('a repo with changes starts expanded, its files listed in their groups', () => {
     renderPanel();
     const app = row('quizei-app');
     expect(app.getAttribute('aria-expanded')).toBe('true');
     expect(row('quizei-api').getAttribute('aria-expanded')).toBe('false');
 
     const files = screen.getAllByTestId('file-row');
-    // Staged: play.tsx. Changes: play.tsx (kısmen), old.ts (silinmiş), new.ts.
+    // Staged: play.tsx. Changes: play.tsx (partly), old.ts (deleted), new.ts.
     expect(files.map((el) => `${el.getAttribute('data-group')}:${el.getAttribute('data-path')}`)).toEqual([
       'staged:app/play.tsx',
       'changes:app/play.tsx',
@@ -91,12 +91,12 @@ describe('GitPanelView', () => {
     expect(within(app).getByText('feat/banner')).toBeTruthy();
   });
 
-  it('okunamayan repo hatasını gösterir', () => {
+  it('shows the error of an unreadable repo', () => {
     renderPanel();
     expect(within(row('broken')).getByText('fatal: not a git repository')).toBeTruthy();
   });
 
-  it('kullanıcının açıp kapatma tercihi varsayılanı ezer', () => {
+  it("the user's expand/collapse choice overrides the default", () => {
     const { onToggle } = renderPanel({ '/w/quizei-app': false, '/w/quizei-api': true });
     expect(row('quizei-app').getAttribute('aria-expanded')).toBe('false');
     expect(row('quizei-api').getAttribute('aria-expanded')).toBe('true');
@@ -107,7 +107,7 @@ describe('GitPanelView', () => {
     expect(onToggle).toHaveBeenCalledWith('/w/quizei-web', true);
   });
 
-  it('repo satırının boş yerine ya da branch adına tıklamak da açıp kapatır; satırdaki düğmeler açıp kapatmaz', () => {
+  it('clicking empty space or the branch name on a repo row also toggles it; the buttons on the row do not', () => {
     const { onToggle } = renderPanel({ '/w/quizei-web': false });
     const head = row('quizei-web').querySelector('.repo-head') as HTMLElement;
     fireEvent.click(head);
@@ -116,19 +116,19 @@ describe('GitPanelView', () => {
     expect(onToggle).toHaveBeenCalledTimes(2);
     fireEvent.click(within(row('quizei-web')).getByTestId('sync-button'));
     expect(onToggle).toHaveBeenCalledTimes(2);
-    // Ad düğmesi de yalnız bir kez açar (satıra kabarıp ikinci kez değil).
+    // The name button also toggles only once (it does not bubble up to the row for a second toggle).
     fireEvent.click(within(row('quizei-web')).getByTestId('repo-toggle'));
     expect(onToggle).toHaveBeenCalledTimes(3);
   });
 
-  it('repo yoksa bunu söyler', () => {
+  it('says so when there are no repos', () => {
     render(<GitPanelView repos={[]} expanded={{}} onToggle={() => undefined} />);
     expect(screen.getByText('No git repositories in this folder')).toBeTruthy();
   });
 
-  it('çakışma varken "Unstage all" kapalıdır: index sıfırlanırsa çakışma kaydı da silinirdi', () => {
+  it('"Unstage all" is disabled during conflicts: resetting the index would also erase the conflict record', () => {
     const merging = repo('merging', {
-      status: status({ files: [file('README.md', 'U', 'U', 'conflicted'), file('temiz.txt', 'A', '.')] }),
+      status: status({ files: [file('README.md', 'U', 'U', 'conflicted'), file('clean.txt', 'A', '.')] }),
     });
     render(<GitPanelView repos={[merging]} expanded={{}} onToggle={() => undefined} />);
     const button = screen.getByTestId('unstage-all') as HTMLButtonElement;
@@ -137,7 +137,7 @@ describe('GitPanelView', () => {
   });
 });
 
-describe('GitPanelView, dosya açma', () => {
+describe('GitPanelView, opening files', () => {
   function renderOpen(selected: { repoPath: string; path: string } | null = null) {
     const onOpenFile = vi.fn();
     const onOp = vi.fn();
@@ -147,7 +147,7 @@ describe('GitPanelView, dosya açma', () => {
   const fileRow = (group: string, path: string) =>
     screen.getAllByTestId('file-row').find((el) => el.getAttribute('data-group') === group && el.getAttribute('data-path') === path)!;
 
-  it('tek tık dosyayı önizleme olarak, çift tık kalıcı olarak açar', () => {
+  it('a single click opens the file as a preview, a double-click as a pinned tab', () => {
     const { onOpenFile } = renderOpen();
     fireEvent.click(fileRow('changes', 'lib/old.ts'));
     expect(onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', expect.objectContaining({ path: 'lib/old.ts' }), false);
@@ -155,13 +155,13 @@ describe('GitPanelView, dosya açma', () => {
     expect(onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', expect.objectContaining({ path: 'new.ts', kind: 'untracked' }), true);
   });
 
-  it('Enter tuşu da açar', () => {
+  it('the Enter key opens it too', () => {
     const { onOpenFile } = renderOpen();
     fireEvent.keyDown(fileRow('changes', 'lib/old.ts'), { key: 'Enter' });
     expect(onOpenFile).toHaveBeenCalledWith('/w/quizei-app', expect.objectContaining({ path: 'lib/old.ts' }), false);
   });
 
-  it('stage düğmesi dosyayı açmaz', () => {
+  it('the stage button does not open the file', () => {
     const { onOpenFile, onOp } = renderOpen();
     const button = within(fileRow('changes', 'lib/old.ts')).getByTestId('stage-file');
     fireEvent.click(button);
@@ -170,21 +170,21 @@ describe('GitPanelView, dosya açma', () => {
     expect(onOpenFile).not.toHaveBeenCalled();
   });
 
-  it('orta panelde açık olan dosyanın satırı seçili görünür', () => {
+  it('the row of the file open in the center panel shows as selected', () => {
     renderOpen({ repoPath: '/w/quizei-app', path: 'app/play.tsx' });
     const current = screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true');
-    // Kısmen stage'li dosya iki grupta da vardır.
+    // A partly staged file is in both groups.
     expect(current.map((el) => el.getAttribute('data-group'))).toEqual(['staged', 'changes']);
   });
 
-  it('başka repodaki aynı yol seçili sayılmaz', () => {
+  it('the same path in another repo does not count as selected', () => {
     renderOpen({ repoPath: '/w/quizei-web', path: 'app/play.tsx' });
     expect(screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true')).toHaveLength(0);
   });
 });
 
-describe('GitPanelView, çakışan dosyalar', () => {
-  it("çakışan dosya Zed'de açılabilir; düğme dosyayı orta panelde açmaz", () => {
+describe('GitPanelView, conflicted files', () => {
+  it('a conflicted file can be opened in Zed; the button does not open it in the center panel', () => {
     const merging = repo('merging', { status: status({ files: [file('README.md', 'U', 'U', 'conflicted')] }) });
     const onOpenInZed = vi.fn();
     const onOpenFile = vi.fn();
@@ -195,14 +195,14 @@ describe('GitPanelView, çakışan dosyalar', () => {
     expect(onOpenFile).not.toHaveBeenCalled();
   });
 
-  it('çakışma olmayan dosyada bu düğme yoktur', () => {
+  it('no such button on a file without conflicts', () => {
     render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onOpenInZed={() => undefined} />);
     expect(screen.queryByRole('button', { name: /in Zed$/ })).toBeNull();
   });
 });
 
 describe('changeTotal', () => {
-  it('rozet tekil değişen dosya sayısıdır', () => {
+  it('the badge counts distinct changed files', () => {
     expect(changeTotal(repos)).toBe(3);
     expect(changeTotal([])).toBe(0);
   });

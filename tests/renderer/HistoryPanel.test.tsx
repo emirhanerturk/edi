@@ -53,7 +53,7 @@ const groups: RepoGroup[] = [
   { repoName: 'quizei-app', repoPath: '/w/quizei-app', ahead: 1, open: true, latest: fix.date, commits: [fix] },
   { repoName: 'quizei-app-next-quiz', repoPath: '/w/quizei-app-next-quiz', ahead: 0, open: true, latest: banner.date, commits: [banner, release] },
   { repoName: 'quizei-frontend', repoPath: '/w/quizei-frontend', ahead: 0, open: false, latest: now - 5 * D, commits: [commit('feat: old', 5 * D, 'aaaaaaa')] },
-  { repoName: 'bos', repoPath: '/w/bos', ahead: 0, open: false, latest: null, commits: [] },
+  { repoName: 'empty', repoPath: '/w/empty', ahead: 0, open: false, latest: null, commits: [] },
 ];
 
 function renderView(over: Partial<HistoryPanelViewProps> = {}) {
@@ -86,7 +86,7 @@ function renderView(over: Partial<HistoryPanelViewProps> = {}) {
 const commitRows = () => screen.getAllByTestId('history-commit');
 
 describe('HistoryPanelView: Timeline', () => {
-  it('gün başlıkları ve commit satırları: sönük ön ek, repo, kısa süre, hash', () => {
+  it('day headers and commit rows: dimmed prefix, repo, short age, hash', () => {
     renderView();
     expect(screen.getByText('TODAY')).toBeTruthy();
     expect(screen.getByText('YESTERDAY')).toBeTruthy();
@@ -100,7 +100,7 @@ describe('HistoryPanelView: Timeline', () => {
     expect(within(commitRows()[1]!).queryByRole('img', { name: 'Not pushed yet' })).toBeNull();
   });
 
-  it('başka yazar, etiket rozeti ve sönük merge', () => {
+  it('other author, tag badge and dimmed merge', () => {
     renderView();
     expect(within(commitRows()[1]!).getByText('beta')).toBeTruthy();
     expect(within(commitRows()[2]!).getByText('dependabot')).toBeTruthy();
@@ -108,14 +108,14 @@ describe('HistoryPanelView: Timeline', () => {
     expect(commitRows()[0]!.getAttribute('data-merge')).toBe('false');
   });
 
-  it('sürüm satırı ince bir etiket çizgisidir', () => {
+  it('a release row is a thin tag line', () => {
     renderView();
     const line = screen.getByTestId('history-release');
     expect(within(line).getByText('v1.86.0')).toBeTruthy();
     expect(within(line).getByText('458d361')).toBeTruthy();
   });
 
-  it('tık önizleme, çift tık kalıcı sekmede açar; sürüm satırı da açılır', () => {
+  it('a click opens a preview, a double-click a pinned tab; release rows open too', () => {
     const { onOpenCommit } = renderView();
     fireEvent.click(commitRows()[1]!);
     fireEvent.doubleClick(commitRows()[1]!);
@@ -127,12 +127,12 @@ describe('HistoryPanelView: Timeline', () => {
     expect(onOpenCommit).toHaveBeenNthCalledWith(4, '/w/quizei-app-next-quiz', release.oid, false);
   });
 
-  it('orta panelde açık commit seçili görünür', () => {
+  it('the commit open in the center panel shows as selected', () => {
     renderView({ selected: { repoPath: '/w/quizei-app', oid: fix.oid } });
     expect(commitRows().map((el) => el.getAttribute('aria-current'))).toEqual(['true', 'false', 'false', 'false']);
   });
 
-  it('tek repoda repo adı yok; upstream çizgisi ve branch etiketi var', () => {
+  it('a single repo shows no repo name, but an upstream line and a branch label', () => {
     renderView({
       single: true,
       branch: 'main',
@@ -143,7 +143,7 @@ describe('HistoryPanelView: Timeline', () => {
     expect(screen.getByTestId('history-branch').textContent).toBe('main');
   });
 
-  it('"Load 50 more" yalnız daha fazlası varken', () => {
+  it('"Load 50 more" only when there are more', () => {
     const { onLoadMore } = renderView({ canLoadMore: true });
     fireEvent.click(screen.getByRole('button', { name: 'Load 50 more' }));
     expect(onLoadMore).toHaveBeenCalledTimes(1);
@@ -152,7 +152,7 @@ describe('HistoryPanelView: Timeline', () => {
     expect(screen.queryByRole('button', { name: 'Load 50 more' })).toBeNull();
   });
 
-  it('yüklenirken, boşken ve okunamayan repoda not', () => {
+  it('notes while loading, when empty and for an unreadable repo', () => {
     renderView({ rows: [], loading: true });
     expect(screen.getByText('Loading…')).toBeTruthy();
     cleanup();
@@ -165,8 +165,8 @@ describe('HistoryPanelView: Timeline', () => {
   });
 });
 
-describe('HistoryPanelView: araç çubuğu', () => {
-  it('düzen düğmeleri seçili olanı gösterir ve değişikliği bildirir', () => {
+describe('HistoryPanelView: toolbar', () => {
+  it('layout buttons show the selected one and report a change', () => {
     const { onLayout } = renderView();
     const group = screen.getByRole('group', { name: 'History layout' });
     const [timeline, repo] = within(group).getAllByRole('button');
@@ -175,7 +175,7 @@ describe('HistoryPanelView: araç çubuğu', () => {
     expect(onLayout).toHaveBeenCalledWith('byRepo');
   });
 
-  it('repo süzgeci menüsü: tüm repolar ya da biri', () => {
+  it('repo filter menu: all repositories or one', () => {
     const { onFilter } = renderView();
     fireEvent.click(screen.getByRole('button', { name: 'All repositories' }));
     const menu = screen.getByRole('menu');
@@ -189,14 +189,14 @@ describe('HistoryPanelView: araç çubuğu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('süzgeç seçiliyse düğmede repo adı yazar', () => {
+  it('with a filter set, the button shows the repo name', () => {
     renderView({ filter: '/w/quizei-backend' });
     expect(screen.getByRole('button', { name: 'quizei-backend' })).toBeTruthy();
   });
 });
 
 describe('HistoryPanelView: By repo', () => {
-  it('açık gruplarda son commitler, kapalılarda son commit zamanı; ↑ sayısı', () => {
+  it('open groups list recent commits, closed ones the last commit time; ↑ count', () => {
     renderView({ layout: 'byRepo' });
     const heads = screen.getAllByTestId('history-group');
     expect(heads.map((el) => el.getAttribute('aria-expanded'))).toEqual(['true', 'true', 'false', 'false']);
@@ -209,7 +209,7 @@ describe('HistoryPanelView: By repo', () => {
     expect(within(lines[2]!).getByText('v1.86.0')).toBeTruthy();
   });
 
-  it('grup başlığı açar ve kapatır; satır commiti açar', () => {
+  it('a group header expands and collapses; a row opens the commit', () => {
     const { onOpenCommit } = renderView({ layout: 'byRepo' });
     const heads = screen.getAllByTestId('history-group');
     fireEvent.click(heads[2]!);

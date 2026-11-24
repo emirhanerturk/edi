@@ -5,7 +5,7 @@ import { assignSessions, joinSessions, listClaudePids, listClaudeSessions, parse
 const row = (pid: number, tty: string): PsRow => ({ pid, pgid: pid, tpgid: pid, tty, args: 'claude' });
 
 describe('parseLsofPidCwd', () => {
-  it("lsof -Fpn çıktısından pid'e göre çalışma dizinlerini çıkarır", () => {
+  it('extracts working directories by pid from lsof -Fpn output', () => {
     expect(parseLsofPidCwd('p50792\nfcwd\nn/a/quizei\np53467\nfcwd\nn/a/quizei/quizei-app\n')).toEqual(
       new Map([
         [50792, '/a/quizei'],
@@ -13,23 +13,23 @@ describe('parseLsofPidCwd', () => {
       ]),
     );
   });
-  it('boşluklu yolu korur', () => {
+  it('keeps a path with spaces', () => {
     expect(parseLsofPidCwd('p1\nfcwd\nn/a/benim klasör\n')).toEqual(new Map([[1, '/a/benim klasör']]));
   });
-  it('boş çıktıda boş döner', () => {
+  it('returns an empty map for empty output', () => {
     expect(parseLsofPidCwd('')).toEqual(new Map());
   });
 });
 
 describe('joinSessions', () => {
-  it("terminali ya da çalışma dizini olmayan oturumları atar", () => {
+  it('drops sessions without a terminal or working directory', () => {
     const cwds = new Map([
       [1, '/a/x'],
       [2, '/a/y'],
       [4, '/a/z'],
     ]);
     const ps = [row(1, 'ttys001'), row(2, ''), row(3, 'ttys003')];
-    // 1: terminalde. 2: terminalsiz (ör. bir editörün arka plan süreci). 3: dizini okunamadı. 4: ps'te yok.
+    // 1: in a terminal. 2: no terminal (e.g. an editor's background process). 3: directory unreadable. 4: not in ps.
     expect(joinSessions([1, 2, 3, 4], cwds, ps)).toEqual([{ pid: 1, cwd: '/a/x', tty: 'ttys001' }]);
   });
 });
@@ -38,14 +38,14 @@ describe('assignSessions', () => {
   const app = { name: 'quizei-app', path: '/a/quizei/quizei-app' };
   const next = { name: 'quizei-app-next-quiz', path: '/a/quizei/quizei-app-next-quiz' };
 
-  it('oturumları repolara ve kök klasöre dağıtır', () => {
+  it('distributes sessions to repos and the root folder', () => {
     const cwds = [
       '/a/quizei',
       '/a/quizei',
-      '/a/quizei/quizei-app/src', // repo içinde alt klasör
-      '/a/quizei/quizei-app-next-quiz', // adı quizei-app ile başlıyor ama başka repo
-      '/a/quizei/temp', // kökün içinde, hiçbir repoda değil
-      '/baska/yer',
+      '/a/quizei/quizei-app/src', // a subfolder inside a repo
+      '/a/quizei/quizei-app-next-quiz', // starts with quizei-app but is another repo
+      '/a/quizei/temp', // inside the root but in no repo
+      '/elsewhere',
     ];
     expect(assignSessions(cwds, '/a/quizei', [app, next])).toEqual({
       root: 3,
@@ -53,24 +53,24 @@ describe('assignSessions', () => {
     });
   });
 
-  it('adı kök klasörle başlayan komşu klasörü saymaz', () => {
-    expect(assignSessions(['/a/quizei-eski'], '/a/quizei', [app])).toEqual({ root: 0, byRepo: {} });
+  it('does not count a sibling folder whose name starts with the root name', () => {
+    expect(assignSessions(['/a/quizei-old'], '/a/quizei', [app])).toEqual({ root: 0, byRepo: {} });
   });
 
-  it('kök klasörün kendisi repoysa oturumu repoya yazar', () => {
+  it('assigns the session to the repo when the root folder itself is a repo', () => {
     const self = { name: 'edi', path: '/a/edi' };
     expect(assignSessions(['/a/edi', '/a/edi/src'], '/a/edi', [self])).toEqual({ root: 0, byRepo: { '/a/edi': 2 } });
   });
 
-  it('oturum yoksa sıfır döner', () => {
+  it('returns zero when there are no sessions', () => {
     expect(assignSessions([], '/a/quizei', [app])).toEqual({ root: 0, byRepo: {} });
   });
 });
 
 describe('listClaudeSessions', () => {
-  it('hata fırlatmadan terminalli oturumları mutlak yollarla döner', async () => {
+  it('returns sessions with terminals and absolute paths without throwing', async () => {
     const sessions = await listClaudeSessions([], await listClaudePids());
-    expect(sessions).toEqual([]); // ps satırı verilmedi: hiçbirinin terminali bilinmiyor
+    expect(sessions).toEqual([]); // no ps rows given, so no terminal is known
 
     expect((await listClaudeSessions([], [])).length).toBe(0);
   });

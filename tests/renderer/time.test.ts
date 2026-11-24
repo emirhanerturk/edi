@@ -8,7 +8,7 @@ const D = 24 * H;
 const now = new Date(2026, 10, 24, 15, 30).getTime();
 
 describe('shortAgo', () => {
-  it('satırlar için kısa süre', () => {
+  it('short age for rows', () => {
     const cases: [number, string][] = [
       [-5 * S, 'now'],
       [59 * S, 'now'],
@@ -30,7 +30,7 @@ describe('shortAgo', () => {
 });
 
 describe('longAgo', () => {
-  it('commit görünümü ve By repo notları için uzun süre', () => {
+  it('long age for the commit view and the By repo notes', () => {
     const cases: [number, string][] = [
       [30 * S, 'just now'],
       [60 * S, '1 minute ago'],
@@ -51,7 +51,7 @@ describe('longAgo', () => {
 });
 
 describe('dayLabel', () => {
-  it('bugün, dün, bu hafta, sonra tarih (yerel saatle)', () => {
+  it('today, yesterday, this week, then the date (in local time)', () => {
     expect(dayLabel(new Date(2026, 10, 24, 0, 1).getTime(), now)).toBe('TODAY');
     expect(dayLabel(new Date(2026, 10, 23, 23, 59).getTime(), now)).toBe('YESTERDAY');
     expect(dayLabel(new Date(2026, 10, 23, 0, 0).getTime(), now)).toBe('YESTERDAY');
@@ -64,13 +64,13 @@ describe('dayLabel', () => {
 });
 
 describe('splitSubject', () => {
-  it('Conventional Commits ön ekini ayırır', () => {
+  it('splits off the Conventional Commits prefix', () => {
     expect(splitSubject('feat(music-quiz): move the banner')).toEqual({ prefix: 'feat(music-quiz): ', rest: 'move the banner' });
     expect(splitSubject('fix!: drop node 18')).toEqual({ prefix: 'fix!: ', rest: 'drop node 18' });
     expect(splitSubject('refactor(api)!: rename')).toEqual({ prefix: 'refactor(api)!: ', rest: 'rename' });
   });
 
-  it('ön eke benzemeyen konuya dokunmaz', () => {
+  it('leaves a subject without a prefix alone', () => {
     for (const subject of [
       'Merge pull request #187 from feat/consent-pings',
       'Revert "feat: x"',
