@@ -403,3 +403,12 @@ Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış �
 - **Uygulama ikonu (2026-11-24):** kullanıcı "Wordmark" seçeneğini seçti
   (`docs/design/icon/wordmark.svg`). Plan 4'te `.icns` bundan üretilir.
 
+- **Çalışan sunucular (2026-11-24):** terminallerde ayağa kalkan geliştirme sunucuları
+  (ör. `npm run dev` ile `localhost:5173`) bir yerde listelensin, adrese tıklanınca
+  tarayıcıda açılsın. Önerilen yol: sunucu, terminal çıktısından değil, terminalin süreç
+  ağacında dinlemeye açılmış TCP portlarından bulunur (`lsof -iTCP -sTCP:LISTEN`, süreç
+  listesiyle birlikte yoklanır); böylece çıktı kaydırılıp gitse de görünür, sunucu
+  kapanınca kaybolur. Sekmede küçük bir işaret ve bir liste (durum çubuğunda ya da sağ
+  panelde) gösterilir; tıklamak adresi varsayılan tarayıcıda açar (`shell.openExternal`,
+  yalnız `http://localhost` / `127.0.0.1` adresleri). Uygulama kendisi istek atmaz.
+  Ayrıca terminaldeki `http://…` adresleri tıklanabilir yapılabilir. Henüz planlanmadı.
