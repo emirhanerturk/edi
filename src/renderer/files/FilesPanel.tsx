@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { DirEntry, DirList, FileList } from '../../git/types';
 import type { RepoView } from '../../shared/api';
 import { edi } from '../bridge';
-import { ChevronDown, ChevronRight, FileIcon } from '../components/icons';
+import { Folder, FolderOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight } from '../components/icons';
+import { FileTypeIcon } from './fileIcons';
 import { letterColor } from '../git/model';
 import { useApp } from '../store';
 import { type TreeRow, buildTree, flattenTree, insideIgnored } from './tree';
@@ -200,12 +202,18 @@ function TreeItem({ name, title, depth, kind, open, ignored = false, badge, sele
       }}
     >
       {isFile ? (
-        <FileIcon size={12} className="tree-icon" />
+        <>
+          {/* Where a folder has its chevron: file and folder icons line up. */}
+          <span className="tree-spacer" />
+          <FileTypeIcon name={name} className="tree-icon" />
+        </>
       ) : open ? (
         <ChevronDown size={11} strokeWidth={1.9} className="tree-icon" />
       ) : (
         <ChevronRight size={11} strokeWidth={1.9} className="tree-icon" />
       )}
+      {kind === 'dir' &&
+        (open ? <FolderOpen size={13} strokeWidth={1.6} className="tree-icon folder" aria-hidden="true" /> : <Folder size={13} strokeWidth={1.6} className="tree-icon folder" aria-hidden="true" />)}
       <span className="tree-name" style={color ? { color } : undefined}>
         {name}
       </span>

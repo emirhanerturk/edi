@@ -64,8 +64,14 @@
   color: var(--muted);
 }
 
-.tree-row.file .tree-icon {
+.tree-row.file .tree-icon,
+.tree-row .tree-icon.folder {
   color: #636d83;
+}
+
+.tree-spacer {
+  flex: none;
+  width: 11px;
 }
 
 .tree-name {
