@@ -103,7 +103,7 @@ export function mountEditor(
     fontSize: 12,
     lineHeight: 22,
     fontLigatures: false,
-    minimap: { enabled: false },
+    minimap: { enabled: true, renderCharacters: false, showSlider: 'mouseover' },
     scrollBeyondLastLine: false,
     renderLineHighlight: 'line',
     tabSize: 2,
