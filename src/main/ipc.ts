@@ -9,6 +9,7 @@ import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
 import { tabStates } from './tabs.js';
+import { ViewOps } from './viewOps.js';
 import { Workspace } from './workspace.js';
 
 /** Süreç yoklaması: sekme adları ve Claude Code oturumları. */
@@ -28,6 +29,7 @@ export class AppCore {
   readonly workspace: Workspace;
   readonly ptys: PtyManager;
   readonly gitOps: GitOps;
+  readonly viewOps: ViewOps;
   private state: Persisted;
   private saving: Promise<void> = Promise.resolve();
   private processTimer: NodeJS.Timeout | null = null;
@@ -43,6 +45,7 @@ export class AppCore {
     this.state = state;
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
     this.gitOps = new GitOps(this.workspace);
+    this.viewOps = new ViewOps(this.workspace);
     this.ptys = new PtyManager({
       shell: process.env.EDI_SHELL,
       onData: (id, data) => this.send('pty:data', id, data),
@@ -177,6 +180,11 @@ export class AppCore {
     ipcMain.handle('git:run', (_event, repoPath: unknown, op: unknown) => this.gitOps.run(repoPath as string, op as GitOp));
     ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
+    // Salt okunur görünüm işlemleri: yollar ViewOps içinde doğrulanır.
+    ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
+    ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
+    ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
+    ipcMain.handle('view:openInZed', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.openInZed(repoPath, filePath));
 
     ipcMain.handle('pty:create', (_event, o: unknown): TerminalCreated => {
       const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;

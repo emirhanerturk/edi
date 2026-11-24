@@ -2,7 +2,10 @@
  * Ana süreç ile sayfa arasındaki sözleşme. Yalnız tür içerir: sayfa Node'a erişemez,
  * bu dosyadan çalışan kod almaz.
  */
-import type { FileChange, RepoStatus } from '../git/types.js';
+import type { ParsedDiff } from '../git/diffParse.js';
+import type { FileChange, FileContent, FileList, RepoStatus } from '../git/types.js';
+
+export type { FileContent, FileList };
 
 export interface RepoView {
   name: string;
@@ -64,6 +67,9 @@ export type OpResult = { ok: true; message: string } | { ok: false; error: strin
 
 export type BranchList = { ok: true; branches: string[]; current: string | null } | { ok: false; error: string };
 
+/** Bir dosyanın HEAD'e göre değişikliği ve durum kaydı. */
+export type DiffView = { ok: true; diff: ParsedDiff; file: FileChange } | { ok: false; error: string };
+
 /** `cancelled`: kullanıcı, çalışan terminaller sorusunda vazgeçti; bu bir hata değildir. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
 
@@ -114,6 +120,14 @@ export interface EdiApi {
   /** Remote'u olan tüm repolarda fetch; repo başına sonucu döner. */
   fetchAll(): Promise<{ repoPath: string; result: OpResult }[]>;
   branches(repoPath: string): Promise<BranchList>;
+  /** Değişen bir dosyanın HEAD'e göre diff'i (stage'li ve stage'siz birlikte). */
+  diff(repoPath: string, filePath: string): Promise<DiffView>;
+  /** `filePath` repoya göre görelidir ve repo içinde kalmalıdır; ana süreç doğrular. */
+  readFile(repoPath: string, filePath: string): Promise<FileContent>;
+  /** Çalışma ağacındaki dosyalar; `.gitignore`'a takılanlar gelmez. */
+  listFiles(repoPath: string): Promise<FileList>;
+  /** Dosyayı, `filePath` null ise repo klasörünü Zed'de açar. */
+  openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
   pty: {
     create(o: NewTerminal): Promise<TerminalCreated>;
     write(id: number, data: string): void;

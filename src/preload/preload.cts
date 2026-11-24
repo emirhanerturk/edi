@@ -14,6 +14,10 @@ const api: EdiApi = {
   git: (repoPath, op) => ipcRenderer.invoke('git:run', repoPath, op),
   fetchAll: () => ipcRenderer.invoke('git:fetchAll'),
   branches: (repoPath) => ipcRenderer.invoke('git:branches', repoPath),
+  diff: (repoPath, filePath) => ipcRenderer.invoke('view:diff', repoPath, filePath),
+  readFile: (repoPath, filePath) => ipcRenderer.invoke('view:read', repoPath, filePath),
+  listFiles: (repoPath) => ipcRenderer.invoke('view:list', repoPath),
+  openInZed: (repoPath, filePath) => ipcRenderer.invoke('view:openInZed', repoPath, filePath),
   pty: {
     create: (o) => ipcRenderer.invoke('pty:create', o),
     write: (id, data) => ipcRenderer.send('pty:write', id, data),

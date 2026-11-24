@@ -25,3 +25,12 @@ export interface RepoStatus {
   behind: number | null;
   files: FileChange[];
 }
+
+export type FileList = { ok: true; files: string[] } | { ok: false; error: string };
+
+/** Büyük ve ikili dosyaların içeriği sayfaya gönderilmez; yalnız türü ve boyutu döner. */
+export type FileContent =
+  | { ok: true; kind: 'text'; text: string; size: number }
+  | { ok: true; kind: 'binary'; size: number }
+  | { ok: true; kind: 'tooLarge'; size: number }
+  | { ok: false; error: string };
