@@ -2,6 +2,9 @@ import { edi } from '../bridge';
 import { useApp } from '../store';
 import { GitPanelView } from './GitPanelView';
 
+/** Stable, so the Unpushed section reads only when HEAD or the count moves. */
+const loadUnpushed = (repoPath: string) => edi.unpushed(repoPath);
+
 /** The Git tab bound to app state. */
 export function GitPanel() {
   const repos = useApp((s) => s.workspace.repos);
@@ -33,6 +36,13 @@ export function GitPanel() {
       // A new file has no old version to compare against: its content opens in the file view.
       onOpenFile={(repoPath, file, pin) => openInCenter({ kind: file.kind === 'untracked' ? 'file' : 'diff', repoPath, path: file.path }, pin)}
       selected={active && { repoPath: active.repoPath, path: active.path }}
+      loadUnpushed={loadUnpushed}
+      onOpenCommit={(repoPath, oid, pin) => openInCenter({ kind: 'commit', repoPath, path: oid }, pin)}
+      onUndoCommit={(repoPath, commit) => {
+        void edi.confirmUndo(commit.subject).then((yes) => {
+          if (yes) void gitOp(repoPath, { op: 'undoCommit', oid: commit.oid });
+        });
+      }}
     />
   );
 }

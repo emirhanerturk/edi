@@ -40,3 +40,16 @@ export function discardQuestion(name: string): Question {
     cancelId: 1,
   };
 }
+
+/** Before undoing the newest unpushed commit. */
+export function undoCommitQuestion(subject: string): Question {
+  const short = subject.length > 60 ? `${subject.slice(0, 59)}…` : subject;
+  return {
+    type: 'warning',
+    message: `Undo the commit "${short}"?`,
+    detail: 'The commit is removed from the branch. Its changes stay, staged, so you can commit them again.',
+    buttons: ['Undo commit', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}

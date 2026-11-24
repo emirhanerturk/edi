@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyQuestion, discardQuestion } from '../src/main/questions.js';
+import { busyQuestion, discardQuestion, undoCommitQuestion } from '../src/main/questions.js';
 
 describe('busyQuestion', () => {
   it('asks nothing when no terminal is busy and no file has unsaved changes', () => {
@@ -34,5 +34,19 @@ describe('discardQuestion', () => {
       defaultId: 0,
       cancelId: 1,
     });
+  });
+});
+
+describe('undoCommitQuestion', () => {
+  it('names the commit and says the changes come back staged; long subjects are shortened', () => {
+    expect(undoCommitQuestion('feat: add a thing')).toEqual({
+      type: 'warning',
+      message: 'Undo the commit "feat: add a thing"?',
+      detail: 'The commit is removed from the branch. Its changes stay, staged, so you can commit them again.',
+      buttons: ['Undo commit', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    expect(undoCommitQuestion('x'.repeat(100)).message).toBe(`Undo the commit "${'x'.repeat(59)}…"?`);
   });
 });

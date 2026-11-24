@@ -398,6 +398,20 @@ button.branch-chip:hover {
   text-overflow: ellipsis;
 }
 
+.unpushed-row .file-dir {
+  flex: none;
+}
+
+.unpushed-row .file-name {
+  flex: 1 1 0;
+}
+
+.unpushed-time {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }

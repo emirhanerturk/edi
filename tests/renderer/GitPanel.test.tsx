@@ -229,3 +229,77 @@ describe('changeTotal', () => {
     expect(changeTotal([])).toBe(0);
   });
 });
+
+describe('Unpushed commits', () => {
+  afterEach(cleanup);
+  const commit = (n: number, subject: string) => ({
+    oid: String(n).repeat(40),
+    short: String(n).repeat(7),
+    subject,
+    authorName: 'Ada',
+    authorEmail: 'ada@x.dev',
+    date: Date.now() - 2 * 3_600_000,
+    parents: 1,
+    tags: [],
+  });
+  const ahead = repo('api', { status: status({ ahead: 2, headOid: '2'.repeat(40) }) });
+  const list = { ok: true as const, commits: [commit(2, 'feat: second'), commit(1, 'feat: first')], canUndo: true };
+
+  function renderUnpushed(target: RepoView = ahead, result: typeof list | { ok: true; commits: []; canUndo: false } = list) {
+    const loadUnpushed = vi.fn(async () => result);
+    const onOpenCommit = vi.fn();
+    const onUndoCommit = vi.fn();
+    render(
+      <GitPanelView
+        repos={[target]}
+        expanded={{ [target.path]: true }}
+        onToggle={() => undefined}
+        loadUnpushed={loadUnpushed}
+        onOpenCommit={onOpenCommit}
+        onUndoCommit={onUndoCommit}
+      />,
+    );
+    return { loadUnpushed, onOpenCommit, onUndoCommit };
+  }
+
+  it('an expanded repo ahead of its upstream lists the commits under UNPUSHED', async () => {
+    const { loadUnpushed } = renderUnpushed();
+    expect(loadUnpushed).toHaveBeenCalledWith('/w/api');
+    const rows = await screen.findAllByTestId('unpushed-row');
+    expect(rows.map((el) => el.textContent)).toEqual([expect.stringContaining('feat: second'), expect.stringContaining('feat: first')]);
+    expect(rows[0]!.textContent).toContain('2222222');
+    expect(rows[0]!.textContent).toContain('2h');
+    const head = screen.getAllByTestId('file-group-head').find((el) => el.textContent?.includes('UNPUSHED'))!;
+    expect(head.textContent).toContain('2');
+  });
+
+  it('clicking a commit opens it (double click pins); only the newest has Undo', async () => {
+    const { onOpenCommit, onUndoCommit } = renderUnpushed();
+    const rows = await screen.findAllByTestId('unpushed-row');
+    fireEvent.click(rows[1]!);
+    expect(onOpenCommit).toHaveBeenLastCalledWith('/w/api', '1'.repeat(40), false);
+    fireEvent.doubleClick(rows[0]!);
+    expect(onOpenCommit).toHaveBeenLastCalledWith('/w/api', '2'.repeat(40), true);
+    expect(screen.getAllByTestId('undo-commit')).toHaveLength(1);
+    expect(within(rows[0]!).getByTestId('undo-commit')).toBeTruthy();
+    onOpenCommit.mockClear();
+    fireEvent.click(within(rows[0]!).getByTestId('undo-commit'));
+    expect(onUndoCommit).toHaveBeenCalledWith('/w/api', list.commits[0]);
+    expect(onOpenCommit).not.toHaveBeenCalled();
+  });
+
+  it('no Undo when the newest cannot be undone (a merge)', async () => {
+    renderUnpushed(ahead, { ...list, canUndo: false } as never);
+    await screen.findAllByTestId('unpushed-row');
+    expect(screen.queryByTestId('undo-commit')).toBeNull();
+  });
+
+  it('no section, and nothing loaded, when nothing is ahead or there is no upstream', () => {
+    const { loadUnpushed } = renderUnpushed(repo('clean', { status: status({ ahead: 0 }) }));
+    cleanup();
+    const second = renderUnpushed(repo('lone', { status: status({ ahead: null, upstream: null }) }));
+    expect(loadUnpushed).not.toHaveBeenCalled();
+    expect(second.loadUnpushed).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('unpushed-row')).toBeNull();
+  });
+});

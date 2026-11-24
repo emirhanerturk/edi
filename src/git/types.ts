@@ -113,3 +113,6 @@ export interface BlameCommit {
 
 /** `lines[i]`: the commit oid of line i + 1, or null if it isn't committed yet. */
 export type BlameResult = { ok: true; lines: (string | null)[]; commits: Record<string, BlameCommit> } | { ok: false; error: string };
+
+/** Commits on the branch that its upstream doesn't have, newest first. `canUndo`: the newest can be undone. */
+export type UnpushedResult = { ok: true; commits: CommitSummary[]; canUndo: boolean } | { ok: false; error: string };

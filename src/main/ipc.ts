@@ -5,7 +5,7 @@ import { type BrowserWindow, dialog, ipcMain, protocol } from 'electron';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
 import { serveMedia } from './media.js';
-import { type BusyKind, type Question, busyQuestion, discardQuestion } from './questions.js';
+import { type BusyKind, type Question, busyQuestion, discardQuestion, undoCommitQuestion } from './questions.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
@@ -193,11 +193,13 @@ export class AppCore {
     ipcMain.handle('git:run', (_event, repoPath: unknown, op: unknown) => this.gitOps.run(repoPath as string, op as GitOp));
     ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
+    ipcMain.handle('git:unpushed', (_event, repoPath: unknown) => this.gitOps.unpushed(repoPath));
     // Read-only view operations: paths are validated in ViewOps.
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
     ipcMain.on('edits:unsaved', (_event, count: unknown) => {
       this.unsavedFiles = typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : 0;
     });
+    ipcMain.handle('git:confirmUndo', (_event, subject: unknown) => this.ask(undoCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
     ipcMain.handle('view:headText', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.headText(repoPath, filePath));

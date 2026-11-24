@@ -3,10 +3,10 @@
  * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { BlameCommit, BlameResult, HeadText } from '../git/types.js';
+import type { BlameCommit, BlameResult, HeadText, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 
-export type { BlameCommit, BlameResult, HeadText };
+export type { BlameCommit, BlameResult, HeadText, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 
 export interface RepoView {
@@ -63,7 +63,9 @@ export type GitOp =
   | { op: 'pull' }
   | { op: 'fetch' }
   | { op: 'switch'; branch: string }
-  | { op: 'createBranch'; branch: string };
+  | { op: 'createBranch'; branch: string }
+  /** `git reset --soft HEAD~1`, only if HEAD is still `oid` and isn't pushed. */
+  | { op: 'undoCommit'; oid: string };
 
 export type OpResult = { ok: true; message: string } | { ok: false; error: string };
 
@@ -148,6 +150,10 @@ export interface EdiApi {
   /** Fetches in every repo that has a remote; returns the result per repo. */
   fetchAll(): Promise<{ repoPath: string; result: OpResult }[]>;
   branches(repoPath: string): Promise<BranchList>;
+  /** The branch's commits its upstream doesn't have (none without an upstream). */
+  unpushed(repoPath: string): Promise<UnpushedResult>;
+  /** Asks (native dialog) before undoing the commit with this subject; true to go ahead. */
+  confirmUndo(subject: string): Promise<boolean>;
   /** A changed file's diff against HEAD (staged and unstaged together). */
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */
