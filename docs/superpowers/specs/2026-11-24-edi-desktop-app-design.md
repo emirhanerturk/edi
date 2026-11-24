@@ -414,7 +414,10 @@ Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış �
     yoklamada kaybolur. Hiçbir sekmede kabuk dışında süreç yoksa `lsof` çalıştırılmaz.
   - Yalnız `localhost`'tan erişilebilen dinlemeler sayılır: `*`, `0.0.0.0`, `[::]`,
     `127.x.x.x`, `[::1]`. Yalnız belirli bir ağ adresinde dinleyen alınmaz. Aynı port IPv4
-    ve IPv6'da dinlenirse tek sayılır.
+    ve IPv6'da dinlenirse tek sayılır. İşletim sisteminin `listen(0)` isteyene rastgele
+    verdiği aralıktaki portlar (macOS'ta 49152 ve üstü) sayılmaz: bunlar kimsenin yazmadığı
+    iç portlardır (vite eklentileri, workerd). Claude Code sürecinin kendisi de sayılmaz
+    (kendi iç portunu açar); onun başlattığı sunucular sayılır.
   - Sunucunun reposu, dinleyen sürecin çalışma dizininden bulunur (`lsof -d cwd`); hiçbir
     repoda değilse repo adı gösterilmez.
   - Liste yalnız değişince sayfaya gönderilir.

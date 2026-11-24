@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { basename } from 'node:path';
 import type { PsRow } from './procs.js';
 import { parseLsofPidCwd } from './sessions.js';
 import type { ServerInfo } from './shared/api.js';
@@ -16,7 +17,13 @@ function reachable(host: string): boolean {
   return host === '*' || host === '0.0.0.0' || host === '[::]' || host === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(host);
 }
 
-/** `lsof -Fpn` çıktısı: pid → localhost'tan erişilebilen portlar (sıralı, tekrarsız). */
+/**
+ * macOS'un `listen(0)` isteyenlere rastgele verdiği aralığın başı. Bu aralıktaki portlar
+ * kimsenin yazmadığı iç portlardır (Claude Code, vite eklentileri, workerd); sunucu sayılmaz.
+ */
+export const EPHEMERAL_FIRST = 49152;
+
+/** `lsof -Fpn` çıktısı: pid → localhost'tan erişilebilen, rastgele verilmemiş portlar (sıralı, tekrarsız). */
 export function parseListening(out: string): Map<number, number[]> {
   const ports = new Map<number, Set<number>>();
   let pid: number | null = null;
@@ -29,14 +36,20 @@ export function parseListening(out: string): Map<number, number[]> {
     const match = /^(.*):(\d+)$/.exec(line.slice(1));
     if (!match || !reachable(match[1]!)) continue;
     const port = Number(match[2]);
-    if (port < 1 || port > 65535) continue;
+    if (port < 1 || port >= EPHEMERAL_FIRST) continue;
     if (!ports.has(pid)) ports.set(pid, new Set());
     ports.get(pid)!.add(port);
   }
   return new Map([...ports].map(([key, set]) => [key, [...set].sort((a, b) => a - b)]));
 }
 
-/** edi terminallerinin tty'sinde çalışan, kabuk olmayan süreçler: pid → sekme. Arka plandakiler de sayılır. */
+/** Claude Code'un kendisi: kendi iç portunu açar, sunucu değildir. Başlattığı alt süreçler sayılır. */
+const isClaude = (args: string) => basename(args.split(' ')[0] ?? '') === 'claude';
+
+/**
+ * edi terminallerinin tty'sinde çalışan, kabuk ve Claude Code olmayan süreçler: pid → sekme.
+ * Arka plandakiler (`&`) de sayılır.
+ */
 export function serverCandidates(ptys: { id: number; pid: number; tty: string }[], ps: PsRow[]): Map<number, number> {
   const tabByTty = new Map<string, number>();
   const shells = new Set<number>();
@@ -49,7 +62,7 @@ export function serverCandidates(ptys: { id: number; pid: number; tty: string }[
   const candidates = new Map<number, number>();
   for (const row of ps) {
     const tab = tabByTty.get(row.tty);
-    if (tab !== undefined && !shells.has(row.pid)) candidates.set(row.pid, tab);
+    if (tab !== undefined && !shells.has(row.pid) && !isClaude(row.args)) candidates.set(row.pid, tab);
   }
   return candidates;
 }

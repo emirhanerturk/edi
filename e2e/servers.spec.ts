@@ -6,10 +6,18 @@ import { launch, makeRepo, tmpDir } from './helpers.js';
 test('terminalde başlayan sunucu durum çubuğunda ve sekmede görünür, kapanınca kaybolur', async () => {
   const dir = await tmpDir();
   const repo = await makeRepo(dir, 'alpha');
-  // Rastgele bir portta dinler ve portu bir dosyaya yazar.
+  // 40000–48999 arasında boş bir portta dinler ve portu bir dosyaya yazar (listen(0)'ın verdiği
+  // rastgele portlar sunucu sayılmaz).
   await writeFile(
     join(repo, 'server.cjs'),
-    "const s = require('node:http').createServer(); s.listen(0, '127.0.0.1', () => require('node:fs').writeFileSync('port.txt', String(s.address().port)));\n",
+    [
+      "const s = require('node:http').createServer();",
+      "const tryListen = () => s.listen(40000 + Math.floor(Math.random() * 9000), '127.0.0.1');",
+      "s.on('error', tryListen);",
+      "s.on('listening', () => require('node:fs').writeFileSync('port.txt', String(s.address().port)));",
+      'tryListen();',
+      '',
+    ].join('\n'),
   );
   const { app, page } = await launch({ openDir: dir });
   try {

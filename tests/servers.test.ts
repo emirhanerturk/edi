@@ -19,6 +19,15 @@ describe('parseListening', () => {
     ]);
   });
 
+  it('işletim sisteminin rastgele verdiği portlar (49152 ve üstü) sunucu sayılmaz', () => {
+    // vite + Cloudflare eklentisi: 5173 asıl adres, diğerleri listen(0) ile alınmış iç portlar.
+    const out = ['p100', 'n*:5173', 'n127.0.0.1:54487', 'p101', 'n127.0.0.1:54488', 'n127.0.0.1:49152', 'n127.0.0.1:49151', ''].join('\n');
+    expect([...parseListening(out)]).toEqual([
+      [100, [5173]],
+      [101, [49151]],
+    ]);
+  });
+
   it('bozuk satırları atlar', () => {
     expect([...parseListening('pabc\nn*:1\np5\nn*:\nnfoo\nn*:70000\n')]).toEqual([]);
   });
@@ -46,6 +55,18 @@ describe('serverCandidates', () => {
       [13, 1],
       [21, 2],
     ]);
+  });
+
+  it('Claude Code sürecinin kendisi aday değil; başlattığı alt süreçler aday', () => {
+    const ptys = [{ id: 1, pid: 10, tty: 'ttys001' }];
+    const ps = [
+      row(10, 'ttys001'),
+      row(11, 'ttys001', 11, 11, 'claude'),
+      row(12, 'ttys001', 11, 11, '/Users/x/.local/bin/claude --resume'),
+      row(13, 'ttys001', 13, 11, 'npm run dev'),
+      row(14, 'ttys001', 13, 11, 'node claude-tools.js'),
+    ];
+    expect([...serverCandidates(ptys, ps).keys()]).toEqual([13, 14]);
   });
 });
 
@@ -92,10 +113,18 @@ describe('listServers', () => {
 
 describe('readListening', () => {
   it('gerçek lsof ile bu sürecin dinlediği portu bulur', async () => {
+    // Rastgele verilen portlar (listen(0)) sayılmadığı için 40000–48999 arasında boş bir port denenir.
     const server = createServer();
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const { port } = server.address() as { port: number };
+    let port = 0;
+    for (let attempt = 0; attempt < 20 && port === 0; attempt++) {
+      const candidate = 40000 + Math.floor(Math.random() * 9000);
+      port = await new Promise<number>((resolve) => {
+        server.once('error', () => resolve(0));
+        server.listen(candidate, '127.0.0.1', () => resolve(candidate));
+      });
+    }
     try {
+      expect(port).toBeGreaterThan(0);
       expect((await readListening([process.pid])).get(process.pid)).toContain(port);
     } finally {
       server.close();
