@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/renderer/bridge', () => ({ edi: {} }));
 vi.mock('../../src/renderer/terminals/terminals', () => ({}));
 
-const { applyTabStates, applyTitle } = await import('../../src/renderer/store');
+const { applyTabStates, applyTitle, removeTab } = await import('../../src/renderer/store');
 type Tab = import('../../src/renderer/store').Tab;
 
 const tab = (over: Partial<Tab> = {}): Tab => ({
@@ -104,5 +104,26 @@ describe('applyTabStates ve zil', () => {
       waiting: false,
       titleState: null,
     });
+  });
+});
+
+describe('removeTab', () => {
+  it('etkin sekme kapanınca sağındaki, yoksa solundaki öne gelir', () => {
+    const tabs = [tab({ id: 1 }), tab({ id: 2 }), tab({ id: 3 })];
+    expect(removeTab(tabs, 2, 2)).toMatchObject({ activeTab: 3, tabs: [{ id: 1 }, { id: 3 }] });
+    expect(removeTab(tabs, 3, 3)).toMatchObject({ activeTab: 2 });
+    expect(removeTab([tab({ id: 1 })], 1, 1)).toEqual({ tabs: [], activeTab: null });
+  });
+
+  it('arka plandaki sekme kapanınca etkin sekme değişmez', () => {
+    const tabs = [tab({ id: 1 }), tab({ id: 2, waiting: true })];
+    expect(removeTab(tabs, 1, 2)).toEqual({ tabs: [tabs[0]], activeTab: 1 });
+  });
+
+  it('öne gelen sekmenin zili söner: kullanıcı artık ona bakıyor', () => {
+    const tabs = [tab({ id: 1 }), tab({ id: 2, claude: true, waiting: true, titleState: 'waiting' })];
+    const next = removeTab(tabs, 1, 1);
+    expect(next.activeTab).toBe(2);
+    expect(next.tabs[0]).toMatchObject({ id: 2, waiting: false, titleState: 'waiting' });
   });
 });

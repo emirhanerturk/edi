@@ -207,4 +207,25 @@ describe('GitOps', () => {
     ]);
     expect(ws.view().repos.map((r) => r.status?.behind)).toEqual([1, 1, null]);
   });
+
+  it('çakışma varken unstageAll reddedilir: çakışma kaybolup commit edilebilir hâle gelmez', async () => {
+    const { repos, ws, ops } = await setup();
+    const repo = repos[0]!;
+    await git(repo, 'switch', '-q', '-c', 'feat/x');
+    await writeFile(join(repo, 'README.md'), 'feat/x satırı\n');
+    await writeFile(join(repo, 'temiz.txt'), 'x\n');
+    await git(repo, 'add', '-A');
+    await git(repo, 'commit', '-q', '-m', 'feat: x');
+    await git(repo, 'switch', '-q', 'main');
+    await writeFile(join(repo, 'README.md'), 'main satırı\n');
+    await git(repo, 'commit', '-q', '-am', 'feat: main');
+    await git(repo, 'merge', 'feat/x').catch(() => undefined); // çakışmayla biter; temiz.txt stage'li
+
+    expect(await ops.run(repo, { op: 'unstageAll' })).toEqual({ ok: false, error: 'Conflicted files present; resolve them outside edi' });
+    expect(ws.repo(repo)?.status?.files.map((f) => `${f.kind} ${f.path}`).sort()).toEqual(['changed temiz.txt', 'conflicted README.md']);
+    // Koruma aşılamadığı için çakışma işaretleri commit edilemez.
+    const committed = await ops.run(repo, { op: 'commit', message: 'feat: x', all: true, push: false });
+    expect(committed.ok).toBe(false);
+    expect((await git(repo, 'rev-list', '--count', 'HEAD')).trim()).toBe('2');
+  });
 });

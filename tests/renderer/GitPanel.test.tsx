@@ -116,4 +116,14 @@ describe('GitPanelView', () => {
     expect(screen.getByText('No git repositories in this folder')).toBeTruthy();
     expect(screen.queryByTestId('git-badge')).toBeNull();
   });
+
+  it('çakışma varken "Unstage all" kapalıdır: index sıfırlanırsa çakışma kaydı da silinirdi', () => {
+    const merging = repo('merging', {
+      status: status({ files: [file('README.md', 'U', 'U', 'conflicted'), file('temiz.txt', 'A', '.')] }),
+    });
+    render(<GitPanelView repos={[merging]} expanded={{}} onToggle={() => undefined} />);
+    const button = screen.getByTestId('unstage-all') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe('Resolve the conflicts first');
+  });
 });

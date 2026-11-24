@@ -514,4 +514,57 @@ describe('ertelenen bulgular', () => {
     expect(await createBranch(repo, '   ')).toEqual(invalid);
     expect((await git(repo, 'symbolic-ref', 'HEAD')).trim()).toBe('refs/heads/main');
   });
+
+  it('çakışmalı dosya varken unstageAll reddeder; çakışma kaydı silinmez', async () => {
+    const repo = await repoWithConflict();
+    // Çakışmanın yanında temiz birleşmiş, stage'li bir dosya da olsun.
+    await write(repo, 'temiz.txt', 'x\n');
+    await git(repo, 'add', '--', 'temiz.txt');
+
+    expect(await unstageAll(repo)).toEqual({ ok: false, error: 'Conflicted files present; resolve them outside edi' });
+    expect(await fileOf(repo, 'README.md')).toMatchObject({ kind: 'conflicted' });
+    expect(await fileOf(repo, 'temiz.txt')).toMatchObject({ x: 'A' });
+  });
+
+  it('hiçbir şey stage\'li değilken başarısız olan "tümünü commit et" index\'i eski hâline döndürür', async () => {
+    const repo = await newRepo();
+    const hook = join(repo, '.git', 'hooks', 'pre-commit');
+    await writeFile(hook, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
+    await chmod(hook, 0o755);
+    await write(repo, 'README.md', 'bozuk\n');
+    await write(repo, 'yeni.txt', 'x\n');
+
+    const result = await commit(repo, 'feat: x', { addAll: true });
+    expect(result.ok).toBe(false);
+    expect(await commitCount(repo)).toBe(1);
+    // Düzeltilen dosyanın eski hâli index'te kalıp sonraki commit'e sessizce girmesin.
+    expect((await statusOf(repo)).files.some(isStaged)).toBe(false);
+    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('bozuk\n'); // çalışma ağacına dokunulmaz
+    expect(await fileOf(repo, 'yeni.txt')).toMatchObject({ kind: 'untracked' });
+  });
+
+  it('önceden stage\'li dosya varken başarısız olan commit index\'e dokunmaz', async () => {
+    const repo = await newRepo();
+    const hook = join(repo, '.git', 'hooks', 'pre-commit');
+    await writeFile(hook, '#!/bin/sh\nexit 1\n');
+    await chmod(hook, 0o755);
+    await write(repo, 'README.md', 'değişti\n');
+    await git(repo, 'add', '--', 'README.md');
+    await write(repo, 'yeni.txt', 'x\n');
+
+    expect((await commit(repo, 'feat: x', { addAll: false })).ok).toBe(false);
+    expect(await fileOf(repo, 'README.md')).toMatchObject({ x: 'M', y: '.' });
+    expect(await fileOf(repo, 'yeni.txt')).toMatchObject({ kind: 'untracked' });
+  });
+
+  it('commit\'siz repoda başarısız olan "tümünü commit et" de index\'i boşaltır', async () => {
+    const repo = await newRepo({ commit: false });
+    const hook = join(repo, '.git', 'hooks', 'pre-commit');
+    await writeFile(hook, '#!/bin/sh\nexit 1\n');
+    await chmod(hook, 0o755);
+    await write(repo, 'ilk.txt', 'x\n');
+
+    expect((await commit(repo, 'feat: x', { addAll: true })).ok).toBe(false);
+    expect(await fileOf(repo, 'ilk.txt')).toMatchObject({ kind: 'untracked' });
+  });
 });

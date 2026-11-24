@@ -1,5 +1,5 @@
 import { type RunGitOptions, runGit } from './exec.js';
-import { type FileChange, type RepoStatus, getStatus } from './status.js';
+import { type FileChange, type RepoStatus, getStatus, isStaged } from './status.js';
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 export type DiffResult = { ok: true; text: string } | { ok: false; error: string };
@@ -52,8 +52,19 @@ export async function stageAll(repo: string): Promise<ActionResult> {
   return act(repo, ['add', '-A'], 'Staged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
 }
 
-/** Yalnız index'e dokunur; çalışma ağacındaki içerik değişmez. */
-export function unstageAll(repo: string): Promise<ActionResult> {
+/**
+ * Yalnız index'e dokunur; çalışma ağacındaki içerik değişmez. Çakışmalı dosya varken reddeder:
+ * index'i sıfırlamak çakışma kayıtlarını da siler, dosya sıradan bir değişiklik gibi görünür ve
+ * içindeki çakışma işaretleriyle commit edilebilir hâle gelir.
+ */
+export async function unstageAll(repo: string): Promise<ActionResult> {
+  const current = await getStatus(repo);
+  if (!current.ok) return { ok: false, error: current.error };
+  if (current.status.files.some((f) => f.kind === 'conflicted')) return { ok: false, error: CONFLICT_ERROR };
+  return resetIndex(repo);
+}
+
+function resetIndex(repo: string): Promise<ActionResult> {
   // Yol verilmeden `git reset` yarıda kalmış merge/cherry-pick durumunu (MERGE_HEAD) da siler;
   // `-- .` ile yalnız index sıfırlanır.
   return act(repo, ['reset', '-q', '--', '.'], 'Unstaged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
@@ -62,11 +73,22 @@ export function unstageAll(repo: string): Promise<ActionResult> {
 export async function commit(repo: string, message: string, opts: { addAll: boolean }): Promise<ActionResult> {
   const trimmed = message.trim();
   if (trimmed === '') return { ok: false, error: 'Commit message is empty' };
-  if (opts.addAll) {
-    const added = await stageAll(repo);
-    if (!added.ok) return added;
-  }
-  return act(repo, ['commit', '-m', trimmed], 'Committed', { timeoutMs: SLOW_TIMEOUT_MS });
+  if (!opts.addAll) return act(repo, ['commit', '-m', trimmed], 'Committed', { timeoutMs: SLOW_TIMEOUT_MS });
+
+  // stageAll'ın çakışma denetimiyle aynı; ayrıca index'in baştaki hâli öğrenilir.
+  const before = await getStatus(repo);
+  if (!before.ok) return { ok: false, error: before.error };
+  if (before.status.files.some((f) => f.kind === 'conflicted')) return { ok: false, error: CONFLICT_ERROR };
+  const nothingStaged = !before.status.files.some(isStaged);
+
+  const added = await act(repo, ['add', '-A'], 'Staged', { timeoutMs: LOCAL_WRITE_TIMEOUT_MS });
+  if (!added.ok) return added;
+  const committed = await act(repo, ['commit', '-m', trimmed], 'Committed', { timeoutMs: SLOW_TIMEOUT_MS });
+  // Commit reddedildiyse (hook, boş commit) ve başta hiçbir şey stage'li değilse index eski hâline
+  // döner. Yoksa her şey stage'li kalır; kullanıcı dosyayı düzeltip yeniden denediğinde düzeltme
+  // değil, index'teki eski içerik commit edilirdi.
+  if (!committed.ok && nothingStaged) await resetIndex(repo);
+  return committed;
 }
 
 export function push(repo: string, status: RepoStatus): Promise<ActionResult> {

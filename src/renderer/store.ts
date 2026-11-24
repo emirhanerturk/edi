@@ -63,6 +63,19 @@ export function applyTitle(tab: Tab, title: string, active: boolean): Tab {
   return { ...tab, titleState: next, waiting };
 }
 
+/**
+ * Sekmeyi listeden çıkarır. Etkin sekme kapandıysa sağındaki (yoksa solundaki) öne gelir ve,
+ * `activate` ile öne gelmiş gibi, zili söner.
+ */
+export function removeTab(tabs: Tab[], activeTab: number | null, id: number): { tabs: Tab[]; activeTab: number | null } {
+  const index = tabs.findIndex((tab) => tab.id === id);
+  if (index === -1) return { tabs, activeTab };
+  const rest = tabs.filter((tab) => tab.id !== id);
+  if (activeTab !== id) return { tabs: rest, activeTab };
+  const next = rest[Math.min(index, rest.length - 1)]?.id ?? null;
+  return { tabs: rest.map((tab) => (tab.id === next && tab.waiting ? { ...tab, waiting: false } : tab)), activeTab: next };
+}
+
 interface AppStore {
   /** İlk durum ana süreçten geldi mi. */
   ready: boolean;
@@ -168,11 +181,9 @@ export const useApp = create<AppStore>((set, get) => ({
     if (tab.busy && !tab.exited && !window.confirm('A process is still running in this terminal. Close it?')) return;
     edi.pty.close(id);
     disposeTerminal(id);
-    const rest = tabs.filter((other) => other.id !== id);
-    // Etkin sekme kapandıysa sağındaki (yoksa solundaki) öne gelir.
-    const next = activeTab === id ? (rest[Math.min(index, rest.length - 1)]?.id ?? null) : activeTab;
-    set({ tabs: rest, activeTab: next });
-    showTerminal(next);
+    const next = removeTab(tabs, activeTab, id);
+    set(next);
+    showTerminal(next.activeTab);
   },
   activate(id) {
     if (!get().tabs.some((tab) => tab.id === id)) return;

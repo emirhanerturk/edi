@@ -212,7 +212,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
             </p>
           )}
           <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} busy={busy} run={run} />
-          <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} />
+          <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} />
           <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} />
           {count === 0 && <p className="repo-clean">No changes</p>}
         </div>
@@ -276,7 +276,7 @@ interface FileGroupProps {
   files: FileChange[];
   busy: boolean;
   run(op: GitOp): void;
-  /** Çakışma varken "hepsini stage et" kapalıdır: çakışmayı çözülmüş diye işaretlerdi. */
+  /** Çakışma varken "hepsini stage et / geri al" kapalıdır: ikisi de çakışma kaydını silerdi. */
   blocked?: boolean;
 }
 
@@ -289,7 +289,14 @@ function FileGroup({ title, group, files, busy, run, blocked }: FileGroupProps) 
         <span className="file-group-count">{files.length}</span>
         <div className="spacer" />
         {group === 'staged' && (
-          <button className="icon-button tiny" data-testid="unstage-all" aria-label="Unstage all" title="Unstage all" disabled={busy} onClick={() => run({ op: 'unstageAll' })}>
+          <button
+            className="icon-button tiny"
+            data-testid="unstage-all"
+            aria-label="Unstage all"
+            title={blocked ? 'Resolve the conflicts first' : 'Unstage all'}
+            disabled={busy || blocked}
+            onClick={() => run({ op: 'unstageAll' })}
+          >
             <MinusIcon size={12} />
           </button>
         )}
