@@ -45,7 +45,7 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - Produces: `RepoStatus.headOid: string | null` (full oid from `# branch.oid`; `null` when unborn). `statusTag` and `diffRepo` removed. `gitEnv` sets `LC_ALL=C` and `LANG=C`.
 - Strings: `Staged`, `Unstaged`, `Committed`, `Pushed`, `Pulled`, `Fetched`, `` `Switched to ${name}` ``, `Commit message is empty`, `Detached HEAD: cannot push`, `Conflicted files present; resolve them outside edi`, `Timed out`, `git failed`.
 
-- [ ] **Step 1:** Update tests first: replace every Turkish expectation with the strings above; add to `tests/status.test.ts` `'parseStatus HEAD oid'ini verir'` (`headOid` equals the 40-char oid in the fixture) and `'commit'siz repoda headOid null'`; add to `tests/exec.test.ts` `'git çıktısı yerel ayardan bağımsız İngilizce'` (run with `process.env.LANG='tr_TR.UTF-8'` set, `runGit(tmp, ['status'])` in a non-repo → error starts with `fatal: not a git repository`). Remove `diffRepo` and `statusTag` tests.
+- [ ] **Step 1:** Update tests first: replace every Turkish expectation with the strings above; add to `tests/status.test.ts` `'parseStatus returns the HEAD oid'` (`headOid` equals the 40-char oid in the fixture) and `'headOid is null in a repo with no commits'`; add to `tests/exec.test.ts` `'git output is English regardless of locale'` (run with `process.env.LANG='tr_TR.UTF-8'` set, `runGit(tmp, ['status'])` in a non-repo → error starts with `fatal: not a git repository`). Remove `diffRepo` and `statusTag` tests.
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL on the changed expectations and `headOid`.
 - [ ] **Step 3:** Change the strings, add `headOid`, set locale in `gitEnv`, delete `diffRepo`, `statusTag`, `src/ui/`, `tests/rows.test.ts`, and the package.json entries; `npm install`.
 - [ ] **Step 4:** Run `npm test && npm run typecheck`. Expected: PASS.
@@ -61,13 +61,13 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - Produces: `push(repo, status)` uses `push -u origin refs/heads/<head>` when `status.upstream === null || status.ahead === null`. `switchBranch`/`createBranch` return `{ ok: false, error: 'Invalid branch name' }` for names that are empty or start with `-`. `runGit` returns `{ ok: false, error: 'Repository folder not found' }` when `cwd` does not exist. `FileChange.origPath` is set only for renames.
 
 - [ ] **Step 1: Write failing tests**
-  - `'etiketle aynı adlı branch kısa adıyla listelenir'`: branch `release` + tag `release` → `listBranches` contains `'release'`, not `'heads/release'`.
-  - `'upstream'i silinmiş branch'te push branch'i yeniden yayınlar'`: push branch `feat`, delete it on the bare remote (`git push origin --delete feat` then `git remote prune origin` in the test), commit, `push()` → ok and `git ls-remote origin refs/heads/feat` is non-empty.
-  - `'etiketle aynı adlı yeni branch push edilir'`: branch `v1` + tag `v1`, no upstream → `push()` ok and remote has `refs/heads/v1`.
-  - `'tire ile başlayan branch adı reddedilir'`: `switchBranch(repo, '--detach')` and `createBranch(repo, '-x')` → `Invalid branch name`; HEAD unchanged.
-  - `'silinmiş repo klasöründe anlaşılır hata'`: `runGit(join(tmp, 'gone'), ['status'])` → `Repository folder not found`.
-  - `'arka plana süreç atan hook zaman aşımı sayılmaz'`: `post-commit` hook `#!/bin/sh\n(sleep 6) &\n`, `runGit(repo, ['commit', '-m', 'x'], { timeoutMs: 4000 })` → ok, resolves in under 3 s.
-  - `'kopya kaydında origPath boş'`: `parseStatus` on a `2 C. … C100 new\0old\0` record → `origPath === null`; rename record still has it.
+  - `'a branch named like a tag is listed by its short name'`: branch `release` + tag `release` → `listBranches` contains `'release'`, not `'heads/release'`.
+  - `'push republishes a branch whose upstream was deleted'`: push branch `feat`, delete it on the bare remote (`git push origin --delete feat` then `git remote prune origin` in the test), commit, `push()` → ok and `git ls-remote origin refs/heads/feat` is non-empty.
+  - `'a new branch named like a tag is pushed'`: branch `v1` + tag `v1`, no upstream → `push()` ok and remote has `refs/heads/v1`.
+  - `'a branch name starting with a dash is rejected'`: `switchBranch(repo, '--detach')` and `createBranch(repo, '-x')` → `Invalid branch name`; HEAD unchanged.
+  - `'clear error for a deleted repo folder'`: `runGit(join(tmp, 'gone'), ['status'])` → `Repository folder not found`.
+  - `'a hook that backgrounds a process does not count as a timeout'`: `post-commit` hook `#!/bin/sh\n(sleep 6) &\n`, `runGit(repo, ['commit', '-m', 'x'], { timeoutMs: 4000 })` → ok, resolves in under 3 s.
+  - `'origPath is empty on a copy record'`: `parseStatus` on a `2 C. … C100 new\0old\0` record → `origPath === null`; rename record still has it.
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL on the seven new tests.
 - [ ] **Step 3:** Implement. Branch list via `--format=%(refname:lstrip=2)`. `runGit`: check `cwd` with `fs.stat` before spawn; resolve on `exit` after a 200 ms grace for `close` (keep collecting output until then).
 - [ ] **Step 4:** Run `npm test`. Expected: PASS.
@@ -82,10 +82,10 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 **Interfaces:**
 - Produces (`src/procs.ts`):
   ```ts
-  export interface PsRow { pid: number; pgid: number; tpgid: number; tty: string; args: string } // tty: 'ttys003' | '' (yok)
+  export interface PsRow { pid: number; pgid: number; tpgid: number; tty: string; args: string } // tty: 'ttys003' | '' (none)
   export function parsePs(out: string): PsRow[]            // `ps -axww -o pid=,pgid=,tpgid=,tty=,args=`
-  export function listPs(): Promise<PsRow[]>               // hata → []
-  export function foreground(rows: PsRow[], tty: string): PsRow[]   // tty'deki, pgid === tpgid olanlar
+  export function listPs(): Promise<PsRow[]>               // error → []
+  export function foreground(rows: PsRow[], tty: string): PsRow[]   // those on the tty with pgid === tpgid
   export interface TabInfo { title: string; claude: boolean; busy: boolean }
   export function tabInfo(fg: PsRow[], shellPid: number, shellName: string, claudePids: ReadonlySet<number>): TabInfo
   ```
@@ -95,7 +95,7 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
   export function parseLsofPidCwd(out: string): Map<number, string>
   export function listClaudePids(): Promise<number[]>
   export interface ClaudeSession { pid: number; cwd: string; tty: string }
-  export function listClaudeSessions(ps: PsRow[]): Promise<ClaudeSession[]>  // yalnız tty'si olanlar
+  export function listClaudeSessions(ps: PsRow[]): Promise<ClaudeSession[]>  // only those with a tty
   ```
   `assignSessions(cwds, dir, repos)` unchanged. `listClaudeCwds` and `parseLsofCwd` removed.
 
@@ -119,7 +119,7 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - `e2e/helpers.ts`: `launch(opts?: { openDir?: string }): Promise<{ app: ElectronApplication; page: Page; userData: string }>` (temp userData every launch).
 
 - [ ] **Step 1:** Install deps (`electron`, `vite`, `@vitejs/plugin-react`, `react-dom`, `@types/react-dom`, `zustand`, `@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-webgl`, `@fontsource/ibm-plex-sans`, `@fontsource/ibm-plex-mono`, `@testing-library/react`, `jsdom`, `@playwright/test` as dev; `node-pty` as dependency), write `scripts/setup-native.mjs`, run `npm run setup`.
-- [ ] **Step 2: Write the failing e2e** `'pencere açılır ve başlıkta edi yazar'`: launch, expect `page.getByTestId('titlebar')` to contain text `edi`, and `getComputedStyle(document.body).backgroundColor` to be `rgb(40, 44, 52)`.
+- [ ] **Step 2: Write the failing e2e** `'the window opens and the title bar says edi'`: launch, expect `page.getByTestId('titlebar')` to contain text `edi`, and `getComputedStyle(document.body).backgroundColor` to be `rgb(40, 44, 52)`.
 - [ ] **Step 3:** Run `npm run e2e`. Expected: FAIL (no build output).
 - [ ] **Step 4:** Write configs, `main.ts`, `preload.cts` (exposes an empty `edi` object for now), renderer entry with `theme.css` tokens, font imports and an `App` rendering the title bar strip.
 - [ ] **Step 5:** Run `npm run typecheck && npm test && npm run e2e`. Expected: PASS.
@@ -145,10 +145,10 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
   ```ts
   export class Workspace {
     constructor(opts: { onChange: (view: WorkspaceView) => void; statusMs?: number; sessionsMs?: number })
-    open(dir: string): Promise<{ ok: true; repoCount: number } | { ok: false; error: string }>  // realpath; klasör değilse hata
+    open(dir: string): Promise<{ ok: true; repoCount: number } | { ok: false; error: string }>  // realpath; error if not a folder
     rescan(): Promise<void>
     view(): WorkspaceView
-    repo(path: string): RepoView | null     // yalnız keşfedilmiş yollar
+    repo(path: string): RepoView | null     // discovered paths only
     refresh(path: string): Promise<void>
     setBusy(path: string, label: string | null): void
     dispose(): void
@@ -159,10 +159,10 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - `src/renderer/format.ts`: `tildify(path, home): string`, `plural(n, one, many): string`, `summary(view): { repos: number; withChanges: number; toPush: number }`.
 
 - [ ] **Step 1: Write failing tests**
-  - store: `'dosya yoksa varsayılanlar'`, `'bozuk JSON varsayılanlara döner'`, `'eksik alanlar varsayılanla tamamlanır'`, `'addRecent yineleneni başa alır ve 8 ile sınırlar'`, `'saveState sonra loadState aynı değeri verir'`.
-  - workspace (temp repos, `statusMs: 50`): `'alt klasördeki repolar durumlarıyla gelir'`, `'dosya değişince bir sonraki yoklamada görünür'`, `'silinen repo hata gösterir, diğerleri yenilenmeye devam eder'` (Review Focus 3), `'keşfedilmemiş yol için repo() null'`, `'klasör olmayan yol reddedilir'`.
+  - store: `'defaults when the file is missing'`, `'corrupt JSON falls back to defaults'`, `'missing fields are filled from defaults'`, `'addRecent moves a duplicate to the front and caps at 8'`, `'saveState then loadState returns the same value'`.
+  - workspace (temp repos, `statusMs: 50`): `'repos in subfolders come with their status'`, `'a file change shows up on the next poll'`, `'a deleted repo shows an error, the others keep refreshing'` (Review Focus 3), `'repo() is null for an undiscovered path'`, `'a path that is not a folder is rejected'`.
   - format: `tildify('/Users/x/studios/q', '/Users/x') === '~/studios/q'`; `summary` counts.
-  - e2e `'boş durumda Open a folder görünür'`; `'EDI_OPEN_DIR ile açılınca repo sayısı durum çubuğunda'` (two temp repos → `2 repositories`, title bar shows the folder name).
+  - e2e `'Open a folder shows in the empty state'`; `'opened with EDI_OPEN_DIR, the repo count is in the status bar'` (two temp repos → `2 repositories`, title bar shows the folder name).
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL.
 - [ ] **Step 3:** Implement main side, IPC registration, preload, zustand store subscribing to `workspace`, and the three components per `Bos.dc.html` / `Main.dc.html` (title bar: traffic-light gap, `edi`, folder button opening a menu of recent folders + `Choose folder…`, `N sessions` with Claude mark when > 0; status bar: `N repositories`, `● N with changes`, `↑ N to push`, right side `refreshed Ns ago`). Window bounds and `lastDir` persist; startup opens `EDI_OPEN_DIR`, else `lastDir` if it still exists.
 - [ ] **Step 4:** Run `npm run typecheck && npm test && npm run e2e`. Expected: PASS.
@@ -178,11 +178,11 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 **Interfaces:**
 - `src/main/pty.ts`:
   ```ts
-  export function shellEnv(base: NodeJS.ProcessEnv): Record<string, string>  // TERM, COLORTERM, TERM_PROGRAM=edi; CLAUDECODE, CLAUDE_CODE_*, ELECTRON_*, EDI_* çıkarılır
+  export function shellEnv(base: NodeJS.ProcessEnv): Record<string, string>  // TERM, COLORTERM, TERM_PROGRAM=edi; CLAUDECODE, CLAUDE_CODE_*, ELECTRON_*, EDI_* removed
   export class PtyManager {
     constructor(opts: { shell?: string; onData: (id: number, data: string) => void; onExit: (id: number) => void })
-    create(o: { cols: number; rows: number; cwd: string; command?: string }): number   // `<shell> -l`; command varsa `${command}\r` yazılır
-    write(id: number, data: string): void      // bilinmeyen/ölü id: sessizce yok sayılır
+    create(o: { cols: number; rows: number; cwd: string; command?: string }): number   // `<shell> -l`; if command is set, `${command}\r` is written
+    write(id: number, data: string): void      // unknown/dead id: silently ignored
     resize(id: number, cols: number, rows: number): void
     kill(id: number): void
     info(id: number): { pid: number; tty: string; shell: string } | null   // tty: 'ttys003'
@@ -198,10 +198,10 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - An exited tab stays, shows `exited`, and is closed by the user. Closing a tab whose `busy` is true asks `window.confirm('A process is still running in this terminal. Close it?')`.
 
 - [ ] **Step 1: Write failing tests**
-  - `'shellEnv Claude Code ve Electron izlerini siler'` (Review Focus 5).
-  - `'pty komut çıktısını verir ve çıkışı bildirir'`: shell `/bin/sh`, `write(id, 'echo edi-$((40+2)); exit\n')` → collected data contains `edi-42`, `onExit` fires.
-  - `'ölü pty'ye yazmak ve boyutlandırmak hata vermez'`; `'bir sekmenin çıkışı diğerini etkilemez'`; `'info tty adını /dev öneki olmadan verir'` (`/^ttys\d+$/`).
-  - e2e `'terminalde yazılan komut çalışır'`: open temp workspace, focus terminal, type `touch edi-marker\n`, poll until `<workspace>/edi-marker` exists; `'Cmd+T ikinci sekmeyi açar'` (two `tab` elements).
+  - `'shellEnv removes Claude Code and Electron traces'` (Review Focus 5).
+  - `'pty returns command output and reports exit'`: shell `/bin/sh`, `write(id, 'echo edi-$((40+2)); exit\n')` → collected data contains `edi-42`, `onExit` fires.
+  - `'writing to and resizing a dead pty does not throw'`; `'one tab exiting does not affect another'`; `'info returns the tty name without the /dev prefix'` (`/^ttys\d+$/`).
+  - e2e `'a command typed in the terminal runs'`: open temp workspace, focus terminal, type `touch edi-marker\n`, poll until `<workspace>/edi-marker` exists; `'Cmd+T opens a second tab'` (two `tab` elements).
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL.
 - [ ] **Step 3:** Implement. A first tab opens automatically when a workspace opens. Opening another folder kills all ptys (confirm first if any tab is busy).
 - [ ] **Step 4:** Run `npm run typecheck && npm test && npm run e2e`. Expected: PASS.
@@ -237,16 +237,16 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
   ```ts
   export type SyncAction = { kind: 'pull' | 'push' | 'publish'; label: string } | null
   export function syncAction(s: RepoStatus): SyncAction
-  // behind>0 → Pull n; ahead>0 → Push n; upstream yok (ya da silinmiş), unborn değil, detached değil → Publish branch; aksi halde null
+  // behind>0 → Pull n; ahead>0 → Push n; no upstream (or deleted), not unborn, not detached → Publish branch; otherwise null
   export interface FileGroups { conflicts: FileChange[]; staged: FileChange[]; changes: FileChange[] }
-  export function groupFiles(s: RepoStatus): FileGroups     // kısmen stage'li dosya iki grupta da
+  export function groupFiles(s: RepoStatus): FileGroups     // a partly staged file is in both groups
   export function letter(f: FileChange, group: 'staged' | 'changes' | 'conflicts'): string  // staged→x, changes→y, untracked '?', conflict 'U'
-  export function letterColor(l: string): string             // M sarı, A/? yeşil, D/U kırmızı, R/C camgöbeği
+  export function letterColor(l: string): string             // M yellow, A/? green, D/U red, R/C cyan
   export function splitPath(p: string): { name: string; dir: string }
-  export function changeCount(s: RepoStatus): number          // tekil yol sayısı
+  export function changeCount(s: RepoStatus): number          // number of unique paths
   export function isPartlyStaged(f: FileChange): boolean
   export function commitTarget(g: FileGroups): { all: boolean; count: number; label: string; enabled: boolean }
-  // staged varsa 'Commit · N files' (1 → 'file'); yoksa ve changes varsa 'Commit all · N files'; conflicts varsa ve staged yoksa enabled false
+  // if staged: 'Commit · N files' (1 → 'file'); otherwise, if changes: 'Commit all · N files'; if conflicts and nothing staged: enabled false
   ```
 - Publish with no commits to publish: a branch with no upstream **and** unborn → null.
 - Expansion state: repos with changes default open, clean default closed; a user toggle is stored per repo path in the renderer store for the session.
@@ -254,7 +254,7 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - Git tab badge = sum of `changeCount`. No repos → `No git repositories in this folder`.
 - Test ids: `repo-row` (with `data-repo=<name>`), `file-row`, `sync-button`, `git-badge`.
 
-- [ ] **Step 1: Write failing tests** — model: each `syncAction` branch incl. ahead+behind → Pull, gone upstream → Publish, unborn → null; `groupFiles` puts `MM` in both groups, untracked in changes, conflicted only in conflicts; `letter`/`letterColor`; `commitTarget` four cases incl. `1 file`. Component (jsdom): GitPanel with a fixture of three repos renders names, `Push 1` on the ahead repo, files only under the dirty repo, badge equals total. e2e `'değişen dosya Git sekmesinde görünür'`.
+- [ ] **Step 1: Write failing tests** — model: each `syncAction` branch incl. ahead+behind → Pull, gone upstream → Publish, unborn → null; `groupFiles` puts `MM` in both groups, untracked in changes, conflicted only in conflicts; `letter`/`letterColor`; `commitTarget` four cases incl. `1 file`. Component (jsdom): GitPanel with a fixture of three repos renders names, `Push 1` on the ahead repo, files only under the dirty repo, badge equals total. e2e `'a changed file shows in the Git tab'`.
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `npm run typecheck && npm test && npm run e2e`. Expected: PASS.
@@ -285,10 +285,10 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - Header buttons: fetch all, rescan. Test ids: `commit-message`, `commit-button`, `stage-file`, `unstage-file`, `stage-all`, `unstage-all`, `branch-button`, `error-box`.
 
 - [ ] **Step 1: Write failing tests**
-  - gitOps (temp repos + bare remote): `'keşfedilmemiş repo yolu reddedilir'` and `'.. içeren yol reddedilir'` (git log unchanged) (Review Focus 1); `'aynı repoda ikinci işlem reddedilir, ilki tamamlanır'` using a `pre-commit` hook that sleeps 1 s (Review Focus 2); `'commit ve push tek işlemde'` (remote has the commit); `'commit başarısızsa push denenmez'`; `'işlemden sonra durum yenilenir ve busy temizlenir'`; `'fetchAll tüm repolarda çalışır'`.
-  - actions: `'çok satırlı, tireyle başlayan ve özel karakterli mesaj aynen commit edilir'` for `"-m fix: x\n\nbody with \"quotes\" and $(touch pwned)"` → `git log -1 --format=%B` equals it (plus newline) and no `pwned` file (Review Focus 4).
+  - gitOps (temp repos + bare remote): `'an undiscovered repo path is rejected'` and `'a path containing .. is rejected'` (git log unchanged) (Review Focus 1); `'a second operation on the same repo is rejected, the first completes'` using a `pre-commit` hook that sleeps 1 s (Review Focus 2); `'commit and push in one operation'` (remote has the commit); `'push is not attempted if the commit fails'`; `'status refreshes and busy clears after an operation'`; `'fetchAll runs on every repo'`.
+  - actions: `'a multi-line message starting with a dash and containing special characters is committed verbatim'` for `"-m fix: x\n\nbody with \"quotes\" and $(touch pwned)"` → `git log -1 --format=%B` equals it (plus newline) and no `pwned` file (Review Focus 4).
   - CommitBox (jsdom): disabled when empty; label switches between `Commit · 2 files` and `Commit all · 3 files`; Cmd+Enter calls `onCommit` with `{ all, push: false }`; `Commit and push` passes `push: true`.
-  - e2e `'stage edip commit edince repo temize döner'`: temp repo with one modified file → click `stage-file`, type message, click `commit-button` → row shows `✓` and `git log -1 --format=%s` in the temp repo equals the message.
+  - e2e `'staging and committing returns the repo to clean'`: temp repo with one modified file → click `stage-file`, type message, click `commit-button` → row shows `✓` and `git log -1 --format=%s` in the temp repo equals the message.
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `npm run typecheck && npm test && npm run e2e`. Expected: PASS.
@@ -304,7 +304,7 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - `export function claudeTitleState(title: string): 'waiting' | 'working' | null` — rule written from the recorded titles; `null` for titles that are not Claude Code's.
 - The xterm `onTitleChange` of each tab feeds the rule; `Tab.waiting = tab.claude && state === 'waiting' && tab.id !== activeTab`. Becoming active clears it.
 
-- [ ] **Step 1: Record.** With the probe at `scratchpad/probe/probe.cjs` extended to send one short prompt, record the OSC 0 titles Claude Code 2.1.331 emits at idle, while working, and on a permission prompt. Save the raw list to `docs/notes/claude-terminal-title.md`. If working and waiting titles cannot be told apart, stop here: ledger a ruling, remove the bell from the tab bar, and report it to the user (spec: "yanlış çalan zil, hiç olmayan zilden kötüdür").
+- [ ] **Step 1: Record.** With the probe at `scratchpad/probe/probe.cjs` extended to send one short prompt, record the OSC 0 titles Claude Code 2.1.331 emits at idle, while working, and on a permission prompt. Save the raw list to `docs/notes/claude-terminal-title.md`. If working and waiting titles cannot be told apart, stop here: ledger a ruling, remove the bell from the tab bar, and report it to the user (spec: "a bell that rings wrongly is worse than no bell at all").
 - [ ] **Step 2: Write failing tests** from the recorded strings (each recorded title → expected state; a plain shell title → `null`).
 - [ ] **Step 3:** Run `npm test`. Expected: FAIL.
 - [ ] **Step 4:** Implement the rule and the yellow bell icon (`#E5C07B`, `aria-label="Needs input"`).
@@ -324,7 +324,7 @@ This is plan 1 of 4. Later plans: (2) center panel — diff view, file view, Fil
 - Quit/close with a busy tab: `dialog.showMessageBox` `Quit edi?` / `N terminals still have a running process.` buttons `Quit`, `Cancel`.
 - README: what edi is, `npm install && npm run setup`, `npm run dev`, `npm test`, `npm run e2e`, the safety rules list.
 
-- [ ] **Step 1: Write failing tests** — `clampWidths` bounds; e2e `'sağ panel genişliği yeniden açılışta korunur'` (set layout through the bridge, relaunch with the same userData, read the panel width).
+- [ ] **Step 1: Write failing tests** — `clampWidths` bounds; e2e `'right panel width is kept across relaunches'` (set layout through the bridge, relaunch with the same userData, read the panel width).
 - [ ] **Step 2:** Run `npm test`. Expected: FAIL.
 - [ ] **Step 3:** Implement; delete the spike.
 - [ ] **Step 4:** Run `npm run typecheck && npm test && npm run e2e`. Expected: PASS.

@@ -8,7 +8,7 @@
 
 **Tech Stack:** as plan 1, plus `shiki` 4.
 
-**Spec:** `docs/superpowers/specs/2026-11-24-edi-desktop-app-design.md` (sections "Orta panel", "Files", "Yenileme"). Visual source: `docs/design/edi-ui/Main.dc.html`, `Dosyalar.dc.html`, `Collapsed.dc.html`.
+**Spec:** `docs/superpowers/specs/2026-11-24-edi-desktop-app-design.md` (sections "Center panel", "Files", "Refresh"). Visual source: `docs/design/edi-ui/Main.dc.html`, `Dosyalar.dc.html`, `Collapsed.dc.html`.
 
 This is plan 2 of 4. Not built here: the History tab and the commit view (plan 3), packaging (plan 4).
 
@@ -195,7 +195,7 @@ export function highlightLines(text: string, path: string): Promise<Token[][] | 
 - Git tab: a single click on a file row calls `onOpenFile(repoPath, file, false)`, a double click pins; the selected row gets `aria-current="true"` and the artboard's selected style. Stage/unstage buttons keep working without opening the file.
 - `layout.diffMode` is saved through `setLayout`.
 
-- [ ] **Step 1: failing tests** — component (with a fake `edi`): split rows render with line numbers and `+`/`−` markers and the artboard's backgrounds; switching to Inline calls `onMode('inline')`; counts show; binary and "no changes left" states; e2e `'değişen dosyaya tıklayınca diff açılır'`: click `README.md` in the Git tab → center panel with one preview tab, `+1 −1`, the removed and added text visible; a second file reuses the tab; double click keeps both; `Close panel` hides it and clicking a file brings the tabs back; editing the file on disk updates the open diff within 5 s; the chosen mode survives a relaunch.
+- [ ] **Step 1: failing tests** — component (with a fake `edi`): split rows render with line numbers and `+`/`−` markers and the artboard's backgrounds; switching to Inline calls `onMode('inline')`; counts show; binary and "no changes left" states; e2e `'clicking a changed file opens its diff'`: click `README.md` in the Git tab → center panel with one preview tab, `+1 −1`, the removed and added text visible; a second file reuses the tab; double click keeps both; `Close panel` hides it and clicking a file brings the tabs back; editing the file on disk updates the open diff within 5 s; the chosen mode survives a relaunch.
 - [ ] **Step 2:** run — FAIL.
 - [ ] **Step 3:** implement.
 - [ ] **Step 4:** `npm run typecheck && npm test && npm run e2e` — PASS; take a screenshot with a demo repo and compare with `Main.dc.html`.
@@ -219,9 +219,9 @@ export function flattenTree(nodes: TreeNode[], isOpen: (path: string) => boolean
 - `FilesPanel`: one top-level folder per repo (open by default when it is the only repo — then its content is shown directly, without the repo row); folders closed by default; a changed file shows its status letter in its color, a folder containing changes shows `●` in yellow; the selected file has the selected style. File lists are loaded per repo when its folder is first opened and re-loaded when the repo's set of changed paths changes or on Rescan. Click opens the file view (preview), double click pins.
 - `FileView` props `{ repo: RepoView; path: string; onOpenInZed(): void }`: header (repo, path, `new file` chip when the file is untracked, `Read-only`, `Open in Zed`); body with line numbers (48 px column) and colors; `This file is too large to show (N MB)` / `Binary file` / `File not found` notes with `Open in Zed`.
 - Status bar, right side: file view → `<Language> · N lines`; diff view → `+N −N`; otherwise the refresh text.
-- Conflicted files in the Git tab get an `Open in Zed` icon button (spec: "her dosyada Open in Zed").
+- Conflicted files in the Git tab get an `Open in Zed` icon button (spec: "Open in Zed on every file").
 
-- [ ] **Step 1: failing tests** — `buildTree`/`flattenTree`: nesting, order, letters from the status, `dirty` propagation, a deleted file is not listed, open/closed folders; `FileView`: lines and numbers, chip for an untracked file, the three notes; `FilesPanel`: single-repo root, collapse all, markers; e2e `'Files sekmesinden dosya açılır'`: switch to Files, open folders, click a file → file view with its text and `Read-only`; an untracked file clicked in the Git tab opens the file view with `new file`; a 2 MB file shows the too-large note; the status bar shows the language and line count.
+- [ ] **Step 1: failing tests** — `buildTree`/`flattenTree`: nesting, order, letters from the status, `dirty` propagation, a deleted file is not listed, open/closed folders; `FileView`: lines and numbers, chip for an untracked file, the three notes; `FilesPanel`: single-repo root, collapse all, markers; e2e `'a file opens from the Files tab'`: switch to Files, open folders, click a file → file view with its text and `Read-only`; an untracked file clicked in the Git tab opens the file view with `new file`; a 2 MB file shows the too-large note; the status bar shows the language and line count.
 - [ ] **Step 2:** run — FAIL.
 - [ ] **Step 3:** implement.
 - [ ] **Step 4:** `npm run typecheck && npm test && npm run e2e` — PASS; screenshot against `Dosyalar.dc.html`.
