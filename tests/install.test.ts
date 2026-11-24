@@ -3,7 +3,7 @@ import { lstat, mkdir, readFile, readlink, symlink, writeFile } from 'node:fs/pr
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { BUNDLE_ID, checkLink, checkTarget, install } from '../scripts/install.mjs';
+import { BUNDLE_ID, checkLink, checkTarget, install, preflight } from '../scripts/install.mjs';
 import { makeTmpDir } from './helpers/tmpRepo.js';
 
 const run = promisify(execFile);
@@ -38,6 +38,19 @@ describe('checkTarget / checkLink', () => {
     expect(await checkLink(join(dir, 'link2'), target)).toBe('foreign');
     await writeFile(join(dir, 'dosya'), 'x');
     expect(await checkLink(join(dir, 'dosya'), target)).toBe('foreign');
+  });
+});
+
+describe('preflight', () => {
+  it('paketlemeden önce aynı denetimleri yapar, hiçbir şeye dokunmaz', async () => {
+    const dir = await makeTmpDir();
+    const appPath = join(dir, 'Applications', 'edi.app');
+    const linkPath = join(dir, 'bin', 'edi');
+    await expect(preflight({ appPath, linkPath, isRunning: notRunning })).resolves.toBeUndefined();
+    await expect(preflight({ appPath, linkPath, isRunning: async () => true })).rejects.toThrow('Quit edi before installing');
+    await fakeApp(appPath, 'com.baska.edi', 'baska');
+    await expect(preflight({ appPath, linkPath, isRunning: notRunning })).rejects.toThrow(`${appPath} is not edi; leaving it alone`);
+    expect(await exists(linkPath)).toBe(false);
   });
 });
 

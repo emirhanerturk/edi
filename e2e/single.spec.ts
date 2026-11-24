@@ -27,6 +27,8 @@ test('ikinci kopya klasörü açık pencereye devreder ve kendisi kapanır', asy
     await expect(page.getByText('ikinci-repo')).toBeVisible();
     await expect(page.getByText('ilk-repo')).toHaveCount(0);
     expect(app.windows()).toHaveLength(1);
+    // Testlerde gizli çalışan pencere devirde görünür olmaz.
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.isVisible()))).toEqual([false]);
   } finally {
     await app.close();
   }

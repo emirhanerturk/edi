@@ -44,9 +44,15 @@ export function readLoginEnv(shell: string, opts: { timeoutMs?: number } = {}): 
       finish(null);
     }, timeoutMs);
     const chunks: Buffer[] = [];
-    child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    child.stdout.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+      // İkinci işaret gelince ortam tamdır: rc'nin arka planda bıraktığı bir iş stdout'u açık
+      // tutsa da kabuğun bitmesi beklenmez.
+      const env = parseEnvBlock(Buffer.concat(chunks).toString('utf8'), marker);
+      if (env) finish(env);
+    });
     child.on('error', () => finish(null));
-    child.on('close', (code) => finish(code === 0 ? parseEnvBlock(Buffer.concat(chunks).toString('utf8'), marker) : null));
+    child.on('close', () => finish(null));
   });
 }
 

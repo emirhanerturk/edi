@@ -9,3 +9,8 @@ export declare function install(opts: {
   linkPath: string;
   isRunning?: (appPath: string) => Promise<boolean>;
 }): Promise<string[]>;
+export declare function preflight(opts: {
+  appPath: string;
+  linkPath: string;
+  isRunning?: (appPath: string) => Promise<boolean>;
+}): Promise<undefined>;

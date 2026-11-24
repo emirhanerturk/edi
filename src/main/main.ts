@@ -104,8 +104,9 @@ function createWindow(): void {
 
 // Dock'tan açılan paketli uygulama kabuk ayarlarını (PATH) almaz: giriş kabuğunun ortamı bir
 // kez okunur. Açılışı bekletmez; hook'ları çalıştıracak ilk commit'ten çok önce hazır olur.
-// Terminaller etkilenmez: her sekme kendi giriş kabuğunu açar.
-if (app.isPackaged) {
+// Ortam geldikten sonra açılan terminaller onu da devralır; her sekme yine kendi giriş kabuğunu
+// çalıştırır. Klasörü devredip kapanacak ikinci kopya kabuğu çalıştırmaz.
+if (app.isPackaged && primary) {
   const shell = process.env.SHELL || os.userInfo().shell || '/bin/zsh';
   void readLoginEnv(shell).then((login) => {
     if (!login) return;
@@ -117,9 +118,12 @@ if (app.isPackaged) {
 }
 
 app.on('second-instance', (_event, argv) => {
-  if (win && !win.isDestroyed()) {
+  // Terminal önde kalırsa "Switch folders?" sorusu arkada görünmez kalır: uygulama öne alınır.
+  // Testlerde gizli çalışan pencere görünür yapılmaz.
+  if (win && !win.isDestroyed() && !hidden) {
     if (win.isMinimized()) win.restore();
     win.show();
+    app.focus({ steal: true });
     win.focus();
   }
   const dir = folderArg(argv);

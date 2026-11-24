@@ -44,14 +44,23 @@ export async function isRunning(appPath) {
   }
 }
 
-/** Kurar; yapılanları satır satır döner. Bir denetim tutmazsa hiçbir şeye dokunmadan hata verir. */
-export async function install({ built, appPath, linkPath, isRunning: running = isRunning }) {
+/** Kurulumun denetimleri; bir şey tutmazsa hata verir. Hiçbir şeye dokunmaz. */
+export async function preflight({ appPath, linkPath, isRunning: running = isRunning }) {
   if (await running(appPath)) throw new Error('Quit edi before installing');
   const target = await checkTarget(appPath);
   if (target === 'foreign') throw new Error(`${appPath} is not edi; leaving it alone`);
+  const link = await checkLink(linkPath, commandIn(appPath));
+  if (link === 'foreign') throw new Error(`${linkPath} is not edi's command; leaving it alone`);
+  return undefined;
+}
+
+/** Kurar; yapılanları satır satır döner. Bir denetim tutmazsa hiçbir şeye dokunmadan hata verir. */
+export async function install({ built, appPath, linkPath, isRunning: running = isRunning }) {
+  // Paketleme sürerken durum değişmiş olabilir: denetimler kurmadan hemen önce yeniden yapılır.
+  await preflight({ appPath, linkPath, isRunning: running });
+  const target = await checkTarget(appPath);
   const command = commandIn(appPath);
   const link = await checkLink(linkPath, command);
-  if (link === 'foreign') throw new Error(`${linkPath} is not edi's command; leaving it alone`);
 
   const lines = [];
   if (target === 'ours') await rm(appPath, { recursive: true, force: true });

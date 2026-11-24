@@ -34,6 +34,15 @@ describe('readLoginEnv', () => {
     expect(env?.PATH).toBeTruthy();
   });
 
+  it('rc dosyası arka planda bir iş bıraksa da ortam hemen okunur', async () => {
+    // Arka plandaki iş stdout'u açık tutar; kabuğun bitişini beklemek zaman aşımına düşürürdü.
+    const shell = await fakeShell('sleep 5 &\nlast=""; for a in "$@"; do last="$a"; done\nexport FROM_RC=evet\n/bin/sh -c "$last"');
+    const started = Date.now();
+    const env = await readLoginEnv(shell, { timeoutMs: 3000 });
+    expect(env?.FROM_RC).toBe('evet');
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
   it('kabuk hata verirse ya da yanıt vermezse null; uzun sürmez', async () => {
     expect(await readLoginEnv(await fakeShell('exit 3'))).toBeNull();
     expect(await readLoginEnv('/olmayan/kabuk')).toBeNull();

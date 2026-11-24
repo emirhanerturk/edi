@@ -5,10 +5,20 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packager } from '@electron/packager';
-import { BUNDLE_ID, install } from './install.mjs';
+import { BUNDLE_ID, install, preflight } from './install.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const noInstall = process.argv.includes('--no-install');
+const target = { appPath: '/Applications/edi.app', linkPath: join(homedir(), '.local', 'bin', 'edi') };
+
+/** Kurulum hatası: yığın dökümü yerine tek satır. */
+function fail(error) {
+  console.error(`npm run dist: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+
+// Kurulamayacaksa (edi açık, yerinde başka bir edi) paketlemeden önce söylenir.
+if (!noInstall) await preflight(target).catch(fail);
 
 execFileSync('npm', ['run', 'build'], { cwd: root, stdio: 'inherit' });
 
@@ -38,7 +48,7 @@ execFileSync('codesign', ['--force', '--deep', '--sign', '-', built], { stdio: '
 console.log(`Built ${built}`);
 
 if (!noInstall) {
-  const lines = await install({ built, appPath: '/Applications/edi.app', linkPath: join(homedir(), '.local', 'bin', 'edi') });
+  const lines = await install({ built, ...target }).catch(fail);
   for (const line of lines) console.log(line);
   console.log('Open a folder with: edi <folder>');
 }

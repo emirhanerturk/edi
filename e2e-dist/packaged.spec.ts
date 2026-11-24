@@ -1,4 +1,5 @@
-import { access, chmod, mkdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, _electron } from '@playwright/test';
 import { makeRepo, tmpDir } from '../e2e/helpers.js';
@@ -15,8 +16,11 @@ test('paketli uygulama: klasör argümanı, terminal, renklendirme ve giriş kab
   await writeFile(join(repo, 'src', 'app.ts'), 'const a = 2;\nexport default a;\n');
 
   // Giriş kabuğu yerine geçen sahte kabuk: ortama bir işaret ekler.
-  const shell = join(await tmpDir(), 'login-shell');
-  await writeFile(shell, '#!/bin/sh\nfor a in "$@"; do last="$a"; done\nexport LOGIN_MARK=from-login\nexec /bin/sh -c "$last"\n');
+  // Her çağrıyı bir dosyaya yazar: devir için açılan ikinci kopya kabuğu çalıştırmamalı.
+  const shellDir = await tmpDir();
+  const shell = join(shellDir, 'login-shell');
+  const calls = join(shellDir, 'calls.log');
+  await writeFile(shell, `#!/bin/sh\necho call >> "${calls}"\nfor a in "$@"; do last="$a"; done\nexport LOGIN_MARK=from-login\nexec /bin/sh -c "$last"\n`);
   await chmod(shell, 0o755);
 
   const env: Record<string, string> = {};
@@ -46,6 +50,17 @@ test('paketli uygulama: klasör argümanı, terminal, renklendirme ve giriş kab
 
     // Giriş kabuğunun ortamı ana sürece eklendi.
     await expect.poll(() => app.evaluate(() => process.env.LOGIN_MARK ?? null)).toBe('from-login');
+
+    // `edi <klasör>`: ikinci kopya klasörü devreder ve kapanır; giriş kabuğunu yeniden çalıştırmaz.
+    const other = await tmpDir();
+    await makeRepo(other, 'beta');
+    const code = await new Promise<number>((resolve) =>
+      execFile(executable, [`--open=${other}`], { env, timeout: 20_000 }, (error) => resolve(error ? Number(error.code ?? 1) : 0)),
+    );
+    expect(code).toBe(0);
+    await expect(page.getByText('beta')).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect((await readFile(calls, 'utf8')).trim().split('\n')).toEqual(['call']);
   } finally {
     await app.close();
   }
