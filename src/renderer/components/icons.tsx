@@ -126,3 +126,10 @@ export const Spinner = (p: IconProps) => (
     <path d="M8 2.5a5.5 5.5 0 1 1-5.5 5.5" />
   </Icon>
 );
+
+/** Dışarıda (başka uygulamada) aç. */
+export const ExternalIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6.5 3.5H3.5v9h9v-3M9.5 2.5h4v4M13.5 2.5l-6 6" />
+  </Icon>
+);

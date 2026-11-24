@@ -127,3 +127,49 @@ describe('GitPanelView', () => {
     expect(button.title).toBe('Resolve the conflicts first');
   });
 });
+
+describe('GitPanelView, dosya açma', () => {
+  function renderOpen(selected: { repoPath: string; path: string } | null = null) {
+    const onOpenFile = vi.fn();
+    const onOp = vi.fn();
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onOpenFile={onOpenFile} onOp={onOp} selected={selected} />);
+    return { onOpenFile, onOp };
+  }
+  const fileRow = (group: string, path: string) =>
+    screen.getAllByTestId('file-row').find((el) => el.getAttribute('data-group') === group && el.getAttribute('data-path') === path)!;
+
+  it('tek tık dosyayı önizleme olarak, çift tık kalıcı olarak açar', () => {
+    const { onOpenFile } = renderOpen();
+    fireEvent.click(fileRow('changes', 'lib/old.ts'));
+    expect(onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', expect.objectContaining({ path: 'lib/old.ts' }), false);
+    fireEvent.doubleClick(fileRow('changes', 'new.ts'));
+    expect(onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', expect.objectContaining({ path: 'new.ts', kind: 'untracked' }), true);
+  });
+
+  it('Enter tuşu da açar', () => {
+    const { onOpenFile } = renderOpen();
+    fireEvent.keyDown(fileRow('changes', 'lib/old.ts'), { key: 'Enter' });
+    expect(onOpenFile).toHaveBeenCalledWith('/w/quizei-app', expect.objectContaining({ path: 'lib/old.ts' }), false);
+  });
+
+  it('stage düğmesi dosyayı açmaz', () => {
+    const { onOpenFile, onOp } = renderOpen();
+    const button = within(fileRow('changes', 'lib/old.ts')).getByTestId('stage-file');
+    fireEvent.click(button);
+    fireEvent.doubleClick(button);
+    expect(onOp).toHaveBeenCalledTimes(1);
+    expect(onOpenFile).not.toHaveBeenCalled();
+  });
+
+  it('orta panelde açık olan dosyanın satırı seçili görünür', () => {
+    renderOpen({ repoPath: '/w/quizei-app', path: 'app/play.tsx' });
+    const current = screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true');
+    // Kısmen stage'li dosya iki grupta da vardır.
+    expect(current.map((el) => el.getAttribute('data-group'))).toEqual(['staged', 'changes']);
+  });
+
+  it('başka repodaki aynı yol seçili sayılmaz', () => {
+    renderOpen({ repoPath: '/w/quizei-web', path: 'app/play.tsx' });
+    expect(screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true')).toHaveLength(0);
+  });
+});

@@ -334,6 +334,17 @@ button.branch-chip:hover {
   background: var(--selected);
 }
 
+/* Orta panelde açık olan dosya. */
+.file-row[aria-current='true'] {
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.file-row:focus-visible {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
 .file-letter {
   flex: none;
   width: 12px;

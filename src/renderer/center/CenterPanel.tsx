@@ -1,6 +1,9 @@
+import type { RepoView } from '../../shared/api';
+import { CloseIcon, WarningIcon } from '../components/icons';
 import { fileLetter } from '../git/model';
 import { useApp } from '../store';
 import { CenterTabs, type TabLabel } from './CenterTabs';
+import { DiffView } from './DiffView';
 import type { CenterTab } from './tabs';
 import './center.css';
 
@@ -8,6 +11,7 @@ import './center.css';
 export function CenterPanel() {
   const center = useApp((s) => s.center);
   const repos = useApp((s) => s.workspace.repos);
+  const error = useApp((s) => s.centerError);
   const { activateCenterTab, pinCenterTab, closeCenterTab, setCenterOpen } = useApp.getState();
 
   if (!center.open) return null;
@@ -35,12 +39,25 @@ export function CenterPanel() {
         onClose={closeCenterTab}
         onClosePanel={() => setCenterOpen(false)}
       />
-      {active && <CenterView key={active.id} tab={active} />}
+      {error !== null && (
+        <div className="center-error" role="alert">
+          <WarningIcon size={13} />
+          <span>{error}</span>
+          <div className="spacer" />
+          <button className="icon-button tiny" aria-label="Dismiss" title="Dismiss" onClick={() => useApp.getState().dismissCenterError()}>
+            <CloseIcon size={11} />
+          </button>
+        </div>
+      )}
+      {active && <CenterView key={active.id} tab={active} repo={repos.find((repo) => repo.path === active.repoPath) ?? null} />}
     </section>
   );
 }
 
-function CenterView({ tab }: { tab: CenterTab }) {
+function CenterView({ tab, repo }: { tab: CenterTab; repo: RepoView | null }) {
+  // Repo kaybolduysa sekme bir sonraki çalışma alanı olayında kapanır.
+  if (!repo) return null;
+  if (tab.kind === 'diff') return <DiffView repo={repo} path={tab.path} />;
   return (
     <div className="center-view" data-testid="center-view" data-kind={tab.kind}>
       <p className="center-note">{tab.path}</p>

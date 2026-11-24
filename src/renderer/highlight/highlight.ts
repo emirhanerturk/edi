@@ -1,6 +1,7 @@
 // Sözdizimi renkleri: Shiki, One Dark Pro teması. JavaScript regex motoru kullanılır; WebAssembly
 // yüklenmez, ağa çıkılmaz. Tema ve diller paketin içindedir.
 import type { HighlighterCore, LanguageInput } from 'shiki/core';
+import type { ParsedDiff } from '../../git/diffParse';
 import { LOADERS, languageOf } from './languages';
 
 export interface Token {
@@ -53,4 +54,40 @@ export async function highlightLines(text: string, path: string): Promise<Token[
   } catch {
     return null;
   }
+}
+
+/** Diff'in iki tarafının renkleri: satır numarası → parçalar. */
+export interface DiffTokens {
+  old: Map<number, Token[]>;
+  new: Map<number, Token[]>;
+}
+
+/**
+ * Diff'teki satırları renklendirir. Her hunk'ın eski ve yeni hâli ayrı ayrı, kendi içinde
+ * bütün bir kod parçası olarak okunur. Dil bilinmiyorsa ya da diff boşsa `null`.
+ */
+export async function highlightDiff(diff: ParsedDiff, path: string): Promise<DiffTokens | null> {
+  if (diff.hunks.length === 0 || !languageOf(path)) return null;
+  const tokens: DiffTokens = { old: new Map(), new: new Map() };
+  let budget = MAX_HIGHLIGHT_CHARS;
+  for (const hunk of diff.hunks) {
+    const sides = [
+      { into: tokens.old, lines: hunk.lines.flatMap((line) => (line.kind === 'add' ? [] : [{ no: line.oldNo, text: line.text }])) },
+      { into: tokens.new, lines: hunk.lines.flatMap((line) => (line.kind === 'del' ? [] : [{ no: line.newNo, text: line.text }])) },
+    ];
+    for (const side of sides) {
+      if (side.lines.length === 0) continue;
+      const text = side.lines.map((line) => line.text).join('\n');
+      budget -= text.length;
+      // Çok uzun diff'in kalanı düz gösterilir.
+      if (budget < 0) return tokens;
+      const lines = await highlightLines(text, path);
+      if (!lines) return null;
+      side.lines.forEach((line, index) => {
+        const parts = lines[index];
+        if (parts) side.into.set(line.no, parts);
+      });
+    }
+  }
+  return tokens;
 }

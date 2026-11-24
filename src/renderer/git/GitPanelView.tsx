@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { FileChange } from '../../git/types';
 import type { BranchList, GitOp, RepoView } from '../../shared/api';
 import {
@@ -50,6 +51,10 @@ export interface GitPanelProps {
   onDismissError?(repoPath: string): void;
   onFetchAll?(): void;
   loadBranches?(repoPath: string): Promise<BranchList>;
+  /** Dosya satırına tıklandı: tek tık önizleme (`pin` false), çift tık kalıcı sekme. */
+  onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
+  /** Orta panelde açık olan dosya; satırı seçili görünür. */
+  selected?: { repoPath: string; path: string } | null;
 }
 
 const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
@@ -106,6 +111,10 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
     <ErrorBox error={error} onPull={repo.hasRemote ? () => run({ op: 'pull' }) : undefined} onDismiss={() => props.onDismissError?.(repo.path)} />
   );
   const open = isExpanded(status, expanded[repo.path]);
+  const fileProps = {
+    open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
+    selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
+  };
 
   if (!status) {
     return (
@@ -211,9 +220,9 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               conflicts as resolved.
             </p>
           )}
-          <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} busy={busy} run={run} />
-          <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} />
-          <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} />
+          <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} busy={busy} run={run} {...fileProps} />
+          <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
+          <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
           {count === 0 && <p className="repo-clean">No changes</p>}
         </div>
       )}
@@ -276,11 +285,14 @@ interface FileGroupProps {
   files: FileChange[];
   busy: boolean;
   run(op: GitOp): void;
+  open(file: FileChange, pin: boolean): void;
+  /** Bu repoda, orta panelde açık olan dosyanın yolu. */
+  selectedPath: string | null;
   /** Çakışma varken "hepsini stage et / geri al" kapalıdır: ikisi de çakışma kaydını silerdi. */
   blocked?: boolean;
 }
 
-function FileGroup({ title, group, files, busy, run, blocked }: FileGroupProps) {
+function FileGroup({ title, group, files, busy, run, blocked, open, selectedPath }: FileGroupProps) {
   if (files.length === 0) return null;
   return (
     <div className="file-group">
@@ -314,40 +326,68 @@ function FileGroup({ title, group, files, busy, run, blocked }: FileGroupProps) 
         )}
       </div>
       {files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} selected={file.path === selectedPath} />
       ))}
     </div>
   );
 }
 
-function FileRow({ file, group, busy, run }: { file: FileChange; group: Group; busy: boolean; run(op: GitOp): void }) {
+interface FileRowProps {
+  file: FileChange;
+  group: Group;
+  busy: boolean;
+  selected: boolean;
+  run(op: GitOp): void;
+  open(file: FileChange, pin: boolean): void;
+}
+
+/** Satıra tıklamak dosyayı orta panelde açar; sağdaki düğme yalnız stage eder ya da geri alır. */
+function FileRow({ file, group, busy, selected, run, open }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
+  const button = (testId: string, label: string, title: string, op: GitOp, icon: ReactNode) => (
+    <button
+      className="icon-button tiny"
+      data-testid={testId}
+      aria-label={label}
+      title={title}
+      disabled={busy}
+      onClick={(event) => {
+        event.stopPropagation();
+        run(op);
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {icon}
+    </button>
+  );
   return (
-    <div className="file-row" data-testid="file-row" data-group={group} data-path={file.path} title={file.path}>
+    <div
+      className="file-row"
+      data-testid="file-row"
+      data-group={group}
+      data-path={file.path}
+      title={file.path}
+      role="button"
+      tabIndex={0}
+      aria-current={selected ? 'true' : undefined}
+      onClick={() => open(file, false)}
+      onDoubleClick={() => open(file, true)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        open(file, false);
+      }}
+    >
       <span className="file-letter mono" style={{ color: letterColor(mark) }}>
         {mark}
       </span>
       <span className={`file-name${isDeletion(file, group) ? ' deleted' : ''}`}>{name}</span>
       <span className="file-dir">{dir}</span>
       {group === 'staged' && isPartlyStaged(file) && <span className="chip">partly staged</span>}
-      {group === 'staged' && (
-        <button
-          className="icon-button tiny"
-          data-testid="unstage-file"
-          aria-label={`Unstage ${name}`}
-          title="Unstage"
-          disabled={busy}
-          onClick={() => run({ op: 'unstage', file })}
-        >
-          <MinusIcon size={12} />
-        </button>
-      )}
-      {group === 'changes' && (
-        <button className="icon-button tiny" data-testid="stage-file" aria-label={`Stage ${name}`} title="Stage" disabled={busy} onClick={() => run({ op: 'stage', file })}>
-          <StageIcon size={12} />
-        </button>
-      )}
+      {group === 'staged' && button('unstage-file', `Unstage ${name}`, 'Unstage', { op: 'unstage', file }, <MinusIcon size={12} />)}
+      {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
   );
 }

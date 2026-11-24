@@ -113,6 +113,13 @@ interface AppStore {
   activateCenterTab(id: string): void;
   pinCenterTab(id: string): void;
   setCenterOpen(open: boolean): void;
+  /** Diff görünümünün düzenini değiştirir ve hatırlar. */
+  setDiffMode(mode: Layout['diffMode']): void;
+  /** Orta paneldeki son hata ("Zed açılamadı" gibi); yoksa null. */
+  centerError: string | null;
+  dismissCenterError(): void;
+  /** Dosyayı (yol null ise repo klasörünü) Zed'de açar; açılamazsa hatayı orta panelde gösterir. */
+  openInZed(repoPath: string, path: string | null): Promise<void>;
 
   tabs: Tab[];
   activeTab: number | null;
@@ -173,6 +180,16 @@ export const useApp = create<AppStore>((set, get) => ({
   activateCenterTab: (id) => set((state) => ({ center: activateCenterTab(state.center, id) })),
   pinCenterTab: (id) => set((state) => ({ center: pinCenterTab(state.center, id) })),
   setCenterOpen: (open) => set((state) => ({ center: setPanelOpen(state.center, open) })),
+  setDiffMode(mode) {
+    set((state) => ({ layout: { ...state.layout, diffMode: mode } }));
+    edi.setLayout({ diffMode: mode });
+  },
+  centerError: null,
+  dismissCenterError: () => set({ centerError: null }),
+  async openInZed(repoPath, path) {
+    const result = await edi.openInZed(repoPath, path);
+    set({ centerError: result.ok ? null : result.error });
+  },
   dismissOpenError: () => set({ openError: null }),
 
   tabs: [],

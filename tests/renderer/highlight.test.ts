@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_HIGHLIGHT_CHARS, highlightLines } from '../../src/renderer/highlight/highlight';
+import { parseDiff } from '../../src/git/diffParse';
+import { MAX_HIGHLIGHT_CHARS, highlightDiff, highlightLines } from '../../src/renderer/highlight/highlight';
 
 const text = (tokens: { text: string }[]) => tokens.map((token) => token.text).join('');
 
@@ -48,5 +49,26 @@ describe('highlightLines', () => {
   it('çok uzun metni renklendirmez', async () => {
     expect(await highlightLines('a'.repeat(MAX_HIGHLIGHT_CHARS + 1), 'a.ts')).toBeNull();
     expect(MAX_HIGHLIGHT_CHARS).toBe(200_000);
+  });
+});
+
+describe('highlightDiff', () => {
+  const diff = parseDiff(
+    ['--- a/a.ts', '+++ b/a.ts', '@@ -1,3 +1,3 @@', ' const a = 1;', "-const b = 'eski';", "+const b = 'yeni';", ' // son', '@@ -20 +20,2 @@', '-return a;', '+return a + b;', '+// ek', ''].join('\n'),
+  );
+
+  it('eski ve yeni tarafın satırlarını numaralarıyla renklendirir', async () => {
+    const tokens = (await highlightDiff(diff, 'a.ts'))!;
+    expect([...tokens.old.keys()]).toEqual([1, 2, 3, 20]);
+    expect([...tokens.new.keys()]).toEqual([1, 2, 3, 20, 21]);
+    expect(text(tokens.old.get(2)!)).toBe("const b = 'eski';");
+    expect(text(tokens.new.get(2)!)).toBe("const b = 'yeni';");
+    expect(text(tokens.new.get(21)!)).toBe('// ek');
+    expect(tokens.new.get(2)!.some((token) => token.color.toLowerCase() === '#98c379')).toBe(true);
+  });
+
+  it('bilinmeyen dilde ve boş diff\'te null', async () => {
+    expect(await highlightDiff(diff, 'a.xyz')).toBeNull();
+    expect(await highlightDiff(parseDiff(''), 'a.ts')).toBeNull();
   });
 });
