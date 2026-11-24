@@ -1,11 +1,20 @@
 import os from 'node:os';
 import path from 'node:path';
 import { BrowserWindow, Menu, app, screen } from 'electron';
+import { folderArg } from './args.js';
 import { AppCore } from './ipc.js';
 import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
 
 // Testler ve geliştirme, kullanıcının gerçek ayar klasörüne dokunmasın diye ayrı bir klasör verebilir.
+// Paketsiz çalışan geliştirme kopyası da ayrı klasörü kullanır: kurulu edi'nin tek-kopya kilidine
+// takılıp kapanmasın.
 if (process.env.EDI_USER_DATA) app.setPath('userData', process.env.EDI_USER_DATA);
+else if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'edi-dev'));
+
+// Tek kopya: `edi <klasör>` yeni bir kopya başlatır; o kopya kilidi alamaz, klasörü açık olana
+// devreder ve kapanır. Açık pencere o klasöre geçer (çalışan terminal varsa sorulur).
+const primary = app.requestSingleInstanceLock();
+if (!primary) app.quit();
 
 const here = import.meta.dirname;
 const devUrl = process.env.VITE_DEV_SERVER_URL;
@@ -107,7 +116,18 @@ if (app.isPackaged) {
   });
 }
 
+app.on('second-instance', (_event, argv) => {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+  const dir = folderArg(argv);
+  if (dir !== undefined && core) void core.openFolder(dir);
+});
+
 app.whenReady().then(async () => {
+  if (!primary) return;
   // Varsayılan menüdeki Cmd+W pencereyi, Cmd+R sayfayı (ve terminalleri) kapatır; ikisi de istenmiyor.
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -119,7 +139,7 @@ app.whenReady().then(async () => {
   core = await AppCore.create(path.join(app.getPath('userData'), 'state.json'), () => win);
   core.register();
   // Klasör pencere açılmadan önce açılır: sayfa ilk durumu istediğinde repolar hazırdır.
-  await core.openInitial(process.env.EDI_OPEN_DIR);
+  await core.openInitial(folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
   createWindow();
 });
 
