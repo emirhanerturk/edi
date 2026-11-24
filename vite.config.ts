@@ -11,7 +11,9 @@ function contentSecurityPolicy(): Plugin {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'", // xterm ölçüm için satır içi stil yazar
     "font-src 'self'",
-    "img-src 'self' data:",
+    // Dosya görünümündeki görsel ve videolar ana sürecin `edi-media:` adresinden gelir.
+    "img-src 'self' data: edi-media:",
+    "media-src edi-media:",
     "connect-src 'none'",
   ].join('; ');
   return {

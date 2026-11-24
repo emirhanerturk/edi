@@ -2,6 +2,7 @@
 import { constants } from 'node:fs';
 import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
+import { mediaOf } from '../shared/media.js';
 import { runGit } from './exec.js';
 import type { DirList, FileContent, FileList } from './types.js';
 
@@ -111,7 +112,11 @@ export async function readRepoFile(repo: string, relPath: unknown): Promise<File
   let handle;
   try {
     // Açmadan önce bakılır: bir FIFO'yu açmak, yazan biri gelene kadar bekler.
-    if (!(await stat(target)).isFile()) return { ok: false, error: 'Not a file' };
+    const info0 = await stat(target);
+    if (!info0.isFile()) return { ok: false, error: 'Not a file' };
+    // Görsel ve video okunmaz: sayfa onları kendi adresinden yükler (boyut sınırı yok).
+    const type = mediaOf(typeof relPath === 'string' ? relPath : '');
+    if (type) return { ok: true, kind: 'media', media: type.media, size: info0.size, mtime: info0.mtimeMs };
     handle = await open(target, constants.O_RDONLY | constants.O_NONBLOCK);
     const info = await handle.stat();
     if (!info.isFile()) return { ok: false, error: 'Not a file' };

@@ -246,3 +246,41 @@ test('diff görünümünden dosyanın tamamı ayrı bir sekmede açılır; diff 
     await app.close();
   }
 });
+
+test('Files sekmesinden açılan görsel önizlenir; video adresi byte aralığı verir; başka dosya verilmez', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await mkdir(join(repo, 'assets'));
+  // 1x1 piksel PNG.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  await writeFile(join(repo, 'assets', 'logo.png'), png);
+  await writeFile(join(repo, 'assets', 'intro.mp4'), Buffer.from('0123456789'));
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await page.getByRole('tab', { name: 'Files' }).click();
+    const row = (name: string) => page.locator(`[data-testid="tree-row"][data-name="${name}"]`);
+    await row('alpha').click();
+    await row('assets').click();
+    await row('logo.png').click();
+    const image = page.getByRole('img', { name: 'logo.png' });
+    await expect(image).toBeVisible();
+    await expect.poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(1);
+    await expect(page.getByTestId('center-info')).toHaveText(`PNG image · ${png.length} B`);
+
+    // Sayfa ağ isteği atamaz (CSP connect-src 'none'); adres yalnız <img>/<video> içindir.
+    const src = (await image.getAttribute('src'))!;
+    const blocked = await page.evaluate(async (url) => fetch(url).then(() => 'loaded', () => 'blocked'), src);
+    expect(blocked).toBe('blocked');
+
+    // Ana süreçteki karşılayıcı: videoya byte aralığı, görsel olmayana 404.
+    const swap = (path: string) => src.replace(encodeURIComponent('assets/logo.png'), encodeURIComponent(path));
+    const part = await app.evaluate(async ({ net }, url) => {
+      const response = await net.fetch(url, { headers: { Range: 'bytes=2-4' } });
+      return [response.status, response.headers.get('content-range'), await response.text()];
+    }, swap('assets/intro.mp4'));
+    expect(part).toEqual([206, 'bytes 2-4/10', '234']);
+    expect(await app.evaluate(async ({ net }, url) => (await net.fetch(url)).status, swap('README.md'))).toBe(404);
+  } finally {
+    await app.close();
+  }
+});

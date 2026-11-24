@@ -41,6 +41,7 @@ export function FileView({ repo, path }: { repo: RepoView; path: string }) {
   return (
     <FilePane
       repoName={repo.name}
+      repoPath={repo.path}
       path={path}
       content={data}
       isNew={isNew}

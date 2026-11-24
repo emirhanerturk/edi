@@ -38,7 +38,7 @@ describe('büyük görünümler aynı veriyle yeniden hesaplanmaz', () => {
 
   it('dosya gövdesi yeni geri çağırmalarla yeniden bölünmez', () => {
     const content: FileContent = { ok: true, kind: 'text', text: 'a\nb\n', size: 4 };
-    const pane = () => <FilePane repoName="r" path="a.ts" content={content} isNew={false} tokens={null} onOpenInZed={() => undefined} />;
+    const pane = () => <FilePane repoName="r" repoPath="/w/r" path="a.ts" content={content} isNew={false} tokens={null} onOpenInZed={() => undefined} />;
     const { rerender } = render(pane());
     rerender(pane());
     rerender(pane());

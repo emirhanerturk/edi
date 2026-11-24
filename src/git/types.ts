@@ -42,6 +42,8 @@ export type FileContent =
   | { ok: true; kind: 'text'; text: string; size: number }
   | { ok: true; kind: 'binary'; size: number }
   | { ok: true; kind: 'tooLarge'; size: number }
+  /** Görsel ya da video: içerik `edi-media://` adresinden okunur; `mtime` önbellek için. */
+  | { ok: true; kind: 'media'; media: 'image' | 'video'; size: number; mtime: number }
   | { ok: false; error: string };
 
 /** Bir commit'in listede gereken bilgileri. */

@@ -63,6 +63,21 @@ describe('listFiles', () => {
 });
 
 describe('readRepoFile', () => {
+  it('görsel ve video dosyasının içeriğini değil, türünü, boyutunu ve değişme anını verir (boyut sınırı yok)', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await mkdir(join(repo, 'assets'));
+    await writeFile(join(repo, 'assets', 'logo.PNG'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]));
+    await writeFile(join(repo, 'assets', 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    await writeFile(join(repo, 'assets', 'intro.mp4'), Buffer.alloc(MAX_FILE_BYTES + 10));
+    const png = await readRepoFile(repo, 'assets/logo.PNG');
+    expect(png).toMatchObject({ ok: true, kind: 'media', media: 'image', size: 8 });
+    expect(png.ok && png.kind === 'media' && png.mtime > 0).toBe(true);
+    expect(await readRepoFile(repo, 'assets/icon.svg')).toMatchObject({ kind: 'media', media: 'image' });
+    expect(await readRepoFile(repo, 'assets/intro.mp4')).toMatchObject({ kind: 'media', media: 'video', size: MAX_FILE_BYTES + 10 });
+    await mkdir(join(repo, 'klasor.png'));
+    expect(await readRepoFile(repo, 'klasor.png')).toEqual({ ok: false, error: 'Not a file' });
+  });
+
   it('metin dosyasını okur', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await mkdir(join(repo, 'src'));
@@ -88,8 +103,8 @@ describe('readRepoFile', () => {
 
   it('ikili dosyanın içeriğini göndermez', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
-    await writeFile(join(repo, 'resim.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]));
-    expect(await readRepoFile(repo, 'resim.png')).toEqual({ ok: true, kind: 'binary', size: 12 });
+    await writeFile(join(repo, 'veri.bin'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]));
+    expect(await readRepoFile(repo, 'veri.bin')).toEqual({ ok: true, kind: 'binary', size: 12 });
   });
 
   it('klasör ve olmayan dosya için anlaşılır hata', async () => {
