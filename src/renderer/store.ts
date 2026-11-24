@@ -56,6 +56,10 @@ interface AppStore {
   activate(id: number): void;
   /** Tüm sekmeleri kapatır (klasör değişince). */
   resetTabs(): void;
+
+  /** Git sekmesinde kullanıcının elle açıp kapattığı repolar (oturum boyunca). */
+  expanded: Record<string, boolean>;
+  toggleRepo(repoPath: string, open: boolean): void;
 }
 
 const EMPTY: WorkspaceView = { dir: null, repos: [], rootSessions: 0, refreshedAt: 0 };
@@ -124,6 +128,9 @@ export const useApp = create<AppStore>((set, get) => ({
     disposeAllTerminals();
     set({ tabs: [], activeTab: null });
   },
+
+  expanded: {},
+  toggleRepo: (repoPath, open) => set((state) => ({ expanded: { ...state.expanded, [repoPath]: open } })),
 }));
 
 /** Ana süreçten ilk durumu alır ve değişikliklere abone olur. Dönen işlev abonelikleri kaldırır. */

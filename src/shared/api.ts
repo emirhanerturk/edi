@@ -14,6 +14,8 @@ export interface RepoView {
   busy: string | null;
   /** Bu repoda, bir terminalde açık Claude Code oturumu sayısı. */
   claude: number;
+  /** Repoda en az bir remote tanımlı; yoksa push/pull/publish yapılacak yer yoktur. */
+  hasRemote: boolean;
 }
 
 export interface WorkspaceView {

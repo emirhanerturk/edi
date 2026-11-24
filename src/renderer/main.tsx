@@ -11,6 +11,7 @@ import '@fontsource/ibm-plex-mono/latin-ext-500.css';
 import './theme.css';
 import './app.css';
 import './terminals/terminals.css';
+import './git/git.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 

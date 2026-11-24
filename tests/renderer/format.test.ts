@@ -21,6 +21,7 @@ const repo = (name: string, s: RepoStatus | null): RepoView => ({
   error: s ? null : 'x',
   busy: null,
   claude: 0,
+  hasRemote: true,
 });
 
 describe('tildify', () => {

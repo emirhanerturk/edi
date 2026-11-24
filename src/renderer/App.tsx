@@ -3,6 +3,7 @@ import { edi } from './bridge';
 import { EmptyState } from './components/EmptyState';
 import { StatusBar } from './components/StatusBar';
 import { TitleBar } from './components/TitleBar';
+import { GitPanel } from './git/GitPanel';
 import { connect, useApp } from './store';
 import { TerminalPanel } from './terminals/TerminalPanel';
 
@@ -46,6 +47,7 @@ export function App() {
       ) : (
         <main className="app-body">
           <TerminalPanel />
+          <GitPanel />
         </main>
       )}
       {ready && dir !== null && <StatusBar />}

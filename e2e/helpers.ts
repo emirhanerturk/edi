@@ -35,6 +35,14 @@ export async function makeRepo(parent: string, name: string): Promise<string> {
   return path;
 }
 
+/** Yerel bir bare repo oluşturur ve `origin` olarak ekler; yolunu döner. Hiçbir şey push edilmez. */
+export async function addRemote(repo: string): Promise<string> {
+  const bare = join(await tmpDir('edi-e2e-origin-'), 'origin.git');
+  await git(repo, 'init', '-q', '--bare', '-b', 'main', bare);
+  await git(repo, 'remote', 'add', 'origin', bare);
+  return bare;
+}
+
 export interface Launched {
   app: ElectronApplication;
   page: Page;

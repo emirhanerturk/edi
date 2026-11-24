@@ -92,3 +92,37 @@ export const WarningIcon = (p: IconProps) => (
     <path d="M8 6.6v3.2M8 11.6v.1" />
   </Icon>
 );
+export const BranchIcon = (p: IconProps) => (
+  <Icon strokeLinejoin="miter" {...p}>
+    <circle cx="4.5" cy="3.5" r="1.7" />
+    <circle cx="4.5" cy="12.5" r="1.7" />
+    <circle cx="11.5" cy="5.5" r="1.7" />
+    <path d="M4.5 5.2v5.6M11.5 7.2c0 2.6-7 1.4-7 3.6" />
+  </Icon>
+);
+export const MinusIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.8} {...p}>
+    <path d="M3.5 8h9" />
+  </Icon>
+);
+export const StageIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.8} {...p}>
+    <path d="M8 3.5v9M3.5 8h9" />
+  </Icon>
+);
+export const FetchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3 13.5h10" />
+  </Icon>
+);
+export const RescanIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" />
+  </Icon>
+);
+/** Süren işlem: dönen yay. */
+export const Spinner = (p: IconProps) => (
+  <Icon className="spin" {...p}>
+    <path d="M8 2.5a5.5 5.5 0 1 1-5.5 5.5" />
+  </Icon>
+);

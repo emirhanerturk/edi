@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Workspace } from '../src/main/workspace.js';
 import type { WorkspaceView } from '../src/shared/api.js';
-import { initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+import { addBareRemote, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const open: Workspace[] = [];
 afterEach(() => {
@@ -37,7 +37,7 @@ describe('Workspace', () => {
     const view = ws.view();
     expect(view.dir).toBe(dir);
     expect(view.repos.map((r) => r.name)).toEqual(['a', 'b']);
-    expect(view.repos[0]).toMatchObject({ path: join(dir, 'a'), error: null, busy: null, claude: 0 });
+    expect(view.repos[0]).toMatchObject({ path: join(dir, 'a'), error: null, busy: null, claude: 0, hasRemote: false });
     expect(view.repos[0]?.status).toMatchObject({ head: 'main', files: [] });
   });
 
@@ -109,6 +109,20 @@ describe('Workspace', () => {
       ['b', null],
     ]);
     expect(ws.view().repos[1]?.status?.head).toBe('main');
+  });
+
+  it("reponun remote'u olup olmadığını bildirir; sonradan eklenen yeniden taramada görünür", async () => {
+    const dir = await makeTmpDir();
+    const a = await initRepo(dir, 'a', { commit: true });
+    const b = await initRepo(dir, 'b', { commit: true });
+    await addBareRemote(b);
+    const { ws } = makeWorkspace();
+    await ws.open(dir);
+    expect(ws.view().repos.map((r) => r.hasRemote)).toEqual([false, true]);
+
+    await addBareRemote(a);
+    await ws.rescan();
+    expect(ws.view().repos.map((r) => r.hasRemote)).toEqual([true, true]);
   });
 
   it('oturum sayıları repo satırlarına ve köke yazılır', async () => {

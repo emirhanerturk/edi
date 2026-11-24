@@ -1,8 +1,12 @@
 import { realpath, stat } from 'node:fs/promises';
 import { type Repo, discoverRepos } from '../git/discover.js';
+import { runGit } from '../git/exec.js';
 import { getStatus } from '../git/status.js';
 import { assignSessions } from '../sessions.js';
 import type { RepoView, WorkspaceView } from '../shared/api.js';
+
+/** Remote listesinin kaç durum yoklamasında bir yeniden okunacağı. */
+const REMOTES_EVERY = 15;
 
 export type OpenWorkspaceResult = { ok: true; repoCount: number } | { ok: false; error: string };
 
@@ -23,6 +27,7 @@ export class Workspace {
   private generation = 0;
   private readonly onChange: (view: WorkspaceView) => void;
   private readonly statusMs: number;
+  private rounds = 0;
 
   constructor(opts: { onChange: (view: WorkspaceView) => void; statusMs?: number }) {
     this.onChange = opts.onChange;
@@ -43,7 +48,7 @@ export class Workspace {
     this.dir = real;
     this.repos = (await discoverRepos(real)).map(emptyView);
     this.applySessions();
-    await this.refreshAll();
+    await Promise.all([this.refreshRemotes(), this.refreshAll()]);
     this.timer = setInterval(() => void this.refreshAll(), this.statusMs);
     return { ok: true, repoCount: this.repos.length };
   }
@@ -57,7 +62,7 @@ export class Workspace {
     const known = new Map(this.repos.map((repo) => [repo.path, repo]));
     this.repos = found.map((repo) => known.get(repo.path) ?? emptyView(repo));
     this.applySessions();
-    await this.refreshAll();
+    await Promise.all([this.refreshRemotes(), this.refreshAll()]);
   }
 
   view(): WorkspaceView {
@@ -118,8 +123,25 @@ export class Workspace {
     });
   }
 
+  /** Remote listesi nadiren değişir: açılışta, yeniden taramada ve ara sıra okunur. */
+  private async refreshRemotes(): Promise<void> {
+    const generation = this.generation;
+    const results = await Promise.all(
+      this.repos.map(async (repo) => {
+        const result = await runGit(repo.path, ['remote']);
+        return { path: repo.path, hasRemote: result.ok ? result.stdout.trim() !== '' : null };
+      }),
+    );
+    if (generation !== this.generation) return;
+    for (const { path, hasRemote } of results) {
+      if (hasRemote !== null && this.repo(path)?.hasRemote !== hasRemote) this.patch(path, { hasRemote });
+    }
+  }
+
   private async refreshAll(): Promise<void> {
     const generation = this.generation;
+    // Terminalden eklenen bir remote yaklaşık yarım dakikada fark edilir.
+    if (++this.rounds % REMOTES_EVERY === 0) void this.refreshRemotes();
     await Promise.all(this.repos.map((repo) => this.refreshOne(repo.path)));
     if (generation !== this.generation) return;
     this.refreshedAt = Date.now();
@@ -143,5 +165,5 @@ export class Workspace {
 }
 
 function emptyView(repo: Repo): RepoView {
-  return { name: repo.name, path: repo.path, status: null, error: null, busy: null, claude: 0 };
+  return { name: repo.name, path: repo.path, status: null, error: null, busy: null, claude: 0, hasRemote: false };
 }
