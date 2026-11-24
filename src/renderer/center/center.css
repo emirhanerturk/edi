@@ -685,6 +685,5 @@
 }
 
 .monaco-editor .edi-line-note-link:hover {
-  color: var(--text-2) !important;
-  text-decoration: underline;
+  color: #7f848e !important;
 }
