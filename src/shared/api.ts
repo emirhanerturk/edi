@@ -107,6 +107,20 @@ export interface ServerInfo {
 }
 
 /** Ana sürecin sayfaya kendiliğinden gönderdiği olaylar. */
+/** Bir kullanım penceresi: kullanılan yüzde (100'ü aşabilir) ve sıfırlanma anı (ms). */
+export interface UsageWindow {
+  percent: number;
+  resetsAt: number;
+}
+
+/** Claude kullanım limitleri; Claude Code'un durum satırı köprüsünden. */
+export interface ClaudeUsage {
+  fiveHour: UsageWindow | null;
+  week: UsageWindow | null;
+  /** Verinin yazıldığı an (ms). */
+  updatedAt: number;
+}
+
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
   recent: [recent: RecentFolder[]];
@@ -114,6 +128,8 @@ export interface EdiEvents {
   'pty:exit': [id: number];
   tabs: [tabs: TabState[]];
   servers: [servers: ServerInfo[]];
+  /** Claude kullanım limitleri değişti (ya da geçerli pencere kalmadı: null). */
+  usage: [usage: ClaudeUsage | null];
 }
 
 /** Sayfaya `window.edi` olarak verilen köprü. Görevler ilerledikçe büyür. */
@@ -138,6 +154,8 @@ export interface EdiApi {
   listFiles(repoPath: string): Promise<FileList>;
   /** Repo içindeki bir klasörün tek seviyesi; yok sayılan klasörün içini göstermek için. */
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
+  /** Son bilinen Claude kullanım limitleri; köprü kurulmamışsa ya da süresi geçtiyse null. */
+  claudeUsage(): Promise<ClaudeUsage | null>;
   /** Dosyayı, `filePath` null ise repo klasörünü Zed'de açar. */
   openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
   /** Terminaldeki bir web bağlantısını varsayılan tarayıcıda açar (yalnız http/https). */

@@ -10,6 +10,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 
 ## What it does today
 
+- **Claude usage.** The 5-hour and weekly limits in the title bar, with reset times (see
+  [Install](#install) for the one-line setup).
 - **Terminals.** Real login shells (`$SHELL -l`) in tabs. A tab is named after the process
   running in front; Claude Code tabs carry a mark, and a bell when a background session
   stops working and waits for you.
@@ -80,6 +82,21 @@ to `/Applications/edi.app` and links `~/.local/bin/edi` to the command inside it
 again to update. It stops without changing anything while edi is running, and it never
 overwrites an `edi.app` or an `edi` command that is not edi's. `npm run dist -- --no-install`
 only builds, into `release/`.
+
+### Claude usage in the title bar
+
+edi shows your Claude 5-hour and weekly limits (percent used and when each resets) next to
+the session count. Claude Code hands these numbers only to a status line command, so edi
+ships a small bridge for it. Add this to `~/.claude/settings.json`:
+
+```json
+"statusLine": { "type": "command", "command": "/Applications/edi.app/Contents/Resources/edi-statusline" }
+```
+
+The bridge writes only the `rate_limits` part to
+`~/Library/Application Support/edi/claude-usage.json` and prints nothing, so Claude Code's
+own status line stays empty. The numbers refresh whenever a Claude Code session updates its
+status line; nothing goes over the network.
 
 Opened from the Dock, edi reads your login shell's environment once at startup, so git hooks
 find `node` and other tools from your shell's `PATH`. `npm run icon` regenerates

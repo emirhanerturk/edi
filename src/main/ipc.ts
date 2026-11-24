@@ -3,9 +3,10 @@ import os from 'node:os';
 import { basename, resolve } from 'node:path';
 import { type BrowserWindow, dialog, ipcMain } from 'electron';
 import { listPs } from '../procs.js';
+import { readUsage, usageFile } from './claudeUsage.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
+import type { AppState, ClaudeUsage, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
@@ -17,6 +18,8 @@ import { Workspace } from './workspace.js';
 
 /** Süreç yoklaması: sekme adları ve Claude Code oturumları. */
 const PROCESSES_MS = 3000;
+/** Claude kullanım dosyasına bakma aralığı; sıfırlanan pencere de böyle düşer. */
+const USAGE_MS = 5000;
 /** Yeni açılan sekmede komutun başlaması için beklenen süre; sonra bir kez erken yoklanır. */
 const AFTER_CREATE_MS = 700;
 /** Sürükleme gibi art arda gelen düzen değişiklikleri bu kadar bekletilip bir kez yazılır. */
@@ -40,6 +43,9 @@ export class AppCore {
   private pollingProcesses = false;
   private tabsSent = '';
   private serversSent = '[]';
+  private usageTimer: NodeJS.Timeout | null = null;
+  private usageSent = 'null';
+  private readonly usagePath = usageFile(process.env, os.homedir());
   private layoutTimer: NodeJS.Timeout | null = null;
 
   private constructor(
@@ -223,11 +229,31 @@ export class AppCore {
     });
 
     this.processTimer = setInterval(() => void this.pollProcesses(), PROCESSES_MS);
+
+    ipcMain.handle('usage:get', () => this.readUsage());
+    this.usageTimer = setInterval(() => void this.pollUsage(), USAGE_MS);
+  }
+
+  private async readUsage(): Promise<ClaudeUsage | null> {
+    const usage = await readUsage(this.usagePath);
+    this.usageSent = JSON.stringify(usage);
+    return usage;
+  }
+
+  /** Kullanım dosyası değişince (ya da bir pencere sıfırlanınca) sayfaya gönderilir. */
+  private async pollUsage(): Promise<void> {
+    const usage = await readUsage(this.usagePath);
+    const json = JSON.stringify(usage);
+    if (json === this.usageSent) return;
+    this.usageSent = json;
+    this.send('usage', usage);
   }
 
   dispose(): void {
     if (this.processTimer) clearInterval(this.processTimer);
     this.processTimer = null;
+    if (this.usageTimer) clearInterval(this.usageTimer);
+    this.usageTimer = null;
     this.workspace.dispose();
     this.ptys.killAll();
   }

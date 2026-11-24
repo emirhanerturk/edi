@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { EdiApi, EdiEvents } from '../shared/api.js' with { 'resolution-mode': 'import' };
 
-const EVENTS: ReadonlySet<string> = new Set<keyof EdiEvents>(['workspace', 'recent', 'pty:data', 'pty:exit', 'tabs', 'servers']);
+const EVENTS: ReadonlySet<string> = new Set<keyof EdiEvents>(['workspace', 'recent', 'pty:data', 'pty:exit', 'tabs', 'servers', 'usage']);
 
 const api: EdiApi = {
   getState: () => ipcRenderer.invoke('state:get'),
@@ -18,6 +18,7 @@ const api: EdiApi = {
   readFile: (repoPath, filePath) => ipcRenderer.invoke('view:read', repoPath, filePath),
   listFiles: (repoPath) => ipcRenderer.invoke('view:list', repoPath),
   listDir: (repoPath, dirPath) => ipcRenderer.invoke('view:listDir', repoPath, dirPath),
+  claudeUsage: () => ipcRenderer.invoke('usage:get'),
   openInZed: (repoPath, filePath) => ipcRenderer.invoke('view:openInZed', repoPath, filePath),
   openUrl: (url) => ipcRenderer.invoke('shell:openUrl', url),
   log: (repoPath, count) => ipcRenderer.invoke('history:log', repoPath, count),

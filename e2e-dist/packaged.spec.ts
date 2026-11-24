@@ -27,7 +27,12 @@ test('paketli uygulama: klasör argümanı, terminal, renklendirme ve giriş kab
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value;
   }
-  Object.assign(env, { EDI_USER_DATA: await tmpDir('edi-dist-data-'), EDI_HIDDEN: '1', EDI_SHELL: '/bin/sh', SHELL: shell });
+  const data = await tmpDir('edi-dist-data-');
+  Object.assign(env, { EDI_USER_DATA: data, EDI_HIDDEN: '1', EDI_SHELL: '/bin/sh', SHELL: shell, EDI_USAGE_FILE: join(data, 'claude-usage.json') });
+
+  // Claude Code'un durum satırı ayarının göstereceği köprü betiği paketin içinde ve çalıştırılabilir.
+  const statusline = join(root, 'release', `edi-darwin-${process.arch}`, 'edi.app', 'Contents', 'Resources', 'edi-statusline');
+  await access(statusline, 1);
 
   const app = await _electron.launch({ executablePath: executable, args: [`--open=${dir}`], env });
   try {

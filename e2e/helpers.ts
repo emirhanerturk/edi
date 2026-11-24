@@ -50,7 +50,7 @@ export interface Launched {
 }
 
 /** Uygulamayı boş bir kullanıcı verisi klasörüyle (ya da verilenle) ve görünmez pencereyle açar. */
-export async function launch(opts: { openDir?: string; userData?: string } = {}): Promise<Launched> {
+export async function launch(opts: { openDir?: string; userData?: string; usageFile?: string } = {}): Promise<Launched> {
   const userData = opts.userData ?? (await tmpDir('edi-e2e-data-'));
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(GIT_ENV)) {
@@ -60,6 +60,8 @@ export async function launch(opts: { openDir?: string; userData?: string } = {})
   env.EDI_HIDDEN = '1';
   // Kullanıcının kabuk profili testleri yavaşlatmasın ve değiştirmesin.
   env.EDI_SHELL = '/bin/sh';
+  // Kullanıcının gerçek Claude kullanım dosyası okunmaz.
+  env.EDI_USAGE_FILE = opts.usageFile ?? join(userData, 'claude-usage.json');
   if (opts.openDir) env.EDI_OPEN_DIR = opts.openDir;
 
   const app = await _electron.launch({ args: [root], env });

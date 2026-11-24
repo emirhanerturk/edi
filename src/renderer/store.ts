@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GitOp, Layout, LogResult, RecentFolder, ServerInfo, TabState, WorkspaceView } from '../shared/api';
+import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import { edi } from './bridge';
 import {
@@ -163,6 +163,8 @@ interface AppStore {
   tabs: Tab[];
   /** Terminallerde dinlemeye açılmış localhost portları. */
   servers: ServerInfo[];
+  /** Claude kullanım limitleri (durum satırı köprüsünden); bilinmiyorsa null. */
+  usage: ClaudeUsage | null;
   activeTab: number | null;
   newTab(opts?: { claude?: boolean; repoPath?: string }): Promise<void>;
   closeTab(id: number): void;
@@ -282,6 +284,7 @@ export const useApp = create<AppStore>((set, get) => ({
 
   tabs: [],
   servers: [],
+  usage: null,
   activeTab: null,
   async newTab(opts = {}) {
     const dir = get().workspace.dir;
@@ -391,6 +394,7 @@ export function connect(): () => void {
     ),
     edi.on('recent', (recent) => useApp.setState({ recent })),
     edi.on('servers', (servers) => useApp.setState({ servers })),
+    edi.on('usage', (usage) => useApp.setState({ usage })),
     edi.on('pty:data', (id, data) => writeTerminal(id, data)),
     edi.on('tabs', (states) => useApp.setState((state) => ({ tabs: applyTabStates(state.tabs, states, Date.now()) }))),
     edi.on('pty:exit', (id) =>
@@ -400,5 +404,6 @@ export function connect(): () => void {
     ),
   ];
   void edi.getState().then((state) => useApp.setState({ ...state, ready: true }));
+  void edi.claudeUsage().then((usage) => useApp.setState({ usage }));
   return () => off.forEach((unsubscribe) => unsubscribe());
 }

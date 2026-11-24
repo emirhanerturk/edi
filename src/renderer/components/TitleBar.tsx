@@ -3,11 +3,16 @@ import { plural, tildify } from '../format';
 import { useApp } from '../store';
 import { ChevronDown, ClaudeMark, FolderIcon } from './icons';
 import { usePopover } from './usePopover';
+import { UsageMeter } from './UsageMeter';
+import { useNow } from './useNow';
 
 export function TitleBar() {
   const home = useApp((s) => s.home);
   const workspace = useApp((s) => s.workspace);
   const sessions = workspace.rootSessions + workspace.repos.reduce((sum, repo) => sum + repo.claude, 0);
+  const usage = useApp((s) => s.usage);
+  // Sıfırlanma zamanının "bugün" mü olduğu ve verinin yaşı için.
+  const now = useNow(30_000);
 
   return (
     <header className="titlebar" data-testid="titlebar">
@@ -19,6 +24,7 @@ export function TitleBar() {
           <span>{plural(sessions, 'session', 'sessions')}</span>
         </div>
       )}
+      <UsageMeter usage={usage} now={now} />
     </header>
   );
 }

@@ -14,6 +14,7 @@ const bridge = vi.hoisted(() => {
       openInZed: async () => ({ ok: false, error: 'Could not open Zed' }),
       // Bekleyen ilk durum: test olayları kendisi gönderir.
       getState: () => new Promise(() => undefined),
+      claudeUsage: () => new Promise(() => undefined),
     },
   };
 });
