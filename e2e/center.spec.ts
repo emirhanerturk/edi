@@ -30,6 +30,8 @@ test('değişen dosyaya tıklayınca diff açılır', async () => {
     await fileRow(page, 'README.md').click();
     const view = page.getByTestId('center-view');
     await expect(view).toHaveAttribute('data-kind', 'diff');
+    // Sol panel ile orta panelin zemini aynı: aralarında görünür bir çizgi vardır.
+    expect(await page.locator('.terminals').evaluate((el) => getComputedStyle(el).borderRightWidth)).toBe('1px');
     await expect(centerTabs(page)).toHaveCount(1);
     await expect(centerTabs(page)).toHaveAttribute('data-preview', 'true');
     const header = page.getByTestId('view-header');
