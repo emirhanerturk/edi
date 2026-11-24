@@ -58,7 +58,8 @@ impact on the user. An item is removed from here once it is fixed. Last updated:
     listing is not read again after the change. The new file still opens in the editor.
     Renames and the existence check have a small TOCTOU window between the check and
     `rename` (no exclusive rename on macOS from Node). (editor, Files and Git round)
-19. **Looks and small behaviors:** a long branch name squeezes the repo name in an open repo's
+19. **Looks and small behaviors:** the repo header's "merging" chip also shows when a stash
+    applied with conflicts (it isn't a merge); a long branch name squeezes the repo name in an open repo's
     header; Zed can open twice on a cold start (5 s+); the branch menu closes when the page
     scrolls; the selected row does not tell the file view from the diff view. (plan 1, 2)
 20. **Install details:** ~60 MB of node-pty Windows files and sources in the bundle;

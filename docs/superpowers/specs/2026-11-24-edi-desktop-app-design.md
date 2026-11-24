@@ -45,7 +45,8 @@ write our own app.
 - Search (file name or content).
 - Saving terminal sessions when the app closes and restoring them.
 - AI-generated commit messages.
-- Stash, merge, rebase, conflict resolution, cherry-pick, commit graph.
+- Merge, rebase, conflict resolution, cherry-pick, commit graph. (Stash was here too; it was
+  added on 2026-11-25, requested by the user: `2026-11-25-edi-stash-design.md`.)
 - Line/hunk-level staging. Discard (reverting a change).
 - Settings screen and settings file; accent color, font and shortcuts are fixed.
   (The gear button in the design is not in the first version.)
@@ -285,7 +286,10 @@ terminal in this repo"; below it, the commit box and the file groups.
   the user; see `2026-11-24-edi-editor-files-git-design.md`).
 - **Branch menu:** local branches, with the current one checked; choosing one runs
   `git switch`. "New branch…" asks for a name and runs `git switch -c`. If git refuses
-  (uncommitted changes), the error is shown; nothing is forced.
+  (uncommitted changes), the error is shown, with "Stash and switch"; nothing is forced.
+- **Stashes:** a Stash button next to Commit, a "Stashes" section under the repo, a count on
+  the collapsed row, and a stash view in the center panel (2026-11-25, requested by the user;
+  see `2026-11-25-edi-stash-design.md`).
 - **Busy and error:** while an operation runs, a spinner and text like "Pushing…" on
   the repo row. Only one write operation runs at a time in the same repo; if a second
   one is requested, "Another operation is still running" is shown. An error is shown
