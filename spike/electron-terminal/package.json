@@ -1,0 +1,17 @@
+{
+  "name": "edi-spike-electron-terminal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ATILACAK DENEME: Electron içinde terminal yaşanabilir mi?",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "npm --prefix ../.. run build && electron ."
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron": "^45.4.1",
+    "node-pty": "^1.1.0"
+  }
+}
