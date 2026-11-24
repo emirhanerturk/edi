@@ -388,3 +388,18 @@ One Dark tabanlı koyu tema; açık tema yok.
 - Panellerin en küçük genişlikleri, uzun listelerde sanallaştırma.
 - Yan yana diff'te silinen ve eklenen satırların eşleştirilmesi.
 - Göreli zaman biçimi ve gün gruplarının sınırları.
+
+## Sonradan eklenenler
+
+Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış şeyler.
+
+- **`edi <path>` komutu (2026-11-24):** herhangi bir terminalde `edi <path>` yazınca
+  o klasör edi'de açılır; `edi .` bulunulan klasörü açar. Paketleme planına (plan 4)
+  aittir: komut, kurulu uygulamayı başlatan küçük bir betiktir (PATH'e konur),
+  uygulama da başlatılırken verilen klasörü açar. Uygulama zaten açıksa aynı pencere
+  o klasöre geçer; çalışan terminal varsa klasör değiştirmedeki soru burada da sorulur.
+  Yol verilmezse uygulama son klasörle açılır. Komutun PATH'e nasıl konacağı
+  (uygulamadan "Install command line tool" mu, elle bağ mı) planlanırken kararlaştırılır.
+- **Uygulama ikonu (2026-11-24):** kullanıcı "Wordmark" seçeneğini seçti
+  (`docs/design/icon/wordmark.svg`). Plan 4'te `.icns` bundan üretilir.
+
