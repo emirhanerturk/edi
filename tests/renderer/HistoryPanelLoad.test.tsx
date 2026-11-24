@@ -24,7 +24,7 @@ afterEach(cleanup);
 const repo = (path: string, headOid: string, ahead: number | null = null): RepoView => ({
   name: path.split('/').pop()!,
   path,
-  status: { head: 'main', headOid, detached: false, unborn: false, upstream: null, ahead, behind: null, files: [] },
+  status: { head: 'main', headOid, detached: false, unborn: false, upstream: null, ahead, behind: null, stashes: 0, files: [] },
   error: null,
   busy: null,
   claude: 0,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { CommitDetail, RepoView } from '../../shared/api';
+import type { CommitFile, RepoView } from '../../shared/api';
 import { edi } from '../bridge';
 import { useNow } from '../components/useNow';
 import { type DiffTokens, MAX_HIGHLIGHT_CHARS, highlightDiff } from '../highlight/highlight';
@@ -9,10 +9,10 @@ import { tabId } from './tabs';
 import { useView } from './useView';
 
 /**
- * Highlights the commit's files in order. Files that start expanded (up to 400 lines) are highlighted
- * up to `MAX_HIGHLIGHT_CHARS` characters in total; the rest, and large files expanded later, stay plain.
+ * Highlights the commit's (or stash's) files in order. Files that start expanded (up to 400 lines) are
+ * highlighted up to `MAX_HIGHLIGHT_CHARS` characters in total; the rest, and large files expanded later, stay plain.
  */
-function useCommitTokens(commit: CommitDetail | null): Map<string, DiffTokens> {
+export function useCommitTokens(commit: { files: CommitFile[] } | null): Map<string, DiffTokens> {
   const [tokens, setTokens] = useState<Map<string, DiffTokens>>(() => new Map());
   useEffect(() => {
     if (!commit) return;

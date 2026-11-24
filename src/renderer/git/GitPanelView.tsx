@@ -1,7 +1,7 @@
-import { Undo2 } from 'lucide-react';
+import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
-import type { CommitSummary, FileChange } from '../../git/types';
-import type { BranchList, GitOp, RepoView, UnpushedResult } from '../../shared/api';
+import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
+import type { BranchList, GitOp, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
 import { shortAgo } from '../history/time';
 import {
   ArrowDown,
@@ -21,6 +21,7 @@ import {
 import { BranchMenu } from './BranchMenu';
 import { CommitBox } from './CommitBox';
 import { ErrorBox } from './ErrorBox';
+import { StashMenu } from './StashMenu';
 import {
   type Group,
   type SyncAction,
@@ -33,6 +34,8 @@ import {
   letter,
   letterColor,
   splitPath,
+  stashLabel,
+  stashTitle,
   syncAction,
 } from './model';
 
@@ -54,14 +57,26 @@ export interface GitPanelProps {
   loadBranches?(repoPath: string): Promise<BranchList>;
   /** A file row was clicked: a single click previews (`pin` false), a double click opens a permanent tab. */
   onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
-  /** The file open in the center panel; its row shows as selected. */
-  selected?: { repoPath: string; path: string } | null;
+  /** What is open in the center panel; its row shows as selected. `kind` tells a stash (path: its id) from a file. */
+  selected?: { repoPath: string; path: string; kind?: string } | null;
   /** The branch's commits its upstream doesn't have; read when the repo is ahead. */
   loadUnpushed?(repoPath: string): Promise<UnpushedResult>;
   /** An unpushed commit was clicked: a single click previews, a double click opens a permanent tab. */
   onOpenCommit?(repoPath: string, oid: string, pin: boolean): void;
   /** "Undo commit" on the newest unpushed commit (the caller asks first). */
   onUndoCommit?(repoPath: string, commit: CommitSummary): void;
+  /** The open folder is this one repo: its stashes expand it and are all listed. */
+  single?: boolean;
+  /** The repo's stashes; read when an expanded repo has any. */
+  loadStashes?(repoPath: string): Promise<StashList>;
+  /** A stash row was clicked: a single click previews, a double click opens a permanent tab. */
+  onOpenStash?(repoPath: string, stash: StashEntry, pin: boolean): void;
+  /** Pop, apply or drop a stash (the caller asks before dropping). */
+  onStashAction?(repoPath: string, stash: StashEntry, action: StashMenuAction): void;
+  /** The native right-click menu of a stash row; resolves with the picked action. */
+  stashMenu?(canApply: boolean): Promise<StashMenuAction | null>;
+  /** A switch or pull git refused because of local changes, per repo: the error box offers to stash and retry it. */
+  retries?: Record<string, StashRetry>;
 }
 
 const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
@@ -85,10 +100,16 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const error = props.errors?.[repo.path];
   const run = (op: GitOp) => props.onOp?.(repo.path, op);
   const busy = repo.busy !== null;
+  const retry = props.retries?.[repo.path];
   const errorBox = error !== undefined && (
-    <ErrorBox error={error} onPull={repo.hasRemote ? () => run({ op: 'pull' }) : undefined} onDismiss={() => props.onDismissError?.(repo.path)} />
+    <ErrorBox
+      error={error}
+      onPull={repo.hasRemote ? () => run({ op: 'pull' }) : undefined}
+      retry={retry && { label: retry.op === 'pull' ? 'Stash and pull' : 'Stash and switch', run: () => run({ op: 'stash', message: '', staged: false, then: retry }) }}
+      onDismiss={() => props.onDismissError?.(repo.path)}
+    />
   );
-  const open = isExpanded(status, expanded[repo.path]);
+  const open = isExpanded(status, expanded[repo.path], props.single);
   const fileProps = {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
@@ -182,6 +203,12 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
                 {count}
               </span>
             )}
+            {status.stashes > 0 && (
+              <span className="repo-stashes" data-testid="repo-stashes" title={`${status.stashes} ${status.stashes === 1 ? 'stash' : 'stashes'}`}>
+                <Archive size={12} strokeWidth={2} aria-hidden="true" />
+                <span>{status.stashes}</span>
+              </span>
+            )}
             {repo.busy ? <Busy label={repo.busy} /> : <SyncButton action={action} onClick={() => run({ op: action?.kind === 'pull' ? 'pull' : 'push' })} />}
           </>
         )}
@@ -199,6 +226,20 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               canPush={repo.hasRemote}
               onChange={(message) => props.onDraft?.(repo.path, message)}
               onCommit={({ all, push }) => run({ op: 'commit', message: props.drafts?.[repo.path] ?? '', all, push })}
+              aside={
+                // git can't stash before the first commit.
+                !status.unborn && (
+                  <StashMenu
+                    total={count}
+                    staged={groups.staged.length}
+                    unstaged={groups.changes.length > 0}
+                    partlyStaged={groups.staged.some(isPartlyStaged)}
+                    busy={busy}
+                    blocked={groups.conflicts.length > 0}
+                    onStash={({ message, staged }) => run({ op: 'stash', message, staged })}
+                  />
+                )
+              }
             />
           )}
           {groups.conflicts.length > 0 && (
@@ -221,6 +262,21 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               load={props.loadUnpushed}
               onOpen={(oid, pin) => props.onOpenCommit?.(repo.path, oid, pin)}
               onUndo={(commit) => props.onUndoCommit?.(repo.path, commit)}
+            />
+          )}
+          {status.stashes > 0 && (
+            <StashGroup
+              repoPath={repo.path}
+              count={status.stashes}
+              current={status.detached ? null : status.head}
+              busy={busy}
+              canApply={groups.conflicts.length === 0}
+              limit={props.single ? null : STASH_PREVIEW}
+              load={props.loadStashes}
+              selectedOid={props.selected?.repoPath === repo.path && props.selected.kind === 'stash' ? props.selected.path : null}
+              onOpen={(stash, pin) => props.onOpenStash?.(repo.path, stash, pin)}
+              onAction={(stash, action) => props.onStashAction?.(repo.path, stash, action)}
+              menu={props.stashMenu}
             />
           )}
         </div>
@@ -442,6 +498,125 @@ function UnpushedGroup({ repoPath, headOid, ahead, busy, load, onOpen, onUndo }:
             )}
           </div>
         ))}
+    </div>
+  );
+}
+
+/** With several repos, a repo shows this many stashes until "Show N more". */
+const STASH_PREVIEW = 5;
+/** Repos whose whole stash list was opened with "Show N more", for the session. */
+const longStashLists = new Set<string>();
+
+interface StashGroupProps {
+  repoPath: string;
+  /** The count from the status; the header shows it. */
+  count: number;
+  /** The current branch; null on a detached HEAD. A stash made on another branch says which. */
+  current: string | null;
+  busy: boolean;
+  /** No conflict in the repo: git can pop or apply. */
+  canApply: boolean;
+  /** How many show before "Show N more"; null for all. */
+  limit: number | null;
+  load?(repoPath: string): Promise<StashList>;
+  /** The stash open in the center panel. */
+  selectedOid: string | null;
+  onOpen(stash: StashEntry, pin: boolean): void;
+  onAction(stash: StashEntry, action: StashMenuAction): void;
+  menu?(canApply: boolean): Promise<StashMenuAction | null>;
+}
+
+/** The repo's stashes, newest first; read again whenever the count moves. */
+function StashGroup({ repoPath, count, current, busy, canApply, limit, load, selectedOid, onOpen, onAction, menu }: StashGroupProps) {
+  const [collapsed, toggle] = useCollapsed(`${repoPath}\nstashes`);
+  const [list, setList] = useState<StashEntry[] | null>(null);
+  const [all, setAll] = useState(() => longStashLists.has(repoPath));
+  useEffect(() => {
+    if (!load) return;
+    let live = true;
+    load(repoPath).then(
+      (result) => live && setList(result.ok ? result.stashes : null),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [load, repoPath, count]);
+  const now = Date.now();
+  const shown = list === null ? [] : limit === null || all ? list : list.slice(0, limit);
+  const hidden = (list?.length ?? 0) - shown.length;
+  return (
+    <div className="file-group" data-testid="stash-group">
+      <GroupHead title="STASHES" count={count} collapsed={collapsed} onToggle={toggle} />
+      {!collapsed && (
+        <>
+          {shown.map((stash) => {
+            const { wip, text } = stashLabel(stash);
+            const title = stashTitle(stash);
+            return (
+              <div
+                key={stash.oid}
+                className="file-row stash-row"
+                data-testid="stash-row"
+                title={`stash@{${stash.index}}: ${stash.subject}`}
+                role="button"
+                tabIndex={0}
+                aria-current={stash.oid === selectedOid ? 'true' : undefined}
+                onClick={() => onOpen(stash, false)}
+                onDoubleClick={() => onOpen(stash, true)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return;
+                  event.preventDefault();
+                  onOpen(stash, false);
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  if (busy || !menu) return;
+                  void menu(canApply).then((action) => action && onAction(stash, action));
+                }}
+              >
+                <span className="stash-label">
+                  {wip && <span className="stash-wip">WIP</span>}
+                  <span className={wip ? 'stash-base' : 'stash-message'}>{text === '' ? '(no subject)' : text}</span>
+                </span>
+                {stash.branch !== null && stash.branch !== current && (
+                  <span className="stash-branch mono" title={`Stashed on ${stash.branch}`}>
+                    {stash.branch}
+                  </span>
+                )}
+                <span className="unpushed-time">{shortAgo(stash.date, now)}</span>
+                <button
+                  className="icon-button tiny"
+                  data-testid="stash-pop"
+                  aria-label={`Pop stash ${title}`}
+                  title={canApply ? 'Pop: bring the changes back and remove the stash' : 'Resolve the conflicts first'}
+                  disabled={busy || !canApply}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAction(stash, 'pop');
+                  }}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <ArchiveArrowUp size={13} strokeWidth={2} />
+                </button>
+              </div>
+            );
+          })}
+          {hidden > 0 && (
+            <button
+              className="stash-more"
+              data-testid="stash-more"
+              onClick={() => {
+                longStashLists.add(repoPath);
+                setAll(true);
+              }}
+            >
+              Show {hidden} more
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }

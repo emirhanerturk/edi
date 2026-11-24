@@ -5,9 +5,11 @@
 import type { ParsedDiff } from '../git/diffParse.js';
 import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
+import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
 
 export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
+export type { StashDetail, StashEntry, StashList, StashResult };
 
 export interface RepoView {
   name: string;
@@ -65,7 +67,22 @@ export type GitOp =
   | { op: 'switch'; branch: string }
   | { op: 'createBranch'; branch: string }
   /** `git reset --soft HEAD~1`, only if HEAD is still `oid` and isn't pushed. */
-  | { op: 'undoCommit'; oid: string };
+  | { op: 'undoCommit'; oid: string }
+  /**
+   * Every change, new files included, or only the staged ones; `message` may be empty. `then`: a switch
+   * or pull that git refused because of the local changes, run again once they are stashed.
+   */
+  | { op: 'stash'; message: string; staged: boolean; then?: StashRetry }
+  /** A stash is named by its commit id; the main process finds its current position. */
+  | { op: 'stashPop'; oid: string }
+  | { op: 'stashApply'; oid: string }
+  | { op: 'stashDrop'; oid: string };
+
+/** What "Stash and switch" or "Stash and pull" runs again. */
+export type StashRetry = { op: 'switch'; branch: string } | { op: 'pull' };
+
+/** The right-click menu of a stash row. */
+export type StashMenuAction = 'pop' | 'apply' | 'drop';
 
 export type OpResult = { ok: true; message: string } | { ok: false; error: string };
 
@@ -160,6 +177,14 @@ export interface EdiApi {
   unpushed(repoPath: string): Promise<UnpushedResult>;
   /** Asks (native dialog) before undoing the commit with this subject; true to go ahead. */
   confirmUndo(subject: string): Promise<boolean>;
+  /** The repo's stashes, newest first (at most 100). */
+  stashes(repoPath: string): Promise<StashList>;
+  /** One stash and its changes, for the stash view; `oid` is the stash commit's full id. */
+  stash(repoPath: string, oid: string): Promise<StashResult>;
+  /** The native right-click menu of a stash row; Pop and Apply are greyed out unless `canApply`. */
+  stashMenu(canApply: boolean): Promise<StashMenuAction | null>;
+  /** Asks (native dialog) before dropping the stash with this label; true to go ahead. */
+  confirmDropStash(label: string): Promise<boolean>;
   /** A changed file's diff against HEAD (staged and unstaged together). */
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */

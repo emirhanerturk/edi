@@ -24,6 +24,8 @@ export interface RepoStatus {
   /** Null if there is no upstream or it was deleted. */
   ahead: number | null;
   behind: number | null;
+  /** Number of stashes (`git stash list`); 0 if none. */
+  stashes: number;
   files: FileChange[];
 }
 
@@ -89,6 +91,8 @@ export interface CommitFile {
   origPath: string | null;
   letter: 'A' | 'M' | 'D' | 'R' | 'C' | 'T';
   diff: ParsedDiff;
+  /** A stash's new file: it was untracked when stashed and comes back untracked (shown as `?`). */
+  untracked?: true;
 }
 
 export interface CommitDetail extends CommitSummary {
@@ -132,3 +136,43 @@ export interface BranchInfo {
 
 /** Local branches, most recently committed to first. */
 export type BranchList = { ok: true; branches: BranchInfo[]; current: string | null } | { ok: false; error: string };
+
+/** A stash in the list. */
+export interface StashEntry {
+  /** The stash commit's full id. The page names a stash by it, never by its position, which shifts. */
+  oid: string;
+  /** Its position when the list was read (`stash@{index}`); 0 is the newest. */
+  index: number;
+  /** git's own line: "WIP on main: 1a2b3c4 subject" or "On main: message". */
+  subject: string;
+  /** The message given when stashing; null for git's default "WIP on …" line. */
+  message: string | null;
+  /** The branch it was made on; null on a detached HEAD or when the line doesn't say. */
+  branch: string | null;
+  /** For git's default line: the subject of the commit it was made on top of. */
+  baseSubject: string | null;
+  /** When it was made, epoch ms. */
+  date: number;
+  /** It holds new (untracked) files too. */
+  untracked: boolean;
+}
+
+/** Stashes, newest first. */
+export type StashList = { ok: true; stashes: StashEntry[] } | { ok: false; error: string };
+
+export interface StashDetail {
+  entry: StashEntry;
+  /** The stash commit's short id. */
+  short: string;
+  /** The commit it was made on top of. */
+  base: { oid: string; short: string; subject: string };
+  /** The tracked changes against `base` (staged and unstaged together), then the new files (`untracked`). */
+  files: CommitFile[];
+  added: number;
+  removed: number;
+  /** The diff exceeded the limit: no lines for the files, only added/removed counts. */
+  tooLarge: boolean;
+}
+
+/** `gone`: the stash is no longer in the list (popped or dropped). */
+export type StashResult = { ok: true; stash: StashDetail } | { ok: false; error: string; gone?: true };

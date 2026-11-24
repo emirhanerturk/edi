@@ -54,6 +54,19 @@ export function undoCommitQuestion(subject: string): Question {
   };
 }
 
+/** Before dropping a stash: the only stash action that deletes anything. */
+export function dropStashQuestion(label: string): Question {
+  const short = label.length > 60 ? `${label.slice(0, 59)}…` : label;
+  return {
+    type: 'warning',
+    message: `Drop the stash "${short}"?`,
+    detail: 'The stashed changes are deleted. This cannot be undone.',
+    buttons: ['Drop stash', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}
+
 const unsavedLine = (count: number) => `${plural(count, 'open file has', 'open files have')} unsaved changes. They will be lost.`;
 
 /** Before moving a file or folder from the Files tab to the Trash. */

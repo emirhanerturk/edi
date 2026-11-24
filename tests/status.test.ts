@@ -32,8 +32,14 @@ describe('parseStatus', () => {
       upstream: 'origin/main',
       ahead: 1,
       behind: 2,
+      stashes: 0,
       files: [],
     });
+  });
+
+  it('reads the stash count (--show-stash)', () => {
+    expect(parseStatus(`${hdr}# stash 3\0`).stashes).toBe(3);
+    expect(parseStatus(hdr).stashes).toBe(0);
   });
 
   it('leaves ahead/behind unknown without an upstream', () => {
@@ -158,6 +164,20 @@ describe('getStatus', () => {
     const r = await getStatus(repo);
     const byPath = Object.fromEntries((r.ok ? r.status.files : []).map((f) => [f.path, `${f.x}${f.y}`]));
     expect(byPath).toEqual({ 'README.md': '.M', 'staged.txt': 'A.', 'new.txt': '??' });
+  });
+
+  it('counts the stashes', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    const count = async () => {
+      const r = await getStatus(repo);
+      return r.ok ? r.status.stashes : -1;
+    };
+    expect(await count()).toBe(0);
+    for (const n of [1, 2]) {
+      await writeFile(join(repo, 'README.md'), `change ${n}\n`);
+      await git(repo, 'stash', '-q');
+    }
+    expect(await count()).toBe(2);
   });
 
   it('works in a repo without commits', async () => {

@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { FileChange, RepoStatus } from '../../src/git/types';
 import {
   changeCount,
-  fileLetter,
   commitTarget,
+  fileLetter,
   groupFiles,
+  isBlockedByLocalChanges,
   isDeletion,
+  isExpanded,
   isPartlyStaged,
   letter,
   letterColor,
   splitPath,
+  stashLabel,
+  stashTitle,
   syncAction,
 } from '../../src/renderer/git/model';
 
@@ -21,6 +25,7 @@ const status = (over: Partial<RepoStatus> = {}): RepoStatus => ({
   upstream: 'origin/main',
   ahead: 0,
   behind: 0,
+  stashes: 0,
   files: [],
   ...over,
 });
@@ -161,5 +166,37 @@ describe('fileLetter', () => {
   it('a new file is ? and a conflict is U', () => {
     expect(fileLetter(change('?', '?', 'untracked'))).toBe('?');
     expect(fileLetter(change('U', 'U', 'conflicted'))).toBe('U');
+  });
+});
+
+describe('isExpanded', () => {
+  it('changes expand a repo; stashes only when the open folder is that one repo; a choice by hand wins', () => {
+    expect(isExpanded(status({ files: [file('a.ts', 'M', '.')] }), undefined)).toBe(true);
+    expect(isExpanded(status({ stashes: 2 }), undefined)).toBe(false);
+    expect(isExpanded(status({ stashes: 2 }), undefined, true)).toBe(true);
+    expect(isExpanded(status({ stashes: 2 }), false, true)).toBe(false);
+    expect(isExpanded(status(), undefined, true)).toBe(false);
+    expect(isExpanded(null, true, true)).toBe(false);
+  });
+});
+
+describe('stashLabel and stashTitle', () => {
+  const base = { subject: 'WIP on main: 1a2b3c4 feat: x', message: null, branch: 'main', baseSubject: 'feat: x' };
+  it("git's default line reads as WIP and the subject it was made on; a message as itself", () => {
+    expect(stashLabel(base)).toEqual({ wip: true, text: 'feat: x' });
+    expect(stashTitle(base)).toBe('WIP on main');
+    expect(stashTitle({ ...base, branch: null })).toBe('WIP');
+    const named = { subject: 'On main: fix', message: 'fix', branch: 'main', baseSubject: null };
+    expect(stashLabel(named)).toEqual({ wip: false, text: 'fix' });
+    expect(stashTitle(named)).toBe('fix');
+    expect(stashTitle({ subject: 'autostash', message: 'autostash', branch: null, baseSubject: null })).toBe('autostash');
+  });
+});
+
+describe('isBlockedByLocalChanges', () => {
+  it('spots the switch and pull refusals that stashing would solve', () => {
+    expect(isBlockedByLocalChanges('error: Your local changes to the following files would be overwritten by checkout:')).toBe(true);
+    expect(isBlockedByLocalChanges('error: The following untracked working tree files would be overwritten by merge:')).toBe(true);
+    expect(isBlockedByLocalChanges('fatal: Not possible to fast-forward, aborting.')).toBe(false);
   });
 });

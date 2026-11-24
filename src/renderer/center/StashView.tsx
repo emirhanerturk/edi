@@ -1,0 +1,44 @@
+import { useEffect } from 'react';
+import type { RepoView } from '../../shared/api';
+import { edi } from '../bridge';
+import { useNow } from '../components/useNow';
+import { useApp } from '../store';
+import { useCommitTokens } from './CommitView';
+import { StashPane } from './StashPane';
+import { useView } from './useView';
+
+/**
+ * The stash view bound to app state. A stash doesn't change, but it can leave the list (popped or
+ * dropped from a terminal): it is read again whenever the repo's stash count moves.
+ */
+export function StashView({ repo, oid }: { repo: RepoView; oid: string }) {
+  const count = repo.status?.stashes ?? 0;
+  const { data } = useView(`${repo.path}\n${oid}`, () => edi.stash(repo.path, oid), count);
+  const stash = data?.ok ? data.stash : null;
+  const tokens = useCommitTokens(stash);
+  const now = useNow(30_000);
+  const files = stash?.files.length ?? null;
+  const info = files === null ? null : `${files} ${files === 1 ? 'file' : 'files'} stashed`;
+
+  useEffect(() => {
+    useApp.getState().setCenterInfo(info);
+  }, [info]);
+  useEffect(() => () => useApp.getState().setCenterInfo(null), []);
+
+  return (
+    <StashPane
+      repoName={repo.name}
+      result={data}
+      now={now}
+      tokens={tokens}
+      busy={repo.busy}
+      canApply={!(repo.status?.files.some((file) => file.kind === 'conflicted') ?? false)}
+      onAction={(action) => {
+        if (stash) void useApp.getState().stashAction(repo.path, stash.entry, action);
+      }}
+      onCopy={() => {
+        if (stash) void navigator.clipboard.writeText(stash.entry.oid).catch(() => undefined);
+      }}
+    />
+  );
+}

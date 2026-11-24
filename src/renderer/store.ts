@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, TabState, WorkspaceView } from '../shared/api';
+import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, StashEntry, StashMenuAction, StashRetry, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import type { FilesEdit } from './files/filesEdit';
 import { edi } from './bridge';
@@ -16,8 +16,10 @@ import {
   pinCenterTab,
   setPanelOpen,
   syncCenter,
+  tabId,
 } from './center/tabs';
 import { clampWidths } from './components/Splitter';
+import { isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
 import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
@@ -200,9 +202,13 @@ interface AppStore {
   drafts: Record<string, string>;
   /** Error from the last git operation (repo path → git's line). */
   errors: Record<string, string>;
+  /** A switch or pull git refused because of local changes (repo path → the operation): "Stash and switch" runs it again. */
+  retries: Record<string, StashRetry>;
   setDraft(repoPath: string, message: string): void;
   dismissError(repoPath: string): void;
   gitOp(repoPath: string, op: GitOp): Promise<void>;
+  /** Pops, applies or (after asking) drops a stash. */
+  stashAction(repoPath: string, stash: StashEntry, action: StashMenuAction): Promise<void>;
   fetchAll(): Promise<void>;
 }
 
@@ -396,16 +402,29 @@ export const useApp = create<AppStore>((set, get) => ({
 
   drafts: {},
   errors: {},
+  retries: {},
   setDraft: (repoPath, message) => set((state) => ({ drafts: { ...state.drafts, [repoPath]: message } })),
-  dismissError: (repoPath) => set((state) => ({ errors: without(state.errors, repoPath) })),
+  dismissError: (repoPath) => set((state) => ({ errors: without(state.errors, repoPath), retries: without(state.retries, repoPath) })),
   async gitOp(repoPath, op) {
-    set((state) => ({ errors: without(state.errors, repoPath) }));
+    set((state) => ({ errors: without(state.errors, repoPath), retries: without(state.retries, repoPath) }));
     const result = await edi.git(repoPath, op);
+    // A switch or pull refused because of local changes can be run again once they are stashed.
+    const retry: StashRetry | null =
+      result.ok || !isBlockedByLocalChanges(result.error) ? null : op.op === 'switch' ? op : op.op === 'pull' ? op : null;
+    // A stash that was popped or dropped is gone: its tab closes.
+    const gone = result.ok && (op.op === 'stashPop' || op.op === 'stashDrop') ? tabId({ kind: 'stash', repoPath, path: op.oid }) : null;
     set((state) => ({
       errors: result.ok ? without(state.errors, repoPath) : { ...state.errors, [repoPath]: result.error },
+      retries: retry ? { ...state.retries, [repoPath]: retry } : without(state.retries, repoPath),
       // If the commit went through, the message is cleared (the commit stays even if its push failed).
       drafts: op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) ? without(state.drafts, repoPath) : state.drafts,
+      center: gone ? closeCenterTab(state.center, gone) : state.center,
     }));
+  },
+  async stashAction(repoPath, stash, action) {
+    if (action === 'drop' && !(await edi.confirmDropStash(stashTitle(stash)))) return;
+    const op: GitOp = action === 'pop' ? { op: 'stashPop', oid: stash.oid } : action === 'apply' ? { op: 'stashApply', oid: stash.oid } : { op: 'stashDrop', oid: stash.oid };
+    await get().gitOp(repoPath, op);
   },
   async fetchAll() {
     const results = await edi.fetchAll();
