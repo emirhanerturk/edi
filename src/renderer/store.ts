@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Layout, RecentFolder, WorkspaceView } from '../shared/api';
+import type { Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
 import { edi } from './bridge';
 import { disposeAllTerminals, disposeTerminal, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
@@ -14,6 +14,27 @@ export interface Tab {
   busy: boolean;
   /** Kabuk kapandı; sekme, çıktısı okunabilsin diye yerinde durur. */
   exited: boolean;
+  /**
+   * Claude Code düğmesiyle açılan sekme, komut başlayana kadar birkaç saniye "claude" kalır;
+   * bu ana kadar gelen "önde yalnız kabuk var" bilgisi yok sayılır.
+   */
+  claudeUntil: number;
+}
+
+/** Claude Code'un açılması için tanınan süre. */
+const CLAUDE_START_MS = 8000;
+
+/** Ana süreçten gelen süreç durumlarını sekmelere işler. */
+export function applyTabStates(tabs: Tab[], states: TabState[], now: number): Tab[] {
+  const byId = new Map(states.map((state) => [state.id, state]));
+  return tabs.map((tab) => {
+    const state = byId.get(tab.id);
+    if (!state || tab.exited) return tab;
+    if (!state.claude && now < tab.claudeUntil) return tab;
+    const waiting = state.claude ? tab.waiting : false;
+    if (tab.title === state.title && tab.claude === state.claude && tab.busy === state.busy && tab.waiting === waiting) return tab;
+    return { ...tab, title: state.title, claude: state.claude, busy: state.busy, waiting };
+  });
 }
 
 interface AppStore {
@@ -76,6 +97,7 @@ export const useApp = create<AppStore>((set, get) => ({
       waiting: false,
       busy: false,
       exited: false,
+      claudeUntil: opts.claude ? Date.now() + CLAUDE_START_MS : 0,
     };
     set((state) => ({ tabs: [...state.tabs, tab], activeTab: tab.id }));
   },
@@ -110,6 +132,7 @@ export function connect(): () => void {
     edi.on('workspace', (workspace) => useApp.setState({ workspace })),
     edi.on('recent', (recent) => useApp.setState({ recent })),
     edi.on('pty:data', (id, data) => writeTerminal(id, data)),
+    edi.on('tabs', (states) => useApp.setState((state) => ({ tabs: applyTabStates(state.tabs, states, Date.now()) }))),
     edi.on('pty:exit', (id) =>
       useApp.setState((state) => ({
         tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, exited: true, busy: false, waiting: false } : tab)),

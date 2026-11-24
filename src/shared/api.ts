@@ -62,12 +62,22 @@ export interface TerminalCreated {
   title: string;
 }
 
+/** Bir sekmenin, terminalinde önde çalışan sürece göre durumu. */
+export interface TabState {
+  id: number;
+  title: string;
+  claude: boolean;
+  /** Kabuğun dışında bir süreç çalışıyor. */
+  busy: boolean;
+}
+
 /** Ana sürecin sayfaya kendiliğinden gönderdiği olaylar. */
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
   recent: [recent: RecentFolder[]];
   'pty:data': [id: number, data: string];
   'pty:exit': [id: number];
+  tabs: [tabs: TabState[]];
 }
 
 /** Sayfaya `window.edi` olarak verilen köprü. Görevler ilerledikçe büyür. */

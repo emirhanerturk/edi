@@ -86,3 +86,31 @@ test('başka klasöre geçince terminaller yeni klasörde yeniden açılır', as
     await app.close();
   }
 });
+
+test('sekme önde çalışan komutun adını alır ve kapatılırken sorar', async () => {
+  const dir = await tmpDir();
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    const tab = page.getByTestId('tab');
+    await expect(tab).toContainText('sh');
+    await page.locator('.term-host.active').click();
+    await page.keyboard.type('sleep 300\n');
+    await expect(tab).toContainText('sleep 300', { timeout: 10_000 });
+
+    // İlk soruya hayır: sekme kalır. İkincisine evet: kapanır.
+    const messages: string[] = [];
+    page.once('dialog', (dialog) => {
+      messages.push(dialog.message());
+      void dialog.dismiss();
+    });
+    await page.keyboard.press('Meta+w');
+    await expect(tab).toHaveCount(1);
+    expect(messages).toEqual(['A process is still running in this terminal. Close it?']);
+
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.keyboard.press('Meta+w');
+    await expect(tab).toHaveCount(0);
+  } finally {
+    await app.close();
+  }
+});

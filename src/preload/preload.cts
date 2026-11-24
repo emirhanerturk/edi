@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { EdiApi, EdiEvents } from '../shared/api.js' with { 'resolution-mode': 'import' };
 
-const EVENTS: ReadonlySet<string> = new Set<keyof EdiEvents>(['workspace', 'recent', 'pty:data', 'pty:exit']);
+const EVENTS: ReadonlySet<string> = new Set<keyof EdiEvents>(['workspace', 'recent', 'pty:data', 'pty:exit', 'tabs']);
 
 const api: EdiApi = {
   getState: () => ipcRenderer.invoke('state:get'),

@@ -7,9 +7,13 @@ import { listClaudePids, listClaudeSessions } from '../sessions.js';
 import type { AppState, EdiEvents, OpenResult, TerminalCreated } from '../shared/api.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, saveState } from './store.js';
+import { tabStates } from './tabs.js';
 import { Workspace } from './workspace.js';
 
-const SESSIONS_MS = 3000;
+/** Süreç yoklaması: sekme adları ve Claude Code oturumları. */
+const PROCESSES_MS = 3000;
+/** Yeni açılan sekmede komutun başlaması için beklenen süre; sonra bir kez erken yoklanır. */
+const AFTER_CREATE_MS = 700;
 
 /** Ana sürecin durumu ve sayfayla konuştuğu her şey. */
 export class AppCore {
@@ -17,8 +21,9 @@ export class AppCore {
   readonly ptys: PtyManager;
   private state: Persisted;
   private saving: Promise<void> = Promise.resolve();
-  private sessionsTimer: NodeJS.Timeout | null = null;
-  private pollingSessions = false;
+  private processTimer: NodeJS.Timeout | null = null;
+  private pollingProcesses = false;
+  private tabsSent = '';
 
   private constructor(
     private readonly stateFile: string,
@@ -69,7 +74,7 @@ export class AppCore {
     this.update((state) => ({ ...addRecent(state, opened, result.repoCount), lastDir: opened }));
     this.send('workspace', this.workspace.view());
     this.send('recent', this.state.recent);
-    void this.pollSessions();
+    void this.pollProcesses();
     return { ok: true };
   }
 
@@ -117,6 +122,7 @@ export class AppCore {
         cwd: repo?.path ?? dir,
         command: opts.claude === true ? 'claude' : undefined,
       });
+      setTimeout(() => void this.pollProcesses(), AFTER_CREATE_MS);
       return { id, title: basename(this.ptys.info(id)?.shell ?? 'shell') };
     });
     ipcMain.on('pty:write', (_event, id: unknown, data: unknown) => {
@@ -129,25 +135,38 @@ export class AppCore {
       if (typeof id === 'number') this.ptys.kill(id);
     });
 
-    this.sessionsTimer = setInterval(() => void this.pollSessions(), SESSIONS_MS);
+    this.processTimer = setInterval(() => void this.pollProcesses(), PROCESSES_MS);
   }
 
   dispose(): void {
-    if (this.sessionsTimer) clearInterval(this.sessionsTimer);
+    if (this.processTimer) clearInterval(this.processTimer);
     this.workspace.dispose();
     this.ptys.killAll();
   }
 
-  /** Terminalde açık Claude Code oturumlarını repo satırlarına yazar. */
-  private async pollSessions(): Promise<void> {
-    if (this.pollingSessions || this.workspace.view().dir === null) return;
-    this.pollingSessions = true;
+  /** Süreç listesini bir kez okur; ondan hem sekme durumlarını hem Claude Code oturumlarını çıkarır. */
+  private async pollProcesses(): Promise<void> {
+    if (this.pollingProcesses || this.workspace.view().dir === null) return;
+    this.pollingProcesses = true;
     try {
       const [ps, pids] = await Promise.all([listPs(), listClaudePids()]);
+
+      const ptys = this.ptys.ids().flatMap((id) => {
+        const info = this.ptys.info(id);
+        return info ? [{ id, ...info }] : [];
+      });
+      const tabs = tabStates(ptys, ps, new Set(pids));
+      // Yalnız değişince gönderilir: sayfa her üç saniyede boşuna yeniden çizilmez.
+      const serialized = JSON.stringify(tabs);
+      if (serialized !== this.tabsSent) {
+        this.tabsSent = serialized;
+        this.send('tabs', tabs);
+      }
+
       const sessions = await listClaudeSessions(ps, pids);
       this.workspace.setSessionCwds(sessions.map((session) => session.cwd));
     } finally {
-      this.pollingSessions = false;
+      this.pollingProcesses = false;
     }
   }
 }
