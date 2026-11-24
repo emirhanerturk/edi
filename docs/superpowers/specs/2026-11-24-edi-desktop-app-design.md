@@ -202,7 +202,12 @@ the last tab closes the panel too.
   changes under them and saving are described in
   `2026-11-24-edi-edit-files-design.md` (added 2026-11-24, requested by the user). At the
   top: the path and "Open in Zed"; "Unsaved" and Save while there are unsaved edits;
-  "Read-only" for files that can't be edited. Images
+  "Read-only" for files that can't be edited. The editor shows a minimap, bars in the gutter
+  for lines changed since HEAD, and a muted note at the end of the cursor's line saying who
+  changed it last, when and why; clicking the note opens that commit. A new untitled file
+  opens with ⌘N, the + in the tab bar or a double click on its empty part, and is saved
+  through the Save panel. Both are described in `2026-11-24-edi-editor-files-git-design.md`
+  (2026-11-24, requested by the user). Images
   (png, jpg, gif, webp, avif, bmp, ico, svg) and videos (mp4, m4v, webm, ogv, mov) are
   previewed, with no size limit: the main process serves them from an `edi-media://`
   address, only from inside the discovered repos (with links resolved), and with byte
@@ -254,7 +259,8 @@ outlined with yellow text, "Publish branch" with a neutral outline.
 **Expanded repo:** the header has the name, the branch button, pull, push and "open a
 terminal in this repo"; below it, the commit box and the file groups.
 
-- **File groups:** "Staged" and "Changes"; each file has a status letter (M, A, D,
+- **File groups:** "Staged" and "Changes" (each header collapses its group, with a chevron
+  on the left); each file has a status letter (M, A, D,
   R, `?`; a deleted file's name is struck through), the name, the folder and a button
   that stages/unstages that single file; the group header has a button that
   stages/unstages them all. A partly staged file appears in both groups and carries a
@@ -272,6 +278,11 @@ terminal in this repo"; below it, the commit box and the file groups.
     the button's name and note stand in for a confirmation.)
   - The arrow next to the button opens a one-item menu: "Commit and push".
   - Hooks run normally; if a hook rejects, its error is shown.
+- **Unpushed:** in an expanded repo ahead of its upstream, its commits not pushed yet;
+  clicking one opens the commit view. The newest has "Undo commit" (`git reset --soft
+  HEAD~1`, after asking; its changes come back staged), offered only for a non-merge commit
+  that isn't on the upstream, checked again just before running (2026-11-24, requested by
+  the user; see `2026-11-24-edi-editor-files-git-design.md`).
 - **Branch menu:** local branches, with the current one checked; choosing one runs
   `git switch`. "New branch…" asks for a name and runs `git switch -c`. If git refuses
   (uncommitted changes), the error is shown; nothing is forced.
@@ -329,7 +340,10 @@ and expandable (e.g. `node_modules`, `ios`, `dist`). Changed files are marked wi
 their status letter and color, and folders containing changes with a dot. Clicking a
 file opens the file view. The button in the tab header collapses all folders. If the
 open folder itself is a single repo, the tree starts directly with that repo's
-contents.
+contents. Files carry monochrome, muted icons by type. New files and folders, rename,
+Move to Trash and Reveal in Finder come from a right-click menu and from buttons on
+repo and folder rows; names are typed inline (2026-11-24, requested by the user; see
+`2026-11-24-edi-editor-files-git-design.md`).
 
 ## Refreshing
 

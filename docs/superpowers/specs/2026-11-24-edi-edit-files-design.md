@@ -3,6 +3,10 @@
 Date: 2026-11-24. Requested by the user: edit an opened file in edi instead of switching to Zed
 for a small change. "Open in Zed" stays for bigger work.
 
+Later the same day the user asked for more: a minimap, new and untitled files, renames and the
+Trash are now in. See `2026-11-24-edi-editor-files-git-design.md`; the non-goals and Monaco
+options below are as first decided.
+
 ## Goals
 
 - A text file opened in the file view is editable, with the editor feel of VS Code (Monaco):
