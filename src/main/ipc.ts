@@ -5,6 +5,7 @@ import { type BrowserWindow, dialog, ipcMain, protocol } from 'electron';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
 import { serveMedia } from './media.js';
+import { type BusyKind, type Question, busyQuestion, discardQuestion } from './questions.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
@@ -27,10 +28,6 @@ const AFTER_CREATE_MS = 700;
 /** Rapid layout changes, such as dragging, are held this long and written once. */
 const LAYOUT_SAVE_MS = 400;
 
-const QUESTIONS = {
-  quit: { message: 'Quit edi?', suffix: '', confirm: 'Quit' },
-  switch: { message: 'Switch folders?', suffix: ' Switching closes every terminal.', confirm: 'Switch' },
-} as const;
 
 /** The main process's state and everything it talks to the page about. */
 export class AppCore {
@@ -40,6 +37,8 @@ export class AppCore {
   readonly viewOps: ViewOps;
   readonly historyOps: HistoryOps;
   private state: Persisted;
+  /** Open files with unsaved edits, as the page last reported. */
+  private unsavedFiles = 0;
   private saving: Promise<void> = Promise.resolve();
   private processTimer: NodeJS.Timeout | null = null;
   private pollingProcesses = false;
@@ -116,20 +115,16 @@ export class AppCore {
   }
 
   /** Asks the user if a process is running. True if none is, or if the user confirms. */
-  async confirmBusy(kind: keyof typeof QUESTIONS): Promise<boolean> {
+  async confirmBusy(kind: BusyKind): Promise<boolean> {
     const busy = await this.busyTerminals().catch(() => 0);
-    if (busy === 0) return true;
-    const { message, suffix, confirm } = QUESTIONS[kind];
-    const options = {
-      type: 'warning' as const,
-      message,
-      detail: `${busy} ${busy === 1 ? 'terminal still has' : 'terminals still have'} a running process.${suffix}`,
-      buttons: [confirm, 'Cancel'],
-      defaultId: 0,
-      cancelId: 1,
-    };
+    const question = busyQuestion(kind, busy, this.unsavedFiles);
+    return question === null || (await this.ask(question));
+  }
+
+  /** Shows a native question; true if the first (confirm) button was picked. */
+  private async ask(question: Question): Promise<boolean> {
     const win = this.getWindow();
-    const { response } = await (win && !win.isDestroyed() ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+    const { response } = await (win && !win.isDestroyed() ? dialog.showMessageBox(win, question) : dialog.showMessageBox(question));
     return response === 0;
   }
 
@@ -200,7 +195,14 @@ export class AppCore {
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
     // Read-only view operations: paths are validated in ViewOps.
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
+    ipcMain.on('edits:unsaved', (_event, count: unknown) => {
+      this.unsavedFiles = typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : 0;
+    });
+    ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
+    ipcMain.handle('view:write', (_event, repoPath: unknown, filePath: unknown, text: unknown, expected: unknown) =>
+      this.viewOps.writeFile(repoPath, filePath, text, expected),
+    );
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
     ipcMain.handle('view:listDir', (_event, repoPath: unknown, dirPath: unknown) => this.viewOps.listDir(repoPath, dirPath));
     ipcMain.handle('view:openInZed', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.openInZed(repoPath, filePath));

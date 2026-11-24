@@ -21,6 +21,8 @@
     "e2e:dist": "playwright test -c playwright.dist.config.ts"
   },
   "dependencies": {
+    "@shikijs/monaco": "4.6.0",
+    "monaco-editor": "0.57.0",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {

@@ -122,10 +122,15 @@ interface AppStore {
   center: CenterState;
   /** A single click opens a preview (`pin` false), a double click a permanent tab; opens the panel if closed. */
   openInCenter(target: CenterTarget, pin: boolean): void;
-  closeCenterTab(id: string): void;
+  /** Closes a tab; one with unsaved edits asks first. */
+  closeCenterTab(id: string): Promise<void>;
   activateCenterTab(id: string): void;
   pinCenterTab(id: string): void;
   setCenterOpen(open: boolean): void;
+  /** Tab ids of files with unsaved edits. */
+  unsaved: Record<string, true>;
+  /** Marks a file tab as having unsaved edits (pins it) or not. */
+  setUnsaved(id: string, unsaved: boolean): void;
   /** Changes the diff view's layout and remembers it. */
   setDiffMode(mode: Layout['diffMode']): void;
   /** Short info on what's open in the center panel, at the right of the status bar; null if nothing. */
@@ -219,10 +224,25 @@ export const useApp = create<AppStore>((set, get) => ({
 
   center: EMPTY_CENTER,
   openInCenter: (target, pin) => set((state) => ({ center: openTarget(state.center, target, pin) })),
-  closeCenterTab: (id) => set((state) => ({ center: closeCenterTab(state.center, id) })),
+  async closeCenterTab(id) {
+    const tab = get().center.tabs.find((other) => other.id === id);
+    if (!tab) return;
+    if (get().unsaved[id] && !(await edi.confirmDiscard(tab.path.slice(tab.path.lastIndexOf('/') + 1)))) return;
+    set((state) => ({ center: closeCenterTab(state.center, id) }));
+  },
   activateCenterTab: (id) => set((state) => ({ center: activateCenterTab(state.center, id) })),
   pinCenterTab: (id) => set((state) => ({ center: pinCenterTab(state.center, id) })),
   setCenterOpen: (open) => set((state) => ({ center: setPanelOpen(state.center, open) })),
+  unsaved: {},
+  setUnsaved(id, unsaved) {
+    const state = get();
+    if (Boolean(state.unsaved[id]) === unsaved || !state.center.tabs.some((tab) => tab.id === id)) return;
+    const next = { ...state.unsaved };
+    if (unsaved) next[id] = true;
+    else delete next[id];
+    // The first edit makes a preview tab permanent: a single click elsewhere must not replace it.
+    set({ unsaved: next, center: unsaved ? pinCenterTab(state.center, id) : state.center });
+  },
   setDiffMode(mode) {
     set((state) => ({ layout: { ...state.layout, diffMode: mode } }));
     edi.setLayout({ diffMode: mode });
@@ -373,6 +393,23 @@ function keepHistory(state: AppStore, workspace: WorkspaceView): Pick<AppStore, 
   const historyFilter = state.historyFilter !== null && paths.has(state.historyFilter) ? state.historyFilter : null;
   return { history, historyFilter };
 }
+
+// Tabs that closed any way (the close button, a folder switch, a vanished repo) drop their unsaved mark, and
+// the main process always knows the count for its quit and folder-switch questions.
+useApp.subscribe((state, prev) => {
+  if (state.center.tabs !== prev.center.tabs) {
+    const open = new Set(state.center.tabs.map((tab) => tab.id));
+    const stale = Object.keys(state.unsaved).filter((id) => !open.has(id));
+    if (stale.length > 0) {
+      const next = { ...state.unsaved };
+      for (const id of stale) delete next[id];
+      useApp.setState({ unsaved: next });
+      return; // The nested update reports the count.
+    }
+  }
+  const count = Object.keys(state.unsaved).length;
+  if (count !== Object.keys(prev.unsaved).length) edi.setUnsaved(count);
+});
 
 /** Gets the initial state from the main process and subscribes to changes. The returned function unsubscribes. */
 export function connect(): () => void {

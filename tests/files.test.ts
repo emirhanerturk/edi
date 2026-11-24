@@ -1,9 +1,9 @@
-import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { MAX_FILE_BYTES, OUTSIDE, listDir, listFiles, readRepoFile, resolveInRepo } from '../src/git/files.js';
+import { MAX_FILE_BYTES, MAX_WRITE_BYTES, OUTSIDE, listDir, listFiles, readRepoFile, resolveInRepo, writeRepoFile } from '../src/git/files.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const run = promisify(execFile);
@@ -233,5 +233,67 @@ describe('listDir', () => {
       ],
       more: 2,
     });
+  });
+});
+
+describe('writeRepoFile', () => {
+  it('writes the new text when the disk still matches the text the edit started from', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await mkdir(join(repo, 'src'));
+    await writeFile(join(repo, 'src', 'app.ts'), 'const a = 1;\n');
+    expect(await writeRepoFile(repo, 'src/app.ts', 'const a = 2;\n', 'const a = 1;\n')).toEqual({ ok: true });
+    expect(await readFile(join(repo, 'src', 'app.ts'), 'utf8')).toBe('const a = 2;\n');
+    // No temp file is left behind.
+    expect(await readdir(join(repo, 'src'))).toEqual(['app.ts']);
+  });
+
+  it('keeps the permission bits and writes non-ASCII text as UTF-8', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    const file = join(repo, 'run ü.sh');
+    await writeFile(file, '#!/bin/sh\n');
+    await chmod(file, 0o755);
+    expect(await writeRepoFile(repo, 'run ü.sh', '#!/bin/sh\necho "çığ"\n', '#!/bin/sh\n')).toEqual({ ok: true });
+    expect((await stat(file)).mode & 0o777).toBe(0o755);
+    expect(await readFile(file, 'utf8')).toBe('#!/bin/sh\necho "çığ"\n');
+  });
+
+  it('writes nothing and reports a conflict when the disk changed since the edit started', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await writeFile(join(repo, 'notes.md'), 'written by an agent\n');
+    expect(await writeRepoFile(repo, 'notes.md', 'mine\n', 'original\n')).toEqual({ ok: false, error: 'The file changed on disk', conflict: 'changed' });
+    expect(await readFile(join(repo, 'notes.md'), 'utf8')).toBe('written by an agent\n');
+    // Without an expected text ("Keep mine") it overwrites.
+    expect(await writeRepoFile(repo, 'notes.md', 'mine\n', null)).toEqual({ ok: true });
+    expect(await readFile(join(repo, 'notes.md'), 'utf8')).toBe('mine\n');
+  });
+
+  it('does not create a file that no longer exists', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    expect(await writeRepoFile(repo, 'gone.txt', 'x', null)).toEqual({ ok: false, error: 'The file no longer exists', conflict: 'missing' });
+    expect(await writeRepoFile(repo, 'gone.txt', 'x', 'y')).toEqual({ ok: false, error: 'The file no longer exists', conflict: 'missing' });
+    await expect(stat(join(repo, 'gone.txt'))).rejects.toThrow();
+  });
+
+  it('writes through a link inside the repo to its target, keeping the link', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await writeFile(join(repo, 'real.txt'), 'old\n');
+    await symlink('real.txt', join(repo, 'alias.txt'));
+    expect(await writeRepoFile(repo, 'alias.txt', 'new\n', 'old\n')).toEqual({ ok: true });
+    expect(await readFile(join(repo, 'real.txt'), 'utf8')).toBe('new\n');
+    expect(await readlink(join(repo, 'alias.txt'))).toBe('real.txt');
+  });
+
+  it('refuses paths outside the repo, inside .git, folders, oversized text and non-string input', async () => {
+    const { dir, repo } = await repoWithOutside();
+    await symlink(join(dir, 'outside.txt'), join(repo, 'leak.txt'));
+    for (const path of ['../outside.txt', 'leak.txt', '.git/config', '/etc/hosts']) {
+      expect(await writeRepoFile(repo, path, 'x', null), path).toEqual({ ok: false, error: OUTSIDE });
+    }
+    expect(await readFile(join(dir, 'outside.txt'), 'utf8')).toBe('secret\n');
+    await mkdir(join(repo, 'folder'));
+    expect(await writeRepoFile(repo, 'folder', 'x', null)).toEqual({ ok: false, error: 'Not a file' });
+    expect(await writeRepoFile(repo, 'README.md', 'x'.repeat(MAX_WRITE_BYTES + 1), null)).toEqual({ ok: false, error: 'The text is too large to save' });
+    expect(await writeRepoFile(repo, 'README.md', 42 as unknown as string, null)).toEqual({ ok: false, error: 'Could not save the file' });
+    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('readme\n');
   });
 });

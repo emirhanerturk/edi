@@ -2,7 +2,8 @@ import { join } from 'node:path';
 import { diffFile } from '../git/actions.js';
 import { parseDiff } from '../git/diffParse.js';
 import { OUTPUT_TOO_LARGE } from '../git/exec.js';
-import { type DirList, type FileContent, type FileList, OUTSIDE, listDir, listFiles, locateInRepo, readRepoFile } from '../git/files.js';
+import { type DirList, type FileContent, type FileList, OUTSIDE, listDir, listFiles, locateInRepo, readRepoFile, writeRepoFile } from '../git/files.js';
+import type { WriteResult } from '../git/types.js';
 import { getStatus } from '../git/status.js';
 import type { DiffView, OpResult } from '../shared/api.js';
 import { openInZed } from './openInZed.js';
@@ -19,8 +20,9 @@ export const MAX_DIFF_BYTES = 2 * 1_048_576;
 export const DIFF_TOO_LARGE = 'This diff is too large to show';
 
 /**
- * Read-only operations the page requests for the middle panel. The repo path is validated against the discovered list,
- * the file path against the repo's own folder; none of them change anything in the repo.
+ * Operations the page requests for the middle panel. The repo path is validated against the discovered list,
+ * the file path against the repo's own folder. Only `writeFile` changes the repo: it saves editor text over an
+ * existing file.
  */
 export class ViewOps {
   constructor(
@@ -51,6 +53,17 @@ export class ViewOps {
     if (!repo) return UNKNOWN_REPO;
     if (typeof filePath !== 'string') return INVALID_PATH;
     return readRepoFile(repo.path, filePath);
+  }
+
+  /** Saves editor text; `expected` is the disk text the edit started from (`null`: overwrite regardless). */
+  async writeFile(repoPath: unknown, filePath: unknown, text: unknown, expected: unknown): Promise<WriteResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    if (typeof filePath !== 'string') return INVALID_PATH;
+    const result = await writeRepoFile(repo.path, filePath, text, expected);
+    // The Git tab shows the change at once instead of on the next poll.
+    if (result.ok) await this.ws.refresh(repo.path).catch(() => undefined);
+    return result;
   }
 
   async listFiles(repoPath: unknown): Promise<FileList> {

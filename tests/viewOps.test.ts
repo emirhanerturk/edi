@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DIFF_TOO_LARGE, MAX_DIFF_BYTES, ViewOps } from '../src/main/viewOps.js';
@@ -34,6 +34,7 @@ describe('ViewOps', () => {
     for (const path of [dir, `${repo}/../a`, `${repo}/`, join(repo, '.git'), '', null, 7, undefined]) {
       expect(await ops.diff(path, 'README.md'), String(path)).toEqual(UNKNOWN);
       expect(await ops.readFile(path, 'README.md'), String(path)).toEqual(UNKNOWN);
+      expect(await ops.writeFile(path, 'README.md', 'x', null), String(path)).toEqual(UNKNOWN);
       expect(await ops.listFiles(path), String(path)).toEqual(UNKNOWN);
       expect(await ops.openInZed(path, null), String(path)).toEqual(UNKNOWN);
     }
@@ -135,8 +136,18 @@ describe('ViewOps', () => {
       expect(await ops.openInZed(repo, path), path).toEqual(outside);
     }
     expect(await ops.readFile(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
+    expect(await ops.writeFile(repo, 7, 'x', null)).toEqual({ ok: false, error: 'Invalid file path' });
+    expect(await ops.writeFile(repo, '../outside.txt', 'x', null)).toEqual(outside);
     expect(await ops.openInZed(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
     expect(opened).toEqual([]);
+  });
+
+  it('saves a file in a known repo and refreshes its status at once', async () => {
+    const { repo, ws, ops } = await setup();
+    expect(ws.repo(repo)!.status!.files).toEqual([]);
+    expect(await ops.writeFile(repo, 'README.md', 'edited\n', 'readme\n')).toEqual({ ok: true });
+    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('edited\n');
+    expect(ws.repo(repo)!.status!.files.map((file) => file.path)).toEqual(['README.md']);
   });
 
   it('opens the file in Zed, or the repo folder when no path is given', async () => {
