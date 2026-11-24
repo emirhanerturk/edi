@@ -1,5 +1,6 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { FileContent } from '../../shared/api';
+import { mediaUrl } from '../../shared/media';
 import { LockIcon } from '../components/icons';
 import type { Token } from '../highlight/highlight';
 import { languageOf } from '../highlight/languages';
@@ -19,6 +20,10 @@ function size(bytes: number): string {
 export function fileInfo(path: string, content: FileContent | null): string | null {
   if (!content || !content.ok) return null;
   if (content.kind === 'binary') return `Binary · ${size(content.size)}`;
+  if (content.kind === 'media') {
+    const ext = path.slice(path.lastIndexOf('.') + 1).toUpperCase();
+    return `${ext} ${content.media} · ${size(content.size)}`;
+  }
   const label = languageOf(path)?.label ?? 'Plain Text';
   if (content.kind === 'tooLarge') return `${label} · ${size(content.size)}`;
   const count = splitLines(content.text).length;
@@ -27,6 +32,8 @@ export function fileInfo(path: string, content: FileContent | null): string | nu
 
 export interface FilePaneProps {
   repoName: string;
+  /** Görsel ve videonun adresi için. */
+  repoPath: string;
   path: string;
   /** Yüklenene kadar null. */
   content: FileContent | null;
@@ -38,7 +45,7 @@ export interface FilePaneProps {
 }
 
 /** Salt okunur dosya görünümü. */
-export function FilePane({ repoName, path, content, isNew, tokens, onOpenInZed }: FilePaneProps) {
+export function FilePane({ repoName, repoPath, path, content, isNew, tokens, onOpenInZed }: FilePaneProps) {
   return (
     <div className="center-view" data-testid="center-view" data-kind="file">
       <ViewHeader repoName={repoName} path={path} onOpenInZed={onOpenInZed}>
@@ -49,7 +56,26 @@ export function FilePane({ repoName, path, content, isNew, tokens, onOpenInZed }
           Read-only
         </span>
       </ViewHeader>
-      <FileBody content={content} tokens={tokens} />
+      {content?.ok && content.kind === 'media' ? (
+        <MediaBody key={`${repoPath}\n${path}`} src={mediaUrl(repoPath, path, content.mtime)} media={content.media} name={path.slice(path.lastIndexOf('/') + 1)} />
+      ) : (
+        <FileBody content={content} tokens={tokens} />
+      )}
+    </div>
+  );
+}
+
+/** Görsel ya da video, ana sürecin `edi-media://` adresinden; açılamazsa not. */
+function MediaBody({ src, media, name }: { src: string; media: 'image' | 'video'; name: string }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (failed === src) return <ViewNote>{media === 'image' ? 'This image could not be shown' : 'This video could not be played'}</ViewNote>;
+  return (
+    <div className="media-body" data-testid="media-body">
+      {media === 'image' ? (
+        <img className="media-image" src={src} alt={name} draggable={false} onError={() => setFailed(src)} />
+      ) : (
+        <video className="media-video" src={src} controls preload="metadata" onError={() => setFailed(src)} />
+      )}
     </div>
   );
 }

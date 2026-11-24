@@ -1,9 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
-import { BrowserWindow, Menu, app, screen } from 'electron';
+import { BrowserWindow, Menu, app, protocol, screen } from 'electron';
 import { folderArg } from './args.js';
 import { AppCore } from './ipc.js';
 import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
+import { MEDIA_SCHEME } from '../shared/media.js';
 
 // Testler ve geliştirme, kullanıcının gerçek ayar klasörüne dokunmasın diye ayrı bir klasör verebilir.
 // Paketsiz çalışan geliştirme kopyası da ayrı klasörü kullanır: kurulu edi'nin tek-kopya kilidine
@@ -15,6 +16,12 @@ else if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData
 // devreder ve kapanır. Açık pencere o klasöre geçer (çalışan terminal varsa sorulur).
 const primary = app.requestSingleInstanceLock();
 if (!primary) app.quit();
+
+// Görsel ve video önizlemesinin adresi; video ileri sarabilsin diye akış ve fetch desteğiyle.
+// Uygulama hazır olmadan kaydedilmelidir.
+protocol.registerSchemesAsPrivileged([
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } },
+]);
 
 const here = import.meta.dirname;
 const devUrl = process.env.VITE_DEV_SERVER_URL;

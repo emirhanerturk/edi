@@ -107,7 +107,15 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
 
   return (
     <div className={`repo${open ? ' open' : ''}`} data-testid="repo-row" data-repo={repo.name} aria-expanded={open}>
-      <div className="repo-head">
+      <div
+        className="repo-head toggles"
+        onClick={(event) => {
+          // Satırın boş yeri, branch adı ve sayılar da açıp kapatır; düğmeler (ad düğmesi dahil),
+          // menüler ve alanlar kendi işini yapar.
+          if ((event.target as HTMLElement).closest('button, a, input, textarea, [role="menu"]')) return;
+          onToggle(repo.path, !open);
+        }}
+      >
         <button className="repo-toggle" data-testid="repo-toggle" onClick={() => onToggle(repo.path, !open)}>
           {open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
           <span className="repo-name">{repo.name}</span>

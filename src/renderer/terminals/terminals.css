@@ -37,6 +37,10 @@
   color: var(--text-2);
 }
 
+.tab {
+  cursor: pointer;
+}
+
 .tab:hover {
   color: var(--text);
 }

@@ -29,7 +29,7 @@ describe('büyük görünümler aynı veriyle yeniden hesaplanmaz', () => {
       diff: parseDiff('@@ -1 +1 @@\n-a\n+b\n'),
       file: { path: 'a.ts', origPath: null, x: '.', y: 'M', kind: 'changed' },
     };
-    const pane = () => <DiffPane repoName="r" path="a.ts" view={view} mode="split" tokens={null} onMode={() => undefined} onOpenInZed={() => undefined} />;
+    const pane = () => <DiffPane repoName="r" path="a.ts" view={view} mode="split" tokens={null} onMode={() => undefined} onOpenInZed={() => undefined} onOpenFile={() => undefined} />;
     const { rerender } = render(pane());
     rerender(pane());
     rerender(pane());
@@ -38,7 +38,7 @@ describe('büyük görünümler aynı veriyle yeniden hesaplanmaz', () => {
 
   it('dosya gövdesi yeni geri çağırmalarla yeniden bölünmez', () => {
     const content: FileContent = { ok: true, kind: 'text', text: 'a\nb\n', size: 4 };
-    const pane = () => <FilePane repoName="r" path="a.ts" content={content} isNew={false} tokens={null} onOpenInZed={() => undefined} />;
+    const pane = () => <FilePane repoName="r" repoPath="/w/r" path="a.ts" content={content} isNew={false} tokens={null} onOpenInZed={() => undefined} />;
     const { rerender } = render(pane());
     rerender(pane());
     rerender(pane());

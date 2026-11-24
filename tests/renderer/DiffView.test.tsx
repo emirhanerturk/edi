@@ -15,7 +15,7 @@ const diff = parseDiff(
 const loaded: DiffView = { ok: true, diff, file };
 
 function renderPane(view: DiffView | null, mode: 'split' | 'inline' = 'split') {
-  const handlers = { onMode: vi.fn(), onOpenInZed: vi.fn() };
+  const handlers = { onMode: vi.fn(), onOpenInZed: vi.fn(), onOpenFile: vi.fn() };
   render(<DiffPane repoName="quizei-app" path="app/game/play.tsx" view={view} mode={mode} tokens={null} {...handlers} />);
   return handlers;
 }
@@ -29,6 +29,27 @@ describe('DiffPane', () => {
     expect(header.textContent).toContain('app/game/play.tsx');
     expect(within(header).getByText('+2')).toBeTruthy();
     expect(within(header).getByText('−1')).toBeTruthy();
+  });
+
+  it('"Open file" dosyanın tamamını açar; silinmiş dosyada ve yüklenmeden düğme yoktur', () => {
+    const { onOpenFile } = renderPane(loaded);
+    fireEvent.click(within(screen.getByTestId('view-header')).getByRole('button', { name: 'Open file' }));
+    expect(onOpenFile).toHaveBeenCalledTimes(1);
+    for (const gone of [
+      { ...file, x: '.', y: 'D' },
+      { ...file, x: 'D', y: '.' },
+    ]) {
+      cleanup();
+      renderPane({ ok: true, diff, file: gone });
+      expect(screen.queryByRole('button', { name: 'Open file' }), `${gone.x}${gone.y}`).toBeNull();
+    }
+    cleanup();
+    renderPane(null);
+    expect(screen.queryByRole('button', { name: 'Open file' })).toBeNull();
+    // Stage'li ama çalışma ağacında duran dosya açılabilir.
+    cleanup();
+    renderPane({ ok: true, diff, file: { ...file, x: 'A', y: '.' } });
+    expect(screen.getByRole('button', { name: 'Open file' })).toBeTruthy();
   });
 
   it('yan yana: numaralar, işaretler ve boş taraf', () => {
@@ -75,7 +96,7 @@ describe('DiffPane', () => {
 
   it('renkler geldiyse satır metni renkli parçalardan oluşur', () => {
     const tokens = { old: new Map(), new: new Map([[2, [{ text: 'İK', color: '#c678dd' }, { text: 'İ', color: '#98c379' }]]]) };
-    render(<DiffPane repoName="r" path="a.ts" view={loaded} mode="split" tokens={tokens} onMode={() => undefined} onOpenInZed={() => undefined} />);
+    render(<DiffPane repoName="r" path="a.ts" view={loaded} mode="split" tokens={tokens} onMode={() => undefined} onOpenInZed={() => undefined} onOpenFile={() => undefined} />);
     const code = cell(screen.getAllByTestId('diff-row')[1]!, 'new').querySelector('.code')!;
     expect([...code.querySelectorAll('span')].map((span) => [span.textContent, span.style.color])).toEqual([
       ['İK', 'rgb(198, 120, 221)'],

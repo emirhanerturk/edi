@@ -107,6 +107,20 @@ describe('GitPanelView', () => {
     expect(onToggle).toHaveBeenCalledWith('/w/quizei-web', true);
   });
 
+  it('repo satırının boş yerine ya da branch adına tıklamak da açıp kapatır; satırdaki düğmeler açıp kapatmaz', () => {
+    const { onToggle } = renderPanel({ '/w/quizei-web': false });
+    const head = row('quizei-web').querySelector('.repo-head') as HTMLElement;
+    fireEvent.click(head);
+    expect(onToggle).toHaveBeenLastCalledWith('/w/quizei-web', true);
+    fireEvent.click(within(row('quizei-web')).getByText('main'));
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    fireEvent.click(within(row('quizei-web')).getByTestId('sync-button'));
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    // Ad düğmesi de yalnız bir kez açar (satıra kabarıp ikinci kez değil).
+    fireEvent.click(within(row('quizei-web')).getByTestId('repo-toggle'));
+    expect(onToggle).toHaveBeenCalledTimes(3);
+  });
+
   it('repo yoksa bunu söyler', () => {
     render(<GitPanelView repos={[]} expanded={{}} onToggle={() => undefined} />);
     expect(screen.getByText('No git repositories in this folder')).toBeTruthy();

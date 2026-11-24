@@ -1,9 +1,11 @@
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
 import { basename, resolve } from 'node:path';
-import { type BrowserWindow, dialog, ipcMain } from 'electron';
+import { type BrowserWindow, dialog, ipcMain, protocol } from 'electron';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
+import { serveMedia } from './media.js';
+import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
 import type { AppState, ClaudeUsage, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
@@ -169,6 +171,10 @@ export class AppCore {
   }
 
   register(): void {
+    // Dosya görünümündeki görsel ve videolar: yalnız keşfedilmiş repoların içinden.
+    protocol.handle(MEDIA_SCHEME, (request) =>
+      serveMedia((repoPath) => this.workspace.repo(repoPath)?.path ?? null, request.url, request.headers.get('range')),
+    );
     ipcMain.handle('state:get', () => this.appState());
     ipcMain.handle('folder:choose', async () => {
       const win = this.getWindow();

@@ -33,7 +33,7 @@ const detail = (over: Partial<CommitDetail> = {}): CommitDetail => ({
 });
 
 function renderPane(result: CommitResult | null, over: Partial<CommitPaneProps> = {}) {
-  const props: CommitPaneProps = { repoName: 'quizei-app-next-quiz', branch: 'main', result, now, tokens: new Map(), onCopy: vi.fn(), ...over };
+  const props: CommitPaneProps = { repoName: 'quizei-app-next-quiz', branch: 'main', result, now, tokens: new Map(), onCopy: vi.fn(), onOpenUrl: vi.fn(), ...over };
   render(<CommitPane {...props} />);
   return props;
 }
@@ -49,6 +49,11 @@ describe('CommitPane', () => {
     const paragraphs = screen.getAllByTestId('commit-body');
     expect(paragraphs.map((p) => p.textContent)).toEqual(['The banner sat under the answer grid.\nIt pushed the timer off small screens.', 'It now shows only between rounds.']);
     const meta = screen.getByTestId('commit-meta');
+    // Önce commit'i atan: adı, üzerine gelince e-postası.
+    const author = within(meta).getByTestId('commit-author');
+    expect(author.textContent).toBe('Me');
+    expect(author.title).toBe('Me <me@x.dev>');
+    expect(meta.firstElementChild).toBe(author);
     expect(within(meta).getByText('quizei-app-next-quiz')).toBeTruthy();
     expect(within(meta).getByText('main')).toBeTruthy();
     expect(within(meta).getByText('1 hour ago')).toBeTruthy();
@@ -57,6 +62,46 @@ describe('CommitPane', () => {
     fireEvent.click(within(meta).getByRole('button', { name: /Copy hash/ }));
     expect(onCopy).toHaveBeenCalledTimes(1);
     expect(within(meta).getByRole('button', { name: /Copy hash/ }).textContent).toContain('3ed0fc5');
+  });
+
+  it("push edilmiş commit'te GitHub bağlantısı vardır ve tarayıcıda açar; yoksa düğme de yoktur", () => {
+    const url = `https://github.com/quizei/app/commit/${'3ed0fc5'.padEnd(40, 'a')}`;
+    const { onOpenUrl } = renderPane({ ok: true, commit: detail(), webUrl: url });
+    const link = within(screen.getByTestId('commit-meta')).getByRole('button', { name: 'Open on GitHub' });
+    expect(link.title).toBe(url);
+    // The GitHub button is the last one in the row, after the hash.
+    expect(link.parentElement!.lastElementChild).toBe(link);
+    fireEvent.click(link);
+    expect(onOpenUrl).toHaveBeenCalledWith(url);
+    cleanup();
+    renderPane({ ok: true, commit: detail(), webUrl: null });
+    expect(screen.queryByRole('button', { name: 'Open on GitHub' })).toBeNull();
+  });
+
+  it('tek düğmeyle bütün dosyalar kapanır, hepsi kapalıyken açılır', () => {
+    renderPane({ ok: true, commit: detail() });
+    const expanded = () => screen.getAllByTestId('commit-file-head').map((head) => head.getAttribute('aria-expanded'));
+    expect(expanded()).toContain('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all files' }));
+    expect(expanded()).toEqual(['false', 'false', 'false']);
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all files' }));
+    expect(expanded()).toEqual(['true', 'true', 'true']);
+    // Tek tek kapatılınca hepsi kapalı olana kadar düğme yine "kapat" der.
+    fireEvent.click(screen.getAllByTestId('commit-file-head')[0]!);
+    expect(screen.getByRole('button', { name: 'Collapse all files' })).toBeTruthy();
+  });
+
+  it('dosyası olmayan ya da satır satır gösterilemeyecek kadar büyük commit\'te aç/kapat düğmesi yoktur', () => {
+    renderPane({ ok: true, commit: detail({ files: [] }) });
+    expect(screen.queryByRole('button', { name: /all files/ })).toBeNull();
+    cleanup();
+    renderPane({ ok: true, commit: detail({ tooLarge: true }) });
+    expect(screen.queryByRole('button', { name: /all files/ })).toBeNull();
+  });
+
+  it('yazarın adı yoksa e-postası gösterilir', () => {
+    renderPane({ ok: true, commit: detail({ authorName: '', authorEmail: 'bot@ci.dev' }) });
+    expect(screen.getByTestId('commit-author').textContent).toBe('bot@ci.dev');
   });
 
   it('dosyalar alt alta, satırlarıyla; 400 satırı aşan kapalı başlar ve tıklayınca açılır', () => {
