@@ -65,6 +65,14 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy }: Co
           </p>
         ))}
         <div className="commit-meta" data-testid="commit-meta">
+          <span
+            className="commit-author"
+            data-testid="commit-author"
+            title={commit.authorEmail ? `${commit.authorName || commit.authorEmail} <${commit.authorEmail}>` : commit.authorName}
+          >
+            {commit.authorName || commit.authorEmail}
+          </span>
+          <span aria-hidden="true">·</span>
           <span className="commit-repo">{repoName}</span>
           {branch !== null && <span aria-hidden="true">·</span>}
           {branch !== null && <span className="commit-branch mono">{branch}</span>}

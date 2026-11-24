@@ -49,6 +49,11 @@ describe('CommitPane', () => {
     const paragraphs = screen.getAllByTestId('commit-body');
     expect(paragraphs.map((p) => p.textContent)).toEqual(['The banner sat under the answer grid.\nIt pushed the timer off small screens.', 'It now shows only between rounds.']);
     const meta = screen.getByTestId('commit-meta');
+    // Önce commit'i atan: adı, üzerine gelince e-postası.
+    const author = within(meta).getByTestId('commit-author');
+    expect(author.textContent).toBe('Me');
+    expect(author.title).toBe('Me <me@x.dev>');
+    expect(meta.firstElementChild).toBe(author);
     expect(within(meta).getByText('quizei-app-next-quiz')).toBeTruthy();
     expect(within(meta).getByText('main')).toBeTruthy();
     expect(within(meta).getByText('1 hour ago')).toBeTruthy();
@@ -57,6 +62,11 @@ describe('CommitPane', () => {
     fireEvent.click(within(meta).getByRole('button', { name: /Copy hash/ }));
     expect(onCopy).toHaveBeenCalledTimes(1);
     expect(within(meta).getByRole('button', { name: /Copy hash/ }).textContent).toContain('3ed0fc5');
+  });
+
+  it('yazarın adı yoksa e-postası gösterilir', () => {
+    renderPane({ ok: true, commit: detail({ authorName: '', authorEmail: 'bot@ci.dev' }) });
+    expect(screen.getByTestId('commit-author').textContent).toBe('bot@ci.dev');
   });
 
   it('dosyalar alt alta, satırlarıyla; 400 satırı aşan kapalı başlar ve tıklayınca açılır', () => {

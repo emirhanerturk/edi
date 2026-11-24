@@ -405,6 +405,14 @@
   color: var(--red);
 }
 
+.commit-author {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
 .commit-repo {
   color: var(--text-2);
   min-width: 0;
