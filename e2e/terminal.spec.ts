@@ -42,6 +42,9 @@ test('Cmd+T opens a new tab, Cmd+1 goes back to the first, Cmd+W closes the acti
     await expect(tabs).toHaveCount(1);
     await page.getByTestId('new-terminal').click();
     await expect(tabs).toHaveCount(2);
+    // A double click on the empty part of the tab bar opens one too.
+    await page.locator('.terminals .tabbar .spacer').dblclick();
+    await expect(tabs).toHaveCount(3);
   } finally {
     await app.close();
   }

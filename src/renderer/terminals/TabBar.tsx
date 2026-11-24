@@ -8,7 +8,13 @@ export function TabBar() {
   const newTab = useApp((s) => s.newTab);
 
   return (
-    <div className="tabbar">
+    <div
+      className="tabbar"
+      onDoubleClick={(event) => {
+        // Only the empty part: not a tab or a button.
+        if (!(event.target as HTMLElement).closest('.tab, button')) void newTab();
+      }}
+    >
       <div className="tabbar-tabs" role="tablist" aria-label="Terminals">
         {tabs.map((tab) => (
           <TabButton key={tab.id} tab={tab} active={tab.id === activeTab} />
