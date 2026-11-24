@@ -299,9 +299,11 @@ belirlemez. (Benim kararım.)
 
 ### Files
 
-Açık klasördeki repolar en üst düzeyde klasör olarak; her birinin altında
-çalışma ağacı. `.gitignore`'a takılan dosyalar (ör. `node_modules`)
-gösterilmez. Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
+Açık klasördeki repolar en üst düzeyde, Git sekmesindeki gibi ayrı bölümler olarak
+(aynı satır yüksekliği; açık repo vurgulu); her birinin altında çalışma ağacı.
+`.gitignore`'a takılan dosyalar ve klasörler soluk gösterilir (2026-11-24, kullanıcı
+istedi); yok sayılan bir dosya açılabilir, yok sayılan bir klasörün içi listelenmez
+(ör. `node_modules`, `dist`). Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
 klasörler nokta ile işaretlenir. Bir dosyaya tıklamak dosya görünümünü açar.
 Sekme başlığındaki düğme tüm klasörleri kapatır. Açık klasörün kendisi tek bir
 repoysa ağaç doğrudan o reponun içeriğiyle başlar.

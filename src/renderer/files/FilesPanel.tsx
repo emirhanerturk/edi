@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FileList } from '../../git/types';
 import type { RepoView } from '../../shared/api';
 import { edi } from '../bridge';
-import { ChevronDown, ChevronRight, FileIcon } from '../components/icons';
+import { ChevronDown, ChevronRight, FileIcon, FolderIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import { useApp } from '../store';
 import { type TreeRow, buildTree, flattenTree } from './tree';
@@ -39,77 +39,90 @@ export function FilesPanelView({ repos, single, lists, open, selected, onToggle,
     );
   }
 
-  const lines: Line[] = [];
-  const addTree = (repo: RepoView, depth: number) => {
+  const treeLines = (repo: RepoView, depth: number): Line[] => {
     const list = lists[repo.path];
-    if (!list) lines.push({ type: 'note', key: `${repo.path}:loading`, text: 'Loading…', error: false, depth });
-    else if (!list.ok) lines.push({ type: 'note', key: `${repo.path}:error`, text: list.error, error: true, depth });
-    else {
-      const tree = buildTree(list.files, repo.status?.files ?? []);
-      for (const row of flattenTree(tree, (path) => open[dirKey(repo.path, path)] === true, depth)) lines.push({ type: 'node', repo, row });
-    }
+    if (!list) return [{ type: 'note', key: `${repo.path}:loading`, text: 'Loading…', error: false, depth }];
+    if (!list.ok) return [{ type: 'note', key: `${repo.path}:error`, text: list.error, error: true, depth }];
+    const tree = buildTree(list.files, repo.status?.files ?? [], list.ignored);
+    return flattenTree(tree, (path) => open[dirKey(repo.path, path)] === true, depth).map((row) => ({ type: 'node', repo, row }));
   };
-  if (single) addTree(repos[0]!, 0);
-  else {
-    for (const repo of repos) {
-      const isOpen = open[dirKey(repo.path, '')] === true;
-      lines.push({ type: 'repo', repo, open: isOpen });
-      if (isOpen) addTree(repo, 1);
+
+  const renderLine = (line: Line) => {
+    if (line.type === 'note') {
+      return (
+        <p key={line.key} className={`tree-note${line.error ? ' error' : ''}`} style={{ paddingLeft: indent(line.depth) + 17 }}>
+          {line.text}
+        </p>
+      );
     }
+    if (line.type === 'repo') {
+      const { repo } = line;
+      const dirty = (repo.status?.files.length ?? 0) > 0;
+      return (
+        <TreeItem
+          key={repo.path}
+          name={repo.name}
+          depth={0}
+          kind="repo"
+          open={line.open}
+          badge={dirty ? '●' : ''}
+          onClick={() => onToggle(dirKey(repo.path, ''), !line.open)}
+        />
+      );
+    }
+    const { repo, row } = line;
+    const { node } = row;
+    if (node.kind === 'dir') {
+      return (
+        <TreeItem
+          key={`${repo.path}\n${node.path}`}
+          name={node.name}
+          depth={row.depth}
+          kind="dir"
+          open={row.open}
+          ignored={node.ignored}
+          badge={node.dirty ? '●' : ''}
+          onClick={() => {
+            // Yok sayılan klasörün içi listelenmez (ör. node_modules): açılmaz.
+            if (!node.ignored) onToggle(dirKey(repo.path, node.path), !row.open);
+          }}
+        />
+      );
+    }
+    return (
+      <TreeItem
+        key={`${repo.path}\n${node.path}`}
+        name={node.name}
+        title={node.path}
+        depth={row.depth}
+        kind="file"
+        ignored={node.ignored}
+        badge={node.letter ?? ''}
+        selected={selected?.repoPath === repo.path && selected.path === node.path}
+        onClick={() => onOpenFile(repo.path, node.path, false)}
+        onDoubleClick={() => onOpenFile(repo.path, node.path, true)}
+      />
+    );
+  };
+
+  if (single) {
+    return (
+      <div className="git-list files-tree single" role="tree" aria-label="Files">
+        {treeLines(repos[0]!, 0).map(renderLine)}
+      </div>
+    );
   }
 
+  // Çok repolu görünüm: her repo, Git sekmesindeki gibi kendi bölümü; açık olan vurgulu.
   return (
     <div className="git-list files-tree" role="tree" aria-label="Files">
-      {lines.map((line) => {
-        if (line.type === 'note') {
-          return (
-            <p key={line.key} className={`tree-note${line.error ? ' error' : ''}`} style={{ paddingLeft: indent(line.depth) + 17 }}>
-              {line.text}
-            </p>
-          );
-        }
-        if (line.type === 'repo') {
-          const { repo } = line;
-          const dirty = (repo.status?.files.length ?? 0) > 0;
-          return (
-            <TreeItem
-              key={repo.path}
-              name={repo.name}
-              depth={0}
-              kind="repo"
-              open={line.open}
-              badge={dirty ? '●' : ''}
-              onClick={() => onToggle(dirKey(repo.path, ''), !line.open)}
-            />
-          );
-        }
-        const { repo, row } = line;
-        const { node } = row;
-        if (node.kind === 'dir') {
-          return (
-            <TreeItem
-              key={`${repo.path}\n${node.path}`}
-              name={node.name}
-              depth={row.depth}
-              kind="dir"
-              open={row.open}
-              badge={node.dirty ? '●' : ''}
-              onClick={() => onToggle(dirKey(repo.path, node.path), !row.open)}
-            />
-          );
-        }
+      {repos.map((repo) => {
+        const isOpen = open[dirKey(repo.path, '')] === true;
         return (
-          <TreeItem
-            key={`${repo.path}\n${node.path}`}
-            name={node.name}
-            title={node.path}
-            depth={row.depth}
-            kind="file"
-            badge={node.letter ?? ''}
-            selected={selected?.repoPath === repo.path && selected.path === node.path}
-            onClick={() => onOpenFile(repo.path, node.path, false)}
-            onDoubleClick={() => onOpenFile(repo.path, node.path, true)}
-          />
+          <div key={repo.path} className={`files-repo${isOpen ? ' open' : ''}`} data-testid="files-repo" data-repo={repo.name}>
+            {renderLine({ type: 'repo', repo, open: isOpen })}
+            {isOpen && treeLines(repo, 1).map(renderLine)}
+          </div>
         );
       })}
     </div>
@@ -124,6 +137,8 @@ interface TreeItemProps {
   depth: number;
   kind: 'repo' | 'dir' | 'file';
   open?: boolean;
+  /** `.gitignore`'a takılıyor: soluk; klasörse açılmaz. */
+  ignored?: boolean;
   /** Dosyada durum harfi, klasörde "●"; yoksa boş. */
   badge: string;
   selected?: boolean;
@@ -131,23 +146,25 @@ interface TreeItemProps {
   onDoubleClick?(): void;
 }
 
-function TreeItem({ name, title, depth, kind, open, badge, selected, onClick, onDoubleClick }: TreeItemProps) {
+function TreeItem({ name, title, depth, kind, open, ignored = false, badge, selected, onClick, onDoubleClick }: TreeItemProps) {
   const isFile = kind === 'file';
+  const sealed = ignored && kind === 'dir';
   const color = isFile && badge !== '' ? letterColor(badge) : undefined;
   return (
     <div
-      className={`tree-row ${kind}${selected ? ' selected' : ''}`}
+      className={`tree-row ${kind}${selected ? ' selected' : ''}${ignored ? ' ignored' : ''}`}
       data-testid="tree-row"
       data-depth={depth}
       data-name={name}
       data-badge={badge}
+      data-ignored={ignored ? 'true' : undefined}
       role="treeitem"
       tabIndex={0}
-      aria-expanded={isFile ? undefined : open}
+      aria-expanded={isFile || sealed ? undefined : open}
       aria-current={selected ? 'true' : undefined}
       aria-selected={isFile ? selected === true : undefined}
-      title={title ?? name}
-      style={{ paddingLeft: indent(depth) }}
+      title={ignored ? `${title ?? name} (ignored by git)` : (title ?? name)}
+      style={{ paddingLeft: kind === 'repo' ? 10 : indent(depth) }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onKeyDown={(event) => {
@@ -158,6 +175,8 @@ function TreeItem({ name, title, depth, kind, open, badge, selected, onClick, on
     >
       {isFile ? (
         <FileIcon size={12} className="tree-icon" />
+      ) : sealed ? (
+        <FolderIcon size={12} className="tree-icon" />
       ) : open ? (
         <ChevronDown size={11} strokeWidth={1.9} className="tree-icon" />
       ) : (

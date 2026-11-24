@@ -12,6 +12,8 @@ export interface TreeNode {
   letter: string | null;
   /** Klasörün içinde (herhangi bir derinlikte) değişiklik var. Dosyada her zaman false. */
   dirty: boolean;
+  /** `.gitignore`'a takılıyor: soluk gösterilir. Yok sayılan klasörün içi listelenmez. */
+  ignored: boolean;
 }
 
 /** Çalışma ağacından kalkmış dosya: listede gösterilmez. */
@@ -29,8 +31,8 @@ const byName = (a: TreeNode, b: TreeNode) => {
  * listesi bir yoklama geriden gelse de yeni dosya hemen görünür. Silinen dosyalar listelenmez,
  * ama bulundukları klasör değişiklik içerir sayılır.
  */
-export function buildTree(files: string[], changes: FileChange[]): TreeNode[] {
-  const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false };
+export function buildTree(files: string[], changes: FileChange[], ignored: string[] = []): TreeNode[] {
+  const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
   const dirs = new Map<string, TreeNode>([['', root]]);
 
   const dirOf = (path: string): TreeNode => {
@@ -38,7 +40,7 @@ export function buildTree(files: string[], changes: FileChange[]): TreeNode[] {
     if (found) return found;
     const slash = path.lastIndexOf('/');
     const parent = dirOf(slash === -1 ? '' : path.slice(0, slash));
-    const node: TreeNode = { name: path.slice(slash + 1), path, kind: 'dir', children: [], letter: null, dirty: false };
+    const node: TreeNode = { name: path.slice(slash + 1), path, kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
     parent.children.push(node);
     dirs.set(path, node);
     return node;
@@ -54,7 +56,26 @@ export function buildTree(files: string[], changes: FileChange[]): TreeNode[] {
     if (seen.has(path)) continue;
     seen.add(path);
     const slash = path.lastIndexOf('/');
-    dirOf(parentPath(path)).children.push({ name: path.slice(slash + 1), path, kind: 'file', children: [], letter: letters.get(path) ?? null, dirty: false });
+    dirOf(parentPath(path)).children.push({
+      name: path.slice(slash + 1),
+      path,
+      kind: 'file',
+      children: [],
+      letter: letters.get(path) ?? null,
+      dirty: false,
+      ignored: false,
+    });
+  }
+
+  // Yok sayılanlar: klasör `/` ile biter ve içi boş kalır.
+  for (const entry of ignored) {
+    if (entry.endsWith('/')) {
+      dirOf(entry.slice(0, -1)).ignored = true;
+    } else if (!seen.has(entry)) {
+      seen.add(entry);
+      const slash = entry.lastIndexOf('/');
+      dirOf(parentPath(entry)).children.push({ name: entry.slice(slash + 1), path: entry, kind: 'file', children: [], letter: null, dirty: false, ignored: true });
+    }
   }
 
   // Değişikliği içeren her klasör (silinen dosyanınki de) işaretlenir; ağaçta olmayan klasör atlanır.

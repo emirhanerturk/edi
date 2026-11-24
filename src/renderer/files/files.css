@@ -1,6 +1,20 @@
 /* Sağ panel: Files sekmesi. */
-.files-tree {
+.files-tree.single {
   padding: 6px 0;
+}
+
+/* Çok repolu görünümde her repo, Git sekmesindeki gibi ayrı bir bölüm. */
+.files-repo {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.files-repo.open {
+  background: var(--panel-open);
+  border-bottom-color: var(--line);
+}
+
+.files-repo.open > :last-child {
+  margin-bottom: 6px;
 }
 
 .tree-row {
@@ -14,7 +28,7 @@
 }
 
 .tree-row:hover {
-  background: var(--panel-open);
+  background: var(--hover);
 }
 
 .tree-row:focus-visible {
@@ -27,9 +41,22 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+.tree-row.repo {
+  height: 36px;
+  gap: 8px;
+}
+
 .tree-row.repo .tree-name {
   color: var(--text);
+}
+
+.files-repo.open .tree-row.repo .tree-name {
   font-weight: 600;
+}
+
+/* .gitignore'a takılanlar soluk. */
+.tree-row.ignored > * {
+  opacity: 0.45;
 }
 
 .tree-row .tree-icon {

@@ -119,7 +119,7 @@ describe('ViewOps', () => {
     const { repo, ops } = await setup();
     await writeFile(join(repo, 'yeni.ts'), 'const a = 1;\n');
     expect(await ops.readFile(repo, 'yeni.ts')).toEqual({ ok: true, kind: 'text', text: 'const a = 1;\n', size: 13 });
-    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'yeni.ts'] });
+    expect(await ops.listFiles(repo)).toEqual({ ok: true, files: ['README.md', 'yeni.ts'], ignored: [] });
   });
 
   it('repo dışına çıkan dosya yolu okunmaz ve açılmaz', async () => {

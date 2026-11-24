@@ -27,7 +27,8 @@ export interface RepoStatus {
   files: FileChange[];
 }
 
-export type FileList = { ok: true; files: string[] } | { ok: false; error: string };
+/** `ignored`: `.gitignore`'a takılan dosyalar ve klasörler (klasör `/` ile biter, içi yok). */
+export type FileList = { ok: true; files: string[]; ignored: string[] } | { ok: false; error: string };
 
 /** Büyük ve ikili dosyaların içeriği sayfaya gönderilmez; yalnız türü ve boyutu döner. */
 export type FileContent =

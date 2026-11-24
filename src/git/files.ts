@@ -11,18 +11,21 @@ const split = (stdout: string) => stdout.split('\0').filter((path) => path !== '
 
 /**
  * İzlenen ve izlenmeyen ama yok sayılmayan dosyalar; diskte duranlar, sıralı, repoya göre
- * göreli ve `/` ayraçlı. `.gitignore`'a takılanlar (ör. `node_modules`) gelmez.
+ * göreli ve `/` ayraçlı. `.gitignore`'a takılanlar ayrı gelir (`ignored`): yok sayılan bir
+ * klasör tek kayıttır, sonunda `/` olur ve içi listelenmez (ör. `node_modules/`).
  */
 export async function listFiles(repo: string): Promise<FileList> {
-  const [present, deleted] = await Promise.all([
+  const [present, deleted, ignored] = await Promise.all([
     runGit(repo, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']),
     runGit(repo, ['ls-files', '-z', '--deleted']),
+    runGit(repo, ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory']),
   ]);
   if (!present.ok) return { ok: false, error: present.error };
   if (!deleted.ok) return { ok: false, error: deleted.error };
+  if (!ignored.ok) return { ok: false, error: ignored.error };
   const gone = new Set(split(deleted.stdout));
   const files = [...new Set(split(present.stdout))].filter((path) => !gone.has(path));
-  return { ok: true, files: files.sort() };
+  return { ok: true, files: files.sort(), ignored: split(ignored.stdout).sort() };
 }
 
 /** Bundan büyük dosyalar gösterilmez. */

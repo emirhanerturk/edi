@@ -16,11 +16,27 @@ describe('buildTree', () => {
     expect(show(tree)).toEqual(['Docs/', '  x.md', 'src/', '  lib/', '    a.ts', '  B.ts', '  z.ts', 'A.md', 'b.ts', 'c.ts']);
   });
 
+  it("yok sayılan dosyalar ve klasörler ağaçta yerini alır, işaretlidir; klasörün içi boştur", () => {
+    const tree = buildTree(['src/a.ts', '.gitignore'], [], ['node_modules/', '.env', 'src/debug.log', 'src/out/']);
+    const flat = (nodes: TreeNode[]): string[] =>
+      nodes.flatMap((node) => [`${node.path}${node.kind === 'dir' ? '/' : ''}${node.ignored ? ' (ignored)' : ''}`, ...flat(node.children)]);
+    expect(flat(tree)).toEqual([
+      'node_modules/ (ignored)',
+      'src/',
+      'src/out/ (ignored)',
+      'src/a.ts',
+      'src/debug.log (ignored)',
+      '.env (ignored)',
+      '.gitignore',
+    ]);
+    expect(tree[0]!.children).toEqual([]);
+  });
+
   it('yollar ve ad alanları doğru', () => {
     const tree = buildTree(['src/lib/a.ts'], []);
     expect(tree[0]).toMatchObject({ name: 'src', path: 'src', kind: 'dir' });
     expect(tree[0]!.children[0]).toMatchObject({ name: 'lib', path: 'src/lib', kind: 'dir' });
-    expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false });
+    expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false, ignored: false });
   });
 
   it('değişen dosyalar harfini alır, onları içeren klasörler işaretlenir', () => {

@@ -18,7 +18,7 @@ async function repoWithOutside() {
 }
 
 describe('listFiles', () => {
-  it('izlenen ve yeni dosyaları listeler; yok sayılanları ve silinenleri listelemez', async () => {
+  it('izlenen ve yeni dosyaları listeler, silinenleri listelemez; yok sayılanlar ayrı gelir', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await writeFile(join(repo, '.gitignore'), 'node_modules/\n*.log\n');
     await mkdir(join(repo, 'src', 'deep'), { recursive: true });
@@ -33,7 +33,13 @@ describe('listFiles', () => {
     await git(repo, 'commit', '-q', '-m', 'feat: x');
     await rm(join(repo, 'silinecek.txt'));
 
-    expect(await listFiles(repo)).toEqual({ ok: true, files: ['.gitignore', 'README.md', 'src/a.ts', 'src/deep/b.ts'] });
+    await writeFile(join(repo, 'src', 'deep', 'trace.log'), 'x\n');
+    // Yok sayılan klasör tek kayıttır (sonunda `/`); içi listelenmez.
+    expect(await listFiles(repo)).toEqual({
+      ok: true,
+      files: ['.gitignore', 'README.md', 'src/a.ts', 'src/deep/b.ts'],
+      ignored: ['debug.log', 'node_modules/', 'src/deep/trace.log'],
+    });
   });
 
   it('boşluklu, Türkçe karakterli ve tireyle başlayan adları olduğu gibi verir', async () => {
@@ -48,7 +54,7 @@ describe('listFiles', () => {
   it("commit'i olmayan repoda çalışır", async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     await writeFile(join(repo, 'ilk.txt'), 'x\n');
-    expect(await listFiles(repo)).toEqual({ ok: true, files: ['ilk.txt'] });
+    expect(await listFiles(repo)).toEqual({ ok: true, files: ['ilk.txt'], ignored: [] });
   });
 
   it('repo olmayan klasörde hata döner', async () => {

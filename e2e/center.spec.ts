@@ -160,8 +160,10 @@ test('Files sekmesinden dosya açılır', async () => {
     await row('alpha').click();
     await expect(row('src')).toHaveAttribute('data-badge', '●');
     await expect(row('README.md')).toHaveAttribute('data-badge', 'M');
-    // .gitignore'a takılan klasör listelenmez.
-    await expect(row('node_modules')).toHaveCount(0);
+    // .gitignore'a takılan klasör soluk görünür ve açılmaz; içi listelenmez.
+    await expect(row('node_modules')).toHaveAttribute('data-ignored', 'true');
+    await row('node_modules').click();
+    await expect(row('index.js')).toHaveCount(0);
     await row('src').click();
     await row('app.ts').click();
 
