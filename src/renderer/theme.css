@@ -5,6 +5,8 @@
   --panel-open: #252930;
   --input: #1b1d23;
   --selected: #2f343e;
+  /* Satırın üzerine gelince: hem panelde hem açık repo zemininde fark edilir. */
+  --hover: rgba(255, 255, 255, 0.035);
   --line: #181a1f;
   --line-soft: #1b1e23;
   --border: #3e4451;
