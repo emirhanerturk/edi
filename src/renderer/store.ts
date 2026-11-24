@@ -307,6 +307,8 @@ export function connect(): () => void {
         center: syncCenter(state.center, state.workspace.dir, workspace.dir, workspace.repos.map((repo) => repo.path)),
         // Başka klasöre geçince Files ağacı kapalı başlar.
         filesOpen: workspace.dir === state.workspace.dir ? state.filesOpen : {},
+        // Eski klasörün hatası yeni klasörde anlamsızdır.
+        centerError: workspace.dir === state.workspace.dir ? state.centerError : null,
       })),
     ),
     edi.on('recent', (recent) => useApp.setState({ recent })),

@@ -4,6 +4,7 @@ import { CenterPanel } from './center/CenterPanel';
 import { EmptyState } from './components/EmptyState';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
+import { ViewErrorBar } from './components/ViewErrorBar';
 import { TitleBar } from './components/TitleBar';
 import { RightPanel } from './right/RightPanel';
 import { connect, useApp } from './store';
@@ -81,6 +82,7 @@ export function App() {
           <RightPanel />
         </main>
       )}
+      {ready && dir !== null && <ViewErrorBar />}
       {ready && dir !== null && <StatusBar />}
     </div>
   );
