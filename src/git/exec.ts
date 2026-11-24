@@ -12,6 +12,8 @@ export interface RunGitOptions {
   okCodes?: number[];
   /** Çıktı bu kadar karakteri geçerse okuma bırakılır, süreç sonlandırılır ve `OUTPUT_TOO_LARGE` döner. */
   maxOutput?: number;
+  /** Ek ortam değişkenleri (ör. `GIT_NO_LAZY_FETCH`). */
+  env?: Record<string, string>;
 }
 
 export const OUTPUT_TOO_LARGE = 'Output too large';
@@ -31,9 +33,9 @@ const REDIRECTING_VARS = [
   'GIT_NAMESPACE',
 ];
 
-function gitEnv(cwd: string): NodeJS.ProcessEnv {
+function gitEnv(cwd: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   // Yerel ayar sabit: hata satırı seçimi ve arayüz metinleri git'in İngilizce çıktısına dayanır.
-  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extra, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };
   for (const name of REDIRECTING_VARS) delete env[name];
   // git, `cwd` repo değilse üst klasörlerde repo aramaya çıkar. Tavan, bir satırın
   // komutunun yanlışlıkla üstteki başka bir repoda çalışmasını engeller.
@@ -48,7 +50,7 @@ function gitEnv(cwd: string): NodeJS.ProcessEnv {
  * terminali ele geçiremez, sormak yerine hata verir.
  */
 export async function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): Promise<GitResult> {
-  const { timeoutMs = 15000, okCodes = [0], maxOutput = Infinity } = opts;
+  const { timeoutMs = 15000, okCodes = [0], maxOutput = Infinity, env: extraEnv } = opts;
 
   // Olmayan cwd ile spawn "spawn git ENOENT" der; bu, git yokmuş gibi okunur.
   const isDir = await stat(cwd).then((s) => s.isDirectory(), () => false);
@@ -74,7 +76,7 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
 
     let child: ChildProcessByStdio<null, Readable, Readable>;
     try {
-      child = spawn('git', args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: gitEnv(cwd) });
+      child = spawn('git', args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: gitEnv(cwd, extraEnv) });
     } catch (err) {
       // Örn. NUL içeren argüman: spawn eşzamanlı olarak throw eder.
       finish({ ok: false, error: err instanceof Error ? err.message : String(err), stdout: '' });

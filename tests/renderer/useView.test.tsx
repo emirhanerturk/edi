@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useView } from '../../src/renderer/center/useView';
 
 afterEach(cleanup);
@@ -83,6 +83,16 @@ describe('useView', () => {
     rerender({ t: 3 });
     await settle();
     expect(result.current.data).toEqual({ n: 2 });
+  });
+
+  it('ilk sonuç karşılaştırılmaz (büyük commit iki kez metne çevrilmez)', async () => {
+    const big = { files: Array.from({ length: 50 }, (_, i) => ({ path: `f${i}` })) };
+    const { result } = renderHook(() => useView('a', () => Promise.resolve(big), 0));
+    const stringify = vi.spyOn(JSON, 'stringify');
+    await settle();
+    expect(result.current.data).toBe(big);
+    expect(stringify).not.toHaveBeenCalled();
+    stringify.mockRestore();
   });
 
   it('yükleme hata verirse eldeki veri durur', async () => {

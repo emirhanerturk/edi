@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { ago, plural, summary } from '../format';
+import { useNow } from './useNow';
 import { useApp } from '../store';
 
 export function StatusBar() {
@@ -30,13 +30,4 @@ export function StatusBar() {
       )}
     </footer>
   );
-}
-
-function useNow(everyMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), everyMs);
-    return () => clearInterval(timer);
-  }, [everyMs]);
-  return now;
 }

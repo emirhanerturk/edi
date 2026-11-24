@@ -18,6 +18,9 @@ const api: EdiApi = {
   readFile: (repoPath, filePath) => ipcRenderer.invoke('view:read', repoPath, filePath),
   listFiles: (repoPath) => ipcRenderer.invoke('view:list', repoPath),
   openInZed: (repoPath, filePath) => ipcRenderer.invoke('view:openInZed', repoPath, filePath),
+  openUrl: (url) => ipcRenderer.invoke('shell:openUrl', url),
+  log: (repoPath, count) => ipcRenderer.invoke('history:log', repoPath, count),
+  commit: (repoPath, oid) => ipcRenderer.invoke('history:commit', repoPath, oid),
   pty: {
     create: (o) => ipcRenderer.invoke('pty:create', o),
     write: (id, data) => ipcRenderer.send('pty:write', id, data),

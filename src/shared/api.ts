@@ -3,9 +3,9 @@
  * bu dosyadan çalışan kod almaz.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { FileChange, FileContent, FileList, RepoStatus } from '../git/types.js';
+import type { CommitDetail, CommitFile, CommitResult, CommitSummary, FileChange, FileContent, FileList, LogResult, RepoStatus } from '../git/types.js';
 
-export type { FileContent, FileList };
+export type { CommitDetail, CommitFile, CommitResult, CommitSummary, FileContent, FileList, LogResult };
 
 export interface RepoView {
   name: string;
@@ -128,6 +128,10 @@ export interface EdiApi {
   listFiles(repoPath: string): Promise<FileList>;
   /** Dosyayı, `filePath` null ise repo klasörünü Zed'de açar. */
   openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
+  /** Terminaldeki bir web bağlantısını varsayılan tarayıcıda açar (yalnız http/https). */
+  openUrl(url: string): Promise<OpResult>;
+  log(repoPath: string, count: number): Promise<LogResult>;
+  commit(repoPath: string, oid: string): Promise<CommitResult>;
   pty: {
     create(o: NewTerminal): Promise<TerminalCreated>;
     write(id: number, data: string): void;

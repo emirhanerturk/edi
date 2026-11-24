@@ -59,6 +59,15 @@ describe('CenterTabs', () => {
     expect(onClose).toHaveBeenCalledWith(labels[2]!.id);
   });
 
+  it('commit sekmesi commit simgesi ve kısa hash ile görünür', () => {
+    const commit: TabLabel = { id: 'commit:/w/a:3ed0fc5aaaa', kind: 'commit', name: '3ed0fc5', dir: 'quizei-app', letter: null, pinned: true };
+    render(<CenterTabs tabs={[...labels, commit]} active={labels[0]!.id} onActivate={vi.fn()} onPin={vi.fn()} onClose={vi.fn()} onClosePanel={vi.fn()} />);
+    const tab = screen.getAllByRole('tab')[3]!;
+    expect(within(tab).getByText('3ed0fc5')).toBeTruthy();
+    expect(within(tab).getByTestId('commit-icon')).toBeTruthy();
+    expect(within(tab).queryByText('diff')).toBeNull();
+  });
+
   it('sağ uçtaki düğme paneli kapatır', () => {
     const { onClosePanel } = renderTabs();
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));

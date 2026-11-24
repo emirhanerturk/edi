@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GitOp, Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
+import type { GitOp, Layout, LogResult, RecentFolder, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import { edi } from './bridge';
 import {
@@ -14,6 +14,7 @@ import {
   syncCenter,
 } from './center/tabs';
 import { clampWidths } from './components/Splitter';
+import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
 import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
 export interface Tab {
@@ -87,6 +88,18 @@ export function removeTab(tabs: Tab[], activeTab: number | null, id: number): { 
   return { tabs: rest.map((tab) => (tab.id === next && tab.waiting ? { ...tab, waiting: false } : tab)), activeTab: next };
 }
 
+export interface HistoryEntry {
+  limit: number;
+  /** `historyKey` değeri: değişince log yeniden okunur. */
+  key: string;
+  /** Henüz gelmediyse null; yeniden okunurken eskisi kalır. */
+  log: LogResult | null;
+}
+
+/** Repo başına son istek: geç gelen eski bir cevap yenisinin üstüne yazılmaz. */
+const historyRequests = new Map<string, number>();
+let historySerial = 0;
+
 interface AppStore {
   /** İlk durum ana süreçten geldi mi. */
   ready: boolean;
@@ -120,8 +133,22 @@ interface AppStore {
   setCenterInfo(info: string | null): void;
 
   /** Sağ panelde seçili sekme. */
-  rightTab: 'git' | 'files';
-  setRightTab(tab: 'git' | 'files'): void;
+  rightTab: 'git' | 'history' | 'files';
+  setRightTab(tab: 'git' | 'history' | 'files'): void;
+
+  /** History: repo yolu → okunan log, kaç commit istendiği ve hangi durum için okunduğu. */
+  history: Record<string, HistoryEntry>;
+  /** History'nin süzüldüğü repo; tümü için null. */
+  historyFilter: string | null;
+  /** Reponun logunu (varsayılan: önceki adetle) okur. */
+  loadHistory(repoPath: string, limit?: number): Promise<void>;
+  /** Gösterilen ve daha fazlası olan her repodan 50 commit daha okur. */
+  loadMoreHistory(): void;
+  /** Okunmuş tüm logları yeniden okur. */
+  refreshHistory(): void;
+  setHistoryFilter(path: string | null): void;
+  /** History düzenini değiştirir ve hatırlar. */
+  setHistoryLayout(layout: Layout['historyLayout']): void;
   /** Files sekmesinde açık klasörler (`repoYolu\ngöreliYol`; repo kökü için göreli yol boş). */
   filesOpen: Record<string, boolean>;
   toggleFilesDir(key: string, open: boolean): void;
@@ -203,6 +230,42 @@ export const useApp = create<AppStore>((set, get) => ({
 
   rightTab: 'git',
   setRightTab: (tab) => set({ rightTab: tab }),
+
+  history: {},
+  historyFilter: null,
+  async loadHistory(repoPath, limit) {
+    const repo = get().workspace.repos.find((r) => r.path === repoPath);
+    if (!repo) return;
+    const previous = get().history[repoPath];
+    const entry: HistoryEntry = { limit: limit ?? previous?.limit ?? HISTORY_PAGE, key: historyKey(repo), log: previous?.log ?? null };
+    const request = ++historySerial;
+    historyRequests.set(repoPath, request);
+    set((state) => ({ history: { ...state.history, [repoPath]: entry } }));
+    let log: LogResult;
+    try {
+      log = await edi.log(repoPath, entry.limit);
+    } catch (error) {
+      log = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    if (historyRequests.get(repoPath) !== request || !get().history[repoPath]) return;
+    set((state) => ({ history: { ...state.history, [repoPath]: { ...entry, log } } }));
+  },
+  loadMoreHistory() {
+    const { history, historyFilter, loadHistory } = get();
+    for (const [path, entry] of Object.entries(history)) {
+      if (historyFilter !== null && path !== historyFilter) continue;
+      if (entry.log?.ok && entry.log.hasMore) void loadHistory(path, Math.min(entry.limit + HISTORY_PAGE, HISTORY_MAX));
+    }
+  },
+  refreshHistory() {
+    const { history, loadHistory } = get();
+    for (const path of Object.keys(history)) void loadHistory(path);
+  },
+  setHistoryFilter: (path) => set({ historyFilter: path }),
+  setHistoryLayout(layout) {
+    set((state) => ({ layout: { ...state.layout, historyLayout: layout } }));
+    edi.setLayout({ historyLayout: layout });
+  },
   filesOpen: {},
   toggleFilesDir: (key, open) => set((state) => ({ filesOpen: { ...state.filesOpen, [key]: open } })),
   collapseFiles: () => set({ filesOpen: {} }),
@@ -297,6 +360,14 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 }));
 
+function keepHistory(state: AppStore, workspace: WorkspaceView): Pick<AppStore, 'history' | 'historyFilter'> {
+  if (workspace.dir !== state.workspace.dir) return { history: {}, historyFilter: null };
+  const paths = new Set(workspace.repos.map((repo) => repo.path));
+  const history = Object.fromEntries(Object.entries(state.history).filter(([path]) => paths.has(path)));
+  const historyFilter = state.historyFilter !== null && paths.has(state.historyFilter) ? state.historyFilter : null;
+  return { history, historyFilter };
+}
+
 /** Ana süreçten ilk durumu alır ve değişikliklere abone olur. Dönen işlev abonelikleri kaldırır. */
 export function connect(): () => void {
   const off = [
@@ -309,6 +380,8 @@ export function connect(): () => void {
         filesOpen: workspace.dir === state.workspace.dir ? state.filesOpen : {},
         // Eski klasörün hatası yeni klasörde anlamsızdır.
         centerError: workspace.dir === state.workspace.dir ? state.centerError : null,
+        // History: başka klasörde baştan; kaybolan repoların logları ve süzgeci atılır.
+        ...keepHistory(state, workspace),
       })),
     ),
     edi.on('recent', (recent) => useApp.setState({ recent })),

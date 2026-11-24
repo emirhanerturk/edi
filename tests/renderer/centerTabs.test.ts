@@ -149,3 +149,24 @@ describe('syncCenter', () => {
     expect(syncCenter(state, '/w', '/w', ['/w/a', '/w/b', '/w/c'])).toBe(state);
   });
 });
+
+describe('commit sekmeleri', () => {
+  const commit = (oid: string, repoPath = '/w/a'): CenterTarget => ({ kind: 'commit', repoPath, path: oid });
+
+  it('önizleme, kalıcı yapma ve kapatma kuralları aynıdır; aynı yoldaki dosyayla karışmaz', () => {
+    let s = openTarget(EMPTY_CENTER, commit('a'.repeat(40)), false);
+    s = openTarget(s, commit('b'.repeat(40)), false);
+    expect(brief(s)).toEqual([`commit:${'b'.repeat(40)}<`]);
+    s = openTarget(s, commit('b'.repeat(40)), true);
+    s = openTarget(s, file('b'.repeat(40)), false);
+    expect(brief(s)).toEqual([`commit:${'b'.repeat(40)}*`, `file:${'b'.repeat(40)}<`]);
+    s = closeCenterTab(s, tabId(file('b'.repeat(40))));
+    s = closeCenterTab(s, tabId(commit('b'.repeat(40))));
+    expect(s.open).toBe(false);
+  });
+
+  it('repo kaybolunca commit sekmesi de kapanır', () => {
+    const s = openTarget(EMPTY_CENTER, commit('a'.repeat(40), '/w/gitti'), true);
+    expect(syncCenter(s, '/w', '/w', ['/w/a']).tabs).toEqual([]);
+  });
+});
