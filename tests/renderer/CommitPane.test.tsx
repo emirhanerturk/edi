@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseDiff } from '../../src/git/diffParse';
 import type { CommitDetail, CommitFile, CommitResult } from '../../src/git/types';
@@ -53,7 +53,7 @@ describe('CommitPane', () => {
     const author = within(meta).getByTestId('commit-author');
     expect(author.textContent).toBe('Me');
     expect(author.title).toBe('Me <me@x.dev>');
-    expect(meta.firstElementChild).toBe(author);
+    expect(meta.firstElementChild!.firstElementChild).toBe(author);
     expect(within(meta).getByText('quizei-app-next-quiz')).toBeTruthy();
     expect(within(meta).getByText('main')).toBeTruthy();
     expect(within(meta).getByText('1 hour ago')).toBeTruthy();
@@ -62,6 +62,23 @@ describe('CommitPane', () => {
     fireEvent.click(within(meta).getByRole('button', { name: /Copy hash/ }));
     expect(onCopy).toHaveBeenCalledTimes(1);
     expect(within(meta).getByRole('button', { name: /Copy hash/ }).textContent).toContain('3ed0fc5');
+  });
+
+  it('after copying the hash the button shows a green check for a moment', () => {
+    vi.useFakeTimers();
+    try {
+      renderPane({ ok: true, commit: detail(), webUrl: null });
+      const copy = within(screen.getByTestId('commit-meta')).getByRole('button', { name: /Copy hash/ });
+      expect(copy.dataset.copied).toBe('false');
+      fireEvent.click(copy);
+      expect(copy.dataset.copied).toBe('true');
+      expect(copy.title).toBe('Copied');
+      act(() => vi.advanceTimersByTime(1600));
+      expect(copy.dataset.copied).toBe('false');
+      expect(copy.title).toBe('Copy hash');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a pushed commit has a GitHub link that opens in the browser; otherwise there is no button', () => {

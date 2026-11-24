@@ -60,25 +60,30 @@ function Subject({ subject, merge = false }: { subject: string; merge?: boolean 
 
 /** History tab: all repos' commits on a single timeline or in repo groups. */
 export function HistoryPanelView(props: HistoryPanelViewProps) {
-  const { layout, filter, repos, single, branch, errors, canLoadMore, onFilter, onLayout, onLoadMore } = props;
+  const { filter, repos, single, branch, errors, canLoadMore, onFilter, onLayout, onLoadMore } = props;
+  // With one repo there's nothing to filter or group: no menu, no layout switch, always the timeline.
+  const oneRepo = repos.length <= 1;
+  const layout = oneRepo ? 'timeline' : props.layout;
   return (
     <div className="history">
       <div className="history-toolbar">
-        <RepoFilter repos={repos} filter={filter} onFilter={onFilter} />
+        {!oneRepo && <RepoFilter repos={repos} filter={filter} onFilter={onFilter} />}
         {single && branch !== null && (
           <span className="history-branch mono" data-testid="history-branch">
             {branch}
           </span>
         )}
         <div className="spacer" />
-        <div className="segmented" role="group" aria-label="History layout">
-          <button aria-pressed={layout === 'timeline'} onClick={() => onLayout('timeline')}>
-            Timeline
-          </button>
-          <button aria-pressed={layout === 'byRepo'} onClick={() => onLayout('byRepo')}>
-            By repo
-          </button>
-        </div>
+        {!oneRepo && (
+          <div className="segmented" role="group" aria-label="History layout">
+            <button aria-pressed={layout === 'timeline'} onClick={() => onLayout('timeline')}>
+              Timeline
+            </button>
+            <button aria-pressed={layout === 'byRepo'} onClick={() => onLayout('byRepo')}>
+              By repo
+            </button>
+          </div>
+        )}
       </div>
       <div className="history-list">
         {errors.map(({ repoName, error }) => (

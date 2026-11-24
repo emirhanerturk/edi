@@ -189,6 +189,15 @@ describe('HistoryPanelView: toolbar', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('with one repo there is no repo menu and no layout switch; it is always the timeline', () => {
+    renderView({ layout: 'byRepo', single: true, branch: 'main', repos: [{ name: 'quizei-app', path: '/w/quizei-app' }] });
+    expect(screen.queryByRole('button', { name: 'All repositories' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'History layout' })).toBeNull();
+    expect(screen.getByTestId('history-branch').textContent).toBe('main');
+    expect(screen.queryAllByTestId('history-group')).toHaveLength(0);
+    expect(screen.getAllByTestId('history-commit').length).toBeGreaterThan(0);
+  });
+
   it('with a filter set, the button shows the repo name', () => {
     renderView({ filter: '/w/quizei-backend' });
     expect(screen.getByRole('button', { name: 'quizei-backend' })).toBeTruthy();
