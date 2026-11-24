@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { type Plugin, defineConfig } from 'vite';
 
@@ -15,6 +16,8 @@ function contentSecurityPolicy(): Plugin {
     "img-src 'self' data: edi-media:",
     "media-src edi-media:",
     "connect-src 'none'",
+    // The editor's background worker (Monaco) is a file of the app itself.
+    "worker-src 'self'",
   ].join('; ');
   return {
     name: 'edi-csp',
@@ -28,6 +31,9 @@ export default defineConfig({
   root: 'src/renderer',
   base: './',
   plugins: [react(), contentSecurityPolicy()],
+  // Monaco's deep modules and CSS by path; the package's exports map hides the CSS files.
+  resolve: { alias: { 'monaco-esm': fileURLToPath(new URL('./node_modules/monaco-editor/esm/vs', import.meta.url)) } },
+  worker: { format: 'es' },
   build: { outDir: '../../dist/renderer', emptyOutDir: true },
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
 });

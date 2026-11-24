@@ -104,6 +104,25 @@
   color: var(--text);
 }
 
+/* Unsaved edits: a dot in place of the close icon, the icon on hover. */
+.tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+.tab-dot + svg,
+.tab-close:hover .tab-dot,
+.tab-close:focus-visible .tab-dot {
+  display: none;
+}
+
+.tab-close:hover .tab-dot + svg,
+.tab-close:focus-visible .tab-dot + svg {
+  display: block;
+}
+
 .tabbar-add {
   flex: none;
   width: 32px;

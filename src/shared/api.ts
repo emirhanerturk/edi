@@ -3,9 +3,9 @@
  * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus } from '../git/types.js';
+import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 
-export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult };
+export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 
 export interface RepoView {
   name: string;
@@ -150,6 +150,12 @@ export interface EdiApi {
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
+  /** Saves editor text over an existing file; `expected` is the disk text the edit started from (`null`: overwrite). */
+  writeFile(repoPath: string, filePath: string, text: string, expected: string | null): Promise<WriteResult>;
+  /** Tells the main process how many open files have unsaved edits (asked about on quit and folder switch). */
+  setUnsaved(count: number): void;
+  /** Asks before closing a tab with unsaved edits; true to discard them. */
+  confirmDiscard(name: string): Promise<boolean>;
   /** Files in the working tree; those caught by `.gitignore` are in a separate list (without folder contents). */
   listFiles(repoPath: string): Promise<FileList>;
   /** One level of a folder inside the repo; used to show the contents of an ignored folder. */

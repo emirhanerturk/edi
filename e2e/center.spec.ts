@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type Page, expect, test } from '@playwright/test';
 import { git, launch, makeRepo, tmpDir } from './helpers.js';
@@ -168,7 +168,7 @@ test('a file opens from the Files tab', async () => {
     await row('x').click();
     await expect(row('index.js')).toHaveAttribute('data-ignored', 'true');
     await row('index.js').click();
-    await expect(page.getByTestId('center-view').getByTestId('file-line')).toHaveText(['1x']);
+    await expect.poll(() => editorLines(page)).toEqual(['x', '']);
     await row('node_modules').click();
     await expect(row('index.js')).toHaveCount(0);
     await row('src').click();
@@ -176,14 +176,15 @@ test('a file opens from the Files tab', async () => {
 
     const view = page.getByTestId('center-view');
     await expect(view).toHaveAttribute('data-kind', 'file');
-    await expect(page.getByTestId('view-header')).toContainText('Read-only');
-    await expect(view.getByTestId('file-line')).toHaveText(['1const a = 2;', '2export default a;']);
+    // A text file opens in the editor.
+    await expect.poll(() => editorLines(page)).toEqual(['const a = 2;', 'export default a;', '']);
     await expect(row('app.ts')).toHaveAttribute('aria-current', 'true');
     await expect(page.getByTestId('center-info')).toHaveText('TypeScript · 2 lines');
 
     // A large file's content is not loaded (the name also covers spaces and non-ASCII letters).
     await row('large ü.txt').click();
     await expect(view.getByText('This file is too large to show (2.0 MB)')).toBeVisible();
+    await expect(page.getByTestId('view-header')).toContainText('Read-only');
 
     // Collapse everything.
     await page.getByRole('button', { name: 'Collapse all' }).click();
@@ -194,7 +195,7 @@ test('a file opens from the Files tab', async () => {
     await row('src').click();
     await row('app.ts').click();
     await writeFile(join(repo, 'src', 'app.ts'), 'const a = 4;\n');
-    await expect(view.getByTestId('file-line')).toHaveText(['1const a = 4;'], { timeout: 10_000 });
+    await expect.poll(() => editorLines(page), { timeout: 10_000 }).toEqual(['const a = 4;', '']);
   } finally {
     await app.close();
   }
@@ -209,7 +210,7 @@ test('clicking a new file in the Git tab opens its content marked "new file"', a
     await fileRow(page, 'new.md').click();
     await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
     await expect(page.getByTestId('view-header').getByText('new file')).toBeVisible();
-    await expect(page.getByTestId('file-line')).toHaveText(['1# Title']);
+    await expect.poll(() => editorLines(page)).toEqual(['# Title', '']);
     await expect(page.getByTestId('center-info')).toHaveText('Markdown · 1 line');
   } finally {
     await app.close();
@@ -238,7 +239,7 @@ test('the whole file opens from the diff view in a separate tab; the diff stays'
     await expect(view).toHaveAttribute('data-kind', 'diff');
     await page.getByTestId('view-header').getByRole('button', { name: 'Open file' }).click();
     await expect(view).toHaveAttribute('data-kind', 'file');
-    await expect(view.getByTestId('file-line')).toHaveText(['1new readme']);
+    await expect.poll(() => editorLines(page)).toEqual(['new readme', '']);
     await expect(centerTabs(page)).toHaveCount(2);
     // Pointer cursor over the tabs.
     expect(await centerTabs(page).first().evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
@@ -281,6 +282,175 @@ test('an image opened from the Files tab is previewed; the video URL serves byte
     expect(part).toEqual([206, 'bytes 2-4/10', '234']);
     expect(await app.evaluate(async ({ net }, url) => (await net.fetch(url)).status, swap('README.md'))).toBe(404);
   } finally {
+    await app.close();
+  }
+});
+
+/** The text in the file view's editor, line by line (Monaco shows spaces as no-break spaces). */
+async function editorLines(page: Page): Promise<string[]> {
+  return page.locator('[data-testid="file-editor"] .view-line').evaluateAll((lines) =>
+    lines
+      .map((line) => ({ top: parseFloat((line as HTMLElement).style.top), text: (line.textContent ?? '').replace(/ /g, ' ') }))
+      .sort((a, b) => a.top - b.top)
+      .map((line) => line.text),
+  );
+}
+
+async function openFromFiles(page: Page, ...names: string[]) {
+  await page.getByRole('tab', { name: 'Files' }).click();
+  for (const name of names) await page.locator(`[data-testid="tree-row"][data-name="${name}"]`).click();
+}
+
+test('a file opened from the Files tab is editable; ⌘S saves it and the Git tab shows the change', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await writeFile(join(repo, 'app.ts'), 'const answer = 41;\n');
+  await git(repo, 'add', '-A');
+  await git(repo, 'commit', '-q', '-m', 'feat: answer');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await openFromFiles(page, 'alpha', 'app.ts');
+    const editor = page.getByTestId('file-editor');
+    await expect(editor.locator('.monaco-editor')).toBeVisible();
+    await expect.poll(() => editorLines(page)).toEqual(['const answer = 41;', '']);
+    // Shiki colors, the same as the diff view: `const` in One Dark Pro's keyword purple.
+    await expect
+      .poll(() => editor.locator('.view-line span span').first().evaluate((el) => getComputedStyle(el).color))
+      .toBe('rgb(198, 120, 221)');
+    // No "Read-only" for a text file.
+    await expect(page.getByTestId('view-header')).not.toContainText('Read-only');
+
+    await editor.locator('.view-line').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type('2;');
+    await expect(page.getByTestId('view-header')).toContainText('Unsaved');
+    const tab = centerTabs(page).first();
+    await expect(tab).toHaveAttribute('data-unsaved', 'true');
+    // The first edit pins the preview tab.
+    await expect(tab).toHaveAttribute('data-preview', 'false');
+
+    await page.keyboard.press('Meta+S');
+    await expect(page.getByTestId('view-header')).not.toContainText('Unsaved');
+    await expect(tab).not.toHaveAttribute('data-unsaved', 'true');
+    await expect.poll(() => readFile(join(repo, 'app.ts'), 'utf8')).toBe('const answer = 42;\n');
+    await page.getByRole('tab', { name: 'Git' }).click();
+    await expect(page.getByTestId('file-row')).toHaveCount(1);
+    await expect(tab.locator('.tab-letter')).toHaveText('M');
+  } finally {
+    await app.close();
+  }
+});
+
+test('a clean editor takes the disk version; under unsaved edits a disk change shows a bar', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await openFromFiles(page, 'alpha', 'README.md');
+    const editor = page.getByTestId('file-editor');
+    await expect.poll(() => editorLines(page)).toEqual(['readme', '']);
+
+    // An agent writes the file: the editor follows quietly.
+    await writeFile(join(repo, 'README.md'), 'agent one\n');
+    await expect.poll(() => editorLines(page)).toEqual(['agent one', '']);
+    // Monaco has its own screen reader alerts: the bar is found by its class.
+    await expect(page.locator('.edit-bar')).toHaveCount(0);
+
+    // Now with my edit in progress.
+    await editor.locator('.view-line').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' mine');
+    await writeFile(join(repo, 'README.md'), 'agent two\n');
+    const bar = page.locator('.edit-bar');
+    await expect(bar).toContainText('This file changed on disk.');
+    await expect.poll(() => editorLines(page)).toEqual(['agent one mine', '']);
+
+    // Keep mine, then save: my text wins.
+    await bar.getByRole('button', { name: 'Keep mine' }).click();
+    await expect(bar).toHaveCount(0);
+    await page.getByTestId('view-header').getByRole('button', { name: 'Save' }).click();
+    await expect.poll(() => readFile(join(repo, 'README.md'), 'utf8')).toBe('agent one mine\n');
+
+    // Another conflict, resolved the other way.
+    await editor.locator('.view-line').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type('!');
+    await writeFile(join(repo, 'README.md'), 'agent three\n');
+    await expect(bar).toContainText('This file changed on disk.');
+    await bar.getByRole('button', { name: 'Load disk version' }).click();
+    await expect.poll(() => editorLines(page)).toEqual(['agent three', '']);
+    await expect(page.getByTestId('view-header')).not.toContainText('Unsaved');
+  } finally {
+    await app.close();
+  }
+});
+
+test('edits survive switching tabs; closing an edited tab asks first', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await writeFile(join(repo, 'b.txt'), 'bee\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await openFromFiles(page, 'alpha', 'README.md');
+    const editor = page.getByTestId('file-editor');
+    await expect.poll(() => editorLines(page)).toEqual(['readme', '']);
+    await editor.locator('.view-line').first().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' draft');
+    await page.locator('[data-testid="tree-row"][data-name="b.txt"]').click();
+    await expect.poll(() => editorLines(page)).toEqual(['bee', '']);
+    await expect(centerTabs(page)).toHaveCount(2);
+    await centerTabs(page).first().click();
+    await expect.poll(() => editorLines(page)).toEqual(['readme draft', '']);
+
+    // Cancel in the native question keeps the tab.
+    await app.evaluate(({ dialog }) => {
+      (dialog as unknown as { showMessageBox: unknown }).showMessageBox = async () => ({ response: 1, checkboxChecked: false });
+    });
+    await centerTabs(page).first().getByRole('button', { name: 'Close tab (unsaved changes)' }).click();
+    await expect(centerTabs(page)).toHaveCount(2);
+    await app.evaluate(({ dialog }) => {
+      (dialog as unknown as { showMessageBox: unknown }).showMessageBox = async () => ({ response: 0, checkboxChecked: false });
+    });
+    await centerTabs(page).first().getByRole('button', { name: 'Close tab (unsaved changes)' }).click();
+    await expect(centerTabs(page)).toHaveCount(1);
+    expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('readme\n');
+  } finally {
+    await app.close();
+  }
+});
+
+test('quitting with unsaved edits asks first', async () => {
+  const dir = await tmpDir();
+  await makeRepo(dir, 'alpha');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await openFromFiles(page, 'alpha', 'README.md');
+    await expect.poll(() => editorLines(page)).toEqual(['readme', '']);
+    await page.getByTestId('file-editor').locator('.view-line').first().click();
+    await page.keyboard.type('x');
+    await expect(centerTabs(page).first()).toHaveAttribute('data-unsaved', 'true');
+    // Answer Cancel and remember what was asked.
+    await app.evaluate(({ dialog }) => {
+      const asked: unknown[] = [];
+      (globalThis as { asked?: unknown[] }).asked = asked;
+      (dialog as unknown as { showMessageBox: unknown }).showMessageBox = async (...args: unknown[]) => {
+        asked.push(args.at(-1));
+        return { response: 1, checkboxChecked: false };
+      };
+    });
+    await app.evaluate(({ app: electronApp }) => electronApp.quit());
+    await expect
+      .poll(() => app.evaluate(() => (globalThis as { asked?: { message: string; detail: string }[] }).asked ?? []))
+      .toEqual([expect.objectContaining({ message: 'Quit edi?', detail: '1 file has unsaved changes. They will be lost.' })]);
+    // Still running.
+    await expect(centerTabs(page)).toHaveCount(1);
+  } finally {
+    await app.evaluate(({ dialog }) => {
+      (dialog as unknown as { showMessageBox: unknown }).showMessageBox = async () => ({ response: 0, checkboxChecked: false });
+    });
     await app.close();
   }
 });

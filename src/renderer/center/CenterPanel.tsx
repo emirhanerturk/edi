@@ -12,6 +12,7 @@ import './center.css';
 export function CenterPanel() {
   const center = useApp((s) => s.center);
   const repos = useApp((s) => s.workspace.repos);
+  const unsaved = useApp((s) => s.unsaved);
   const { activateCenterTab, pinCenterTab, closeCenterTab, setCenterOpen } = useApp.getState();
 
   if (!center.open) return null;
@@ -29,6 +30,7 @@ export function CenterPanel() {
       dir: slash === -1 ? '' : tab.path.slice(0, slash),
       letter: change ? fileLetter(change) : null,
       pinned: tab.pinned,
+      unsaved: unsaved[tab.id] === true,
     };
   });
   const active = center.tabs.find((tab) => tab.id === center.active) ?? null;
@@ -40,7 +42,7 @@ export function CenterPanel() {
         active={center.active}
         onActivate={activateCenterTab}
         onPin={pinCenterTab}
-        onClose={closeCenterTab}
+        onClose={(id) => void closeCenterTab(id)}
         onClosePanel={() => setCenterOpen(false)}
       />
       {active && <CenterView key={active.id} tab={active} repo={repos.find((repo) => repo.path === active.repoPath) ?? null} />}

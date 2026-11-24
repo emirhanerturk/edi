@@ -8,7 +8,7 @@ afterEach(cleanup);
 const labels: TabLabel[] = [
   { id: 'diff:/w/a:app/play.tsx', kind: 'diff', name: 'play.tsx', dir: 'app', letter: 'M', pinned: true },
   { id: 'file:/w/a:lib/new.ts', kind: 'file', name: 'new.ts', dir: 'lib', letter: '?', pinned: false },
-  { id: 'file:/w/a:README.md', kind: 'file', name: 'README.md', dir: '', letter: null, pinned: true },
+  { id: 'file:/w/a:README.md', kind: 'file', name: 'README.md', dir: '', letter: null, pinned: true, unsaved: true },
 ];
 
 function renderTabs(active = labels[0]!.id) {
@@ -18,6 +18,18 @@ function renderTabs(active = labels[0]!.id) {
 }
 
 describe('CenterTabs', () => {
+  it('a tab with unsaved edits shows a dot that is always visible and still closes the tab', () => {
+    const { onClose } = renderTabs();
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.getAttribute('data-unsaved'))).toEqual([null, null, 'true']);
+    const close = within(tabs[2]!).getByRole('button', { name: 'Close tab (unsaved changes)' });
+    expect(close.getAttribute('data-reveal')).toBe('always');
+    expect(close.querySelector('.tab-dot')).toBeTruthy();
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledWith(labels[2]!.id);
+    expect(tabs[2]!.getAttribute('title')).toBe('README.md · unsaved changes');
+  });
+
   it('shows tabs with their letter and name; the active tab shows the folder, a background diff tab says "diff"', () => {
     renderTabs(labels[1]!.id);
     const tabs = screen.getAllByRole('tab');
@@ -45,9 +57,10 @@ describe('CenterTabs', () => {
 
   it('every tab has a close button; on an inactive tab it shows on hover; it closes without switching to the tab', () => {
     const { onClose, onActivate } = renderTabs();
-    const buttons = screen.getAllByRole('button', { name: 'Close tab' });
+    const buttons = screen.getAllByRole('button', { name: /^Close tab/ });
     expect(buttons).toHaveLength(labels.length);
-    expect(buttons.map((button) => button.dataset.reveal)).toEqual(['always', ...labels.slice(1).map(() => 'hover')]);
+    // The third tab has unsaved edits: its dot always shows.
+    expect(buttons.map((button) => button.dataset.reveal)).toEqual(['always', 'hover', 'always']);
     fireEvent.mouseDown(buttons[0]!, { button: 0 });
     fireEvent.click(buttons[0]!);
     expect(onClose).toHaveBeenCalledWith(labels[0]!.id);

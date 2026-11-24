@@ -17,13 +17,13 @@ export const MAX_HIGHLIGHT_CHARS = 200_000;
  */
 export const MAX_LINE_CHARS = 2000;
 
-const THEME = 'one-dark-pro';
+export const THEME = 'one-dark-pro';
 const FOREGROUND = '#abb2bf';
 
 let highlighter: Promise<HighlighterCore> | null = null;
 const loading = new Map<string, Promise<void>>();
 
-function getHighlighter(): Promise<HighlighterCore> {
+export function getHighlighter(): Promise<HighlighterCore> {
   highlighter ??= (async () => {
     const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, theme] = await Promise.all([
       import('shiki/core'),
@@ -35,7 +35,7 @@ function getHighlighter(): Promise<HighlighterCore> {
   return highlighter;
 }
 
-function loadLanguage(core: HighlighterCore, id: string): Promise<void> {
+export function loadLanguage(core: HighlighterCore, id: string): Promise<void> {
   let pending = loading.get(id);
   if (!pending) {
     pending = LOADERS[id]!().then((module) => core.loadLanguage(module.default as LanguageInput));

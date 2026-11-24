@@ -11,6 +11,8 @@ export interface TabLabel {
   /** Status letter (M, A, D, ?, U…); null if the file is unchanged. */
   letter: string | null;
   pinned: boolean;
+  /** A file tab with unsaved edits. */
+  unsaved?: boolean;
 }
 
 export interface CenterTabsProps {
@@ -37,10 +39,11 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               className={`tab center-tab${isActive ? ' active' : ''}`}
               data-testid="center-tab"
               data-preview={!tab.pinned}
+              data-unsaved={tab.unsaved ? 'true' : undefined}
               role="tab"
               aria-selected={isActive}
               tabIndex={-1}
-              title={tab.dir ? `${tab.dir}/${tab.name}` : tab.name}
+              title={(tab.dir ? `${tab.dir}/${tab.name}` : tab.name) + (tab.unsaved ? ' · unsaved changes' : '')}
               onMouseDown={(event) => {
                 // Middle click closes the tab.
                 if (event.button === 1) {
@@ -58,16 +61,18 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               )}
               <span className="tab-title">{tab.name}</span>
               {hint !== '' && <span className="tab-hint">{hint}</span>}
-              {/* Takes up space on every tab; on an inactive tab it shows on hover (CSS). */}
+              {/* Takes up space on every tab; on an inactive tab it shows on hover (CSS). With unsaved
+                  edits it always shows, as a dot that turns into the close icon on hover. */}
               <button
                 className="tab-close"
-                data-reveal={isActive ? 'always' : 'hover'}
-                aria-label="Close tab"
-                title="Close tab"
+                data-reveal={isActive || tab.unsaved ? 'always' : 'hover'}
+                aria-label={tab.unsaved ? 'Close tab (unsaved changes)' : 'Close tab'}
+                title={tab.unsaved ? 'Close tab (unsaved changes)' : 'Close tab'}
                 onMouseDown={(event) => event.stopPropagation()}
                 onDoubleClick={(event) => event.stopPropagation()}
                 onClick={() => onClose(tab.id)}
               >
+                {tab.unsaved && <span className="tab-dot" aria-hidden="true" />}
                 <CloseIcon size={11} />
               </button>
             </div>

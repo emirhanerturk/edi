@@ -50,8 +50,13 @@ test('packaged app: folder argument, terminal, syntax colors and login shell env
     await row('alpha').click();
     await row('src').click();
     await row('app.ts').click();
-    await expect(page.getByTestId('file-line')).toHaveCount(2);
-    await expect.poll(() => page.locator('[data-testid="file-line"] span[style*="color"]').count()).toBeGreaterThan(0);
+    // The editor (Monaco, its worker and Shiki colors) loads from inside the package under the CSP.
+    const editor = page.getByTestId('file-editor');
+    await expect(editor.locator('.monaco-editor')).toBeVisible();
+    await expect(editor.locator('.view-line')).toHaveCount(3);
+    await expect
+      .poll(() => editor.locator('.view-line span span').first().evaluate((el) => getComputedStyle(el).color))
+      .toBe('rgb(198, 120, 221)');
 
     // The login shell's environment was added to the main process.
     await expect.poll(() => app.evaluate(() => process.env.LOGIN_MARK ?? null)).toBe('from-login');

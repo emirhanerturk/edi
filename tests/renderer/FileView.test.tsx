@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileContent } from '../../src/git/types';
 import { FilePane, fileInfo, splitLines } from '../../src/renderer/center/FilePane';
 import { mediaUrl } from '../../src/shared/media';
+import type { EditState } from '../../src/renderer/center/editSession';
 
 afterEach(cleanup);
 
@@ -47,16 +48,105 @@ describe('fileInfo', () => {
   });
 });
 
+const CLEAN: EditState = { dirty: false, conflict: null, error: null, saving: false };
+
+function renderEditing(edit: EditState, content: FileContent | null = text('a\n')) {
+  const handlers = { onOpenInZed: vi.fn(), onSave: vi.fn(), onKeepMine: vi.fn(), onLoadDisk: vi.fn(), onClose: vi.fn() };
+  render(
+    <FilePane
+      repoName="r"
+      repoPath="/w/r"
+      path="src/app.ts"
+      content={content}
+      isNew={false}
+      tokens={null}
+      editor={<div data-testid="fake-editor" />}
+      edit={edit}
+      {...handlers}
+    />,
+  );
+  return handlers;
+}
+
+describe('FilePane while editing', () => {
+  it('shows the editor in place of the read-only lines', () => {
+    renderEditing(CLEAN);
+    expect(screen.getByTestId('fake-editor')).toBeTruthy();
+    expect(screen.queryAllByTestId('file-line')).toHaveLength(0);
+    expect(screen.queryByText('Unsaved')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  });
+
+  it('with unsaved edits the header says so and Save saves', () => {
+    const { onSave } = renderEditing({ ...CLEAN, dirty: true });
+    const header = screen.getByTestId('view-header');
+    expect(within(header).getByText('Unsaved')).toBeTruthy();
+    const save = within(header).getByRole('button', { name: 'Save' });
+    expect(save.title).toBe('Save (⌘S)');
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    cleanup();
+    renderEditing({ ...CLEAN, dirty: true, saving: true });
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('a disk change under unsaved edits shows a bar with "Load disk version" and "Keep mine"', () => {
+    const { onLoadDisk, onKeepMine } = renderEditing({ ...CLEAN, dirty: true, conflict: 'changed' });
+    const bar = screen.getByRole('alert');
+    expect(bar.textContent).toContain('This file changed on disk.');
+    fireEvent.click(within(bar).getByRole('button', { name: 'Load disk version' }));
+    fireEvent.click(within(bar).getByRole('button', { name: 'Keep mine' }));
+    expect(onLoadDisk).toHaveBeenCalledTimes(1);
+    expect(onKeepMine).toHaveBeenCalledTimes(1);
+  });
+
+  it('a file deleted under unsaved edits keeps the editor, with "Close" and "Keep mine"', () => {
+    const { onClose, onKeepMine } = renderEditing({ ...CLEAN, dirty: true, conflict: 'missing' }, { ok: false, error: 'File not found' });
+    expect(screen.getByTestId('fake-editor')).toBeTruthy();
+    const bar = screen.getByRole('alert');
+    expect(bar.textContent).toContain('This file was deleted on disk.');
+    fireEvent.click(within(bar).getByRole('button', { name: 'Close' }));
+    fireEvent.click(within(bar).getByRole('button', { name: 'Keep mine' }));
+    expect([onClose.mock.calls.length, onKeepMine.mock.calls.length]).toEqual([1, 1]);
+  });
+
+  it('a failed save shows its error', () => {
+    renderEditing({ ...CLEAN, dirty: true, error: 'Could not save the file' });
+    expect(screen.getByRole('alert').textContent).toBe('Could not save: Could not save the file');
+  });
+
+  it('a deleted file without unsaved edits shows the usual note, not the editor', () => {
+    renderEditing(CLEAN, { ok: false, error: 'File not found' });
+    expect(screen.queryByTestId('fake-editor')).toBeNull();
+    expect(screen.getByText('File not found')).toBeTruthy();
+  });
+
+  it('images, videos and binary files never show the editor', () => {
+    renderEditing(CLEAN, { ok: true, kind: 'binary', size: 3 });
+    expect(screen.queryByTestId('fake-editor')).toBeNull();
+    expect(screen.getByText('Binary file')).toBeTruthy();
+  });
+});
+
 describe('FilePane', () => {
-  it('the header shows repo, path, a read-only note and Open in Zed', () => {
+  it('the header shows repo, path and Open in Zed; "Read-only" only for files that cannot be edited', () => {
     const { onOpenInZed } = renderPane(text('a\n'));
     const header = screen.getByTestId('view-header');
     expect(within(header).getByText('quizei-app')).toBeTruthy();
     expect(header.textContent).toContain('components/video/video-poster.tsx');
-    expect(within(header).getByText('Read-only')).toBeTruthy();
+    expect(within(header).queryByText('Read-only')).toBeNull();
     expect(within(header).queryByText('new file')).toBeNull();
     fireEvent.click(within(header).getByRole('button', { name: 'Open in Zed' }));
     expect(onOpenInZed).toHaveBeenCalledTimes(1);
+    for (const content of [
+      { ok: true, kind: 'binary', size: 4 },
+      { ok: true, kind: 'tooLarge', size: 4 },
+      { ok: true, kind: 'media', media: 'image', size: 4, mtime: 1 },
+    ] as FileContent[]) {
+      cleanup();
+      renderPane(content, { path: 'a.png' });
+      expect(within(screen.getByTestId('view-header')).getByText('Read-only'), content.ok ? content.kind : '').toBeTruthy();
+    }
   });
 
   it('a "new file" mark on a new file', () => {

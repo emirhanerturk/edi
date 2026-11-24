@@ -38,6 +38,9 @@ export interface DirEntry {
 /** One level of a folder; `more`: the number of entries not shown because of the limit. */
 export type DirList = { ok: true; entries: DirEntry[]; more: number } | { ok: false; error: string };
 
+/** Saving a file. `conflict`: the disk changed since the edit started, or the file is gone. */
+export type WriteResult = { ok: true } | { ok: false; error: string; conflict?: 'changed' | 'missing' };
+
 /** The contents of large and binary files aren't sent to the page; only their kind and size are returned. */
 export type FileContent =
   | { ok: true; kind: 'text'; text: string; size: number }

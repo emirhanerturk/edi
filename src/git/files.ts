@@ -1,10 +1,10 @@
 // Lists and reads files in the working tree. Read-only; doesn't depend on Electron.
 import { constants } from 'node:fs';
-import { open, readdir, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { chmod, open, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { mediaOf } from '../shared/media.js';
 import { runGit } from './exec.js';
-import type { DirList, FileContent, FileList } from './types.js';
+import type { DirList, FileContent, FileList, WriteResult } from './types.js';
 
 export type { DirList, FileContent, FileList };
 
@@ -66,6 +66,42 @@ export async function locateInRepo(repo: string, relPath: unknown): Promise<Loca
   const parts = inside.split(sep);
   if (inside === '' || parts[0] === '..' || isAbsolute(inside) || parts.some(isGitDir)) return { ok: false, reason: 'outside' };
   return { ok: true, target };
+}
+
+/** At most this much text is saved from the editor. */
+export const MAX_WRITE_BYTES = 5 * 1_048_576;
+
+const MISSING: WriteResult = { ok: false, error: 'The file no longer exists', conflict: 'missing' };
+
+/**
+ * Saves editor text over an existing file in the repo. `expected` is the disk text the edit
+ * started from: if the disk no longer matches it, nothing is written (an agent may have changed the
+ * file). `null` overwrites regardless. The write is atomic (a temp file in the same folder, then a
+ * rename) and keeps the file's permission bits; a link is followed and stays a link.
+ */
+export async function writeRepoFile(repo: string, relPath: unknown, text: unknown, expected: unknown): Promise<WriteResult> {
+  if (typeof text !== 'string' || (expected !== null && typeof expected !== 'string')) return { ok: false, error: 'Could not save the file' };
+  if (Buffer.byteLength(text) > MAX_WRITE_BYTES) return { ok: false, error: 'The text is too large to save' };
+  const located = await locateInRepo(repo, relPath);
+  if (!located.ok) return located.reason === 'outside' ? { ok: false, error: OUTSIDE } : MISSING;
+  const target = located.target;
+  const temp = join(dirname(target), `.${basename(target)}.edi-${process.pid}-${Date.now()}.tmp`);
+  try {
+    const info = await stat(target);
+    if (!info.isFile()) return { ok: false, error: 'Not a file' };
+    if (expected !== null) {
+      const current = await readRepoFile(repo, relPath);
+      if (!current.ok) return current.error === 'File not found' ? MISSING : { ok: false, error: current.error };
+      if (current.kind !== 'text' || current.text !== expected) return { ok: false, error: 'The file changed on disk', conflict: 'changed' };
+    }
+    await writeFile(temp, text, { encoding: 'utf8', flag: 'wx' });
+    await chmod(temp, info.mode & 0o7777);
+    await rename(temp, target);
+    return { ok: true };
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? MISSING : { ok: false, error: 'Could not save the file' };
+  }
 }
 
 /** The real path inside the repo; `null` for a path that leaves it or doesn't exist. */
