@@ -25,11 +25,18 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Files tab.** Each repository's working tree, without ignored files; changed files carry
   their status letter, folders that contain changes a dot. Clicking a file opens it read-only.
   Files over 1 MB and binary files are not shown.
+- **History tab.** The recent commits of every repository's current branch in one timeline,
+  under day headers, newest first; or grouped by repository. Commits not pushed yet carry an
+  arrow, a version commit shows as a tag line, merges are dimmed. Filter to one repository to
+  see where its upstream stands. 50 commits per repository at a time, with "Load 50 more".
+- **Commit view.** Clicking a commit opens it in the center panel: message, repository,
+  branch, time, totals, a copy button for the hash, and every changed file's diff one under
+  another. Files with more than 400 changed lines start collapsed.
 - **Open in Zed** from the file and diff views, and for conflicted files in the Git tab.
-- **Remembers** the last folder, recent folders, the window position, the panel widths and
-  the diff layout.
+- **Remembers** the last folder, recent folders, the window position, the panel widths, the
+  diff layout and the History layout.
 
-History and packaging are planned next; see `docs/superpowers/`.
+Packaging and the `edi` command are planned next; see `docs/superpowers/`.
 
 ## Setup
 
@@ -79,7 +86,8 @@ preferences:
   list, never free text. A commit message is passed to Git as a single argument.
 - **Reading files stays inside the repository.** The page names a file by its path in a
   discovered repository; the main process resolves symlinks and refuses anything that leads
-  outside it or into `.git`. Viewing never writes.
+  outside it or into any `.git` folder. Viewing never writes. A commit is named by its hex id
+  and must resolve to a commit in that repository before Git reads it.
 - **One operation per repository at a time.** A second one is refused while the first runs.
 - **Conflicts are resolved elsewhere.** edi shows them and blocks committing; it does not
   try to resolve them.

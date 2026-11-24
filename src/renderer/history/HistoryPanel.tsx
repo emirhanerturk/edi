@@ -209,7 +209,14 @@ function GroupLine({ commit, now, current, open }: { commit: CommitSummary; now:
   const release = commit.tags.find((tag) => isRelease(commit.subject, tag));
   return (
     <div className="history-line" data-testid="history-line" aria-current={current} {...openHandlers(open)}>
-      {release !== undefined ? <span className="history-tag mono">{release}</span> : <Subject subject={commit.subject} merge={commit.parents > 1} />}
+      {release !== undefined ? (
+        <>
+          <span className="history-tag mono">{release}</span>
+          <div className="spacer" />
+        </>
+      ) : (
+        <Subject subject={commit.subject} merge={commit.parents > 1} />
+      )}
       <span className="history-line-when">{shortAgo(commit.date, now)}</span>
     </div>
   );
