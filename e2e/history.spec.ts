@@ -69,6 +69,13 @@ test('the History tab shows the commits of every repo', async () => {
     await expect(page.getByTestId('center-info')).toHaveText('1 file changed');
     await expect(page.getByTestId('history-commit').filter({ hasText: 'middle' })).toHaveAttribute('aria-current', 'true');
 
+    // A changed file opens from its header; the commit tab stays.
+    await view.getByRole('button', { name: 'Open a.txt' }).click();
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
+    await expect(page.getByTestId('center-tab')).toHaveCount(2);
+    await page.getByTestId('center-tab').first().click();
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'commit');
+
     // Filter to one repo: the repo name is hidden, the upstream line and the branch show.
     await page.getByRole('button', { name: 'All repositories' }).click();
     await page.getByRole('menuitemradio', { name: 'alpha' }).click();

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CommitDetail, RepoView } from '../../shared/api';
 import { edi } from '../bridge';
 import { useNow } from '../components/useNow';
 import { type DiffTokens, MAX_HIGHLIGHT_CHARS, highlightDiff } from '../highlight/highlight';
 import { useApp } from '../store';
 import { COLLAPSE_LINES, CommitPane } from './CommitPane';
+import { tabId } from './tabs';
 import { useView } from './useView';
 
 /**
@@ -51,6 +52,15 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
     useApp.getState().setCenterInfo(info);
   }, [info]);
   useEffect(() => () => useApp.getState().setCenterInfo(null), []);
+  // The commit tab stays; the file opens in the preview tab, as "Open file" does in the diff view.
+  const openFile = useCallback(
+    (path: string) => {
+      const app = useApp.getState();
+      app.pinCenterTab(tabId({ kind: 'commit', repoPath: repo.path, path: oid }));
+      app.openInCenter({ kind: 'file', repoPath: repo.path, path }, false);
+    },
+    [repo.path, oid],
+  );
 
   return (
     <CommitPane
@@ -63,6 +73,7 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
         if (data?.ok) void navigator.clipboard.writeText(data.commit.oid).catch(() => undefined);
       }}
       onOpenUrl={(url) => void edi.openUrl(url)}
+      onOpenFile={openFile}
     />
   );
 }
