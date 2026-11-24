@@ -1,8 +1,12 @@
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { MAX_FILE_BYTES, listFiles, readRepoFile, resolveInRepo } from '../src/git/files.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+
+const run = promisify(execFile);
 
 async function repoWithOutside() {
   const dir = await makeTmpDir();
@@ -122,6 +126,32 @@ describe('readRepoFile', () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await symlink('README.md', join(repo, 'OKU.md'));
     expect(await readRepoFile(repo, 'OKU.md')).toMatchObject({ ok: true, kind: 'text', text: 'readme\n' });
+  });
+
+  it("iç içe reponun .git klasörü de okunmaz; dışarıdan bağ ile de", async () => {
+    const { repo } = await repoWithOutside();
+    const nested = await initRepo(join(repo, 'vendor'), 'tool', { commit: true });
+    await symlink(join(nested, '.git'), join(repo, 'bag'));
+    for (const path of ['vendor/tool/.git/config', 'vendor/tool/.GIT/config', 'vendor/tool/.git', 'bag/config']) {
+      expect(await readRepoFile(repo, path), path).toEqual({ ok: false, error: 'File is outside the repository' });
+      expect(await resolveInRepo(repo, path), path).toBeNull();
+    }
+  });
+
+  it('adı .. ile başlayan dosya repo dışı sayılmaz', async () => {
+    const { repo } = await repoWithOutside();
+    await writeFile(join(repo, '..notlar'), 'x\n');
+    expect(await readRepoFile(repo, '..notlar')).toMatchObject({ ok: true, kind: 'text', text: 'x\n' });
+  });
+
+  it('FIFO açılmadan reddedilir (okuyan beklemez)', async () => {
+    const { repo } = await repoWithOutside();
+    await run('mkfifo', [join(repo, 'boru')]);
+    await symlink('boru', join(repo, 'bag'));
+    for (const path of ['boru', 'bag']) {
+      const result = await Promise.race([readRepoFile(repo, path), new Promise((done) => setTimeout(() => done('takıldı'), 1000))]);
+      expect(result, path).toEqual({ ok: false, error: 'Not a file' });
+    }
   });
 
   it('.git ile başlayan ama .git olmayan adlar serbesttir', async () => {
