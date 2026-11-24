@@ -48,7 +48,9 @@ test('the History tab shows the commits of every repo', async () => {
       'chore: init',
       'chore: init',
     ]);
-    await expect(page.getByText('TODAY')).toBeVisible();
+    // The newest commit is an hour old: just after midnight that is yesterday.
+    const newest = new Date(Date.now() - 3600_000);
+    await expect(page.getByText(newest.toDateString() === new Date().toDateString() ? 'TODAY' : 'YESTERDAY')).toBeVisible();
     const local = page.getByTestId('history-commit').filter({ hasText: 'local change' });
     await expect(local.getByRole('img', { name: 'Not pushed yet' })).toBeVisible();
     await expect(page.getByTestId('history-commit').filter({ hasText: 'pushed work' }).getByRole('img', { name: 'Not pushed yet' })).toHaveCount(0);
