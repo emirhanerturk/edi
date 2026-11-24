@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+/** İlk sonuçta (önceki yok) karşılaştırılmaz: büyük bir veri boşuna metne çevrilmez. */
+const same = (a: unknown, b: unknown) => a === b || (a !== null && JSON.stringify(a) === JSON.stringify(b));
 
 /**
  * Bir görünümün verisini yükler. `key` değişince eski veri hemen kalkar ve yenisi yüklenir;

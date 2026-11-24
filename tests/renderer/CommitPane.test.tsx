@@ -26,6 +26,7 @@ const detail = (over: Partial<CommitDetail> = {}): CommitDetail => ({
   tags: [],
   body: 'The banner sat under the answer grid.\nIt pushed the timer off small screens.\n\nIt now shows only between rounds.',
   files: [play, big, edge],
+  tooLarge: false,
   added: 805,
   removed: 1,
   ...over,
@@ -112,6 +113,26 @@ describe('CommitPane', () => {
     renderPane(null);
     expect(screen.queryAllByTestId('commit-file')).toHaveLength(0);
     expect(screen.queryByRole('heading')).toBeNull();
+  });
+});
+
+describe('CommitPane: çok büyük commit', () => {
+  it('diff yerine not; dosyalar sayılarıyla listelenir ve açılmaz', () => {
+    const counted = (path: string, added: number, removed: number): CommitFile => ({
+      path,
+      origPath: null,
+      letter: 'M',
+      diff: { hunks: [], added, removed, binary: false },
+    });
+    renderPane({ ok: true, commit: detail({ tooLarge: true, files: [counted('data/big.json', 1_000_000, 0), counted('README.md', 1, 1)] }) });
+    expect(screen.getByText("This commit is too large to show line by line. Each file's counts are below.")).toBeTruthy();
+    const [first] = sections();
+    const firstHead = within(first!).getByTestId('commit-file-head');
+    expect(within(firstHead).getByText('+1000000')).toBeTruthy();
+    expect(firstHead.getAttribute('aria-expanded')).toBeNull();
+    fireEvent.click(firstHead);
+    expect(screen.queryByText('No content changes')).toBeNull();
+    expect(screen.queryAllByTestId('diff-row')).toHaveLength(0);
   });
 });
 

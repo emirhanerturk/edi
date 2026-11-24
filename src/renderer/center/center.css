@@ -523,3 +523,8 @@
 .tab-commit-icon {
   color: var(--muted);
 }
+
+.commit-file-spacer {
+  flex: none;
+  width: 11px;
+}

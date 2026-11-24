@@ -80,12 +80,13 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy }: Co
           </button>
         </div>
       </header>
-      <CommitFiles key={commit.oid} files={commit.files} tokens={tokens} />
+      {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
+      <CommitFiles key={commit.oid} files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} />
     </div>
   );
 }
 
-const CommitFiles = memo(function CommitFiles({ files, tokens }: { files: CommitFile[]; tokens: Map<string, DiffTokens> }) {
+const CommitFiles = memo(function CommitFiles({ files, tokens, countsOnly }: { files: CommitFile[]; tokens: Map<string, DiffTokens>; countsOnly: boolean }) {
   const [collapsed, setCollapsed] = useState(() => initiallyCollapsed(files));
   if (files.length === 0) return <ViewNote>No file changes</ViewNote>;
   const toggle = (path: string) =>
@@ -98,19 +99,31 @@ const CommitFiles = memo(function CommitFiles({ files, tokens }: { files: Commit
   return (
     <div className="commit-files mono">
       {files.map((file) => (
-        <CommitFileSection key={file.path} file={file} open={!collapsed.has(file.path)} tokens={tokens.get(file.path) ?? null} onToggle={() => toggle(file.path)} />
+        <CommitFileSection
+          key={file.path}
+          file={file}
+          open={countsOnly ? null : !collapsed.has(file.path)}
+          tokens={tokens.get(file.path) ?? null}
+          onToggle={() => toggle(file.path)}
+        />
       ))}
     </div>
   );
 });
 
-function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile; open: boolean; tokens: DiffTokens | null; onToggle(): void }) {
+/** `open` null: satırlar okunmadı (çok büyük commit), dosya açılamaz; yalnız sayılar. */
+function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile; open: boolean | null; tokens: DiffTokens | null; onToggle(): void }) {
   const slash = file.path.lastIndexOf('/');
-  const showsLines = !file.diff.binary && file.diff.hunks.length > 0;
+  const showsLines = !file.diff.binary && (file.diff.hunks.length > 0 || open === null);
   return (
     <section className="commit-file" data-testid="commit-file">
-      <button className="commit-file-head" data-testid="commit-file-head" aria-expanded={open} onClick={onToggle}>
-        {open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
+      <button
+        className="commit-file-head"
+        data-testid="commit-file-head"
+        aria-expanded={open ?? undefined}
+        onClick={open === null ? undefined : onToggle}
+      >
+        {open === null ? <span className="commit-file-spacer" /> : open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
         <span className="commit-file-letter" style={{ color: letterColor(file.letter) }}>
           {file.letter}
         </span>
@@ -118,7 +131,7 @@ function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile;
           {slash !== -1 && file.path.slice(0, slash + 1)}
           <span className="commit-file-name">{file.path.slice(slash + 1)}</span>
         </span>
-        {file.origPath !== null && showsLines && <span className="commit-file-from">← {file.origPath}</span>}
+        {file.origPath !== null && showsLines && open !== null && <span className="commit-file-from">← {file.origPath}</span>}
         <div className="spacer" />
         {showsLines && (
           <span>
@@ -128,7 +141,7 @@ function CommitFileSection({ file, open, tokens, onToggle }: { file: CommitFile;
           </span>
         )}
       </button>
-      {open && <CommitFileBody file={file} tokens={tokens} />}
+      {open === true && <CommitFileBody file={file} tokens={tokens} />}
     </section>
   );
 }
