@@ -32,8 +32,9 @@ export function buildRows(
     rows.push({ type: 'repo', key: repo.path, repo, state, expanded });
     if (!expanded) continue;
     for (const file of files) {
-      // NUL ne repo yolunda ne dosya yolunda bulunabilir: anahtarlar çakışmaz.
-      rows.push({ type: 'file', key: `${repo.path}\0${file.path}`, repo, file });
+      // NUL ne repo yolunda ne dosya yolunda bulunabilir. Tür de anahtarda: `git rm --cached`
+      // sonrası aynı yol hem "silindi" hem "yeni dosya" kaydıyla gelir.
+      rows.push({ type: 'file', key: `${repo.path}\0${file.kind}\0${file.path}`, repo, file });
     }
   }
   return rows;

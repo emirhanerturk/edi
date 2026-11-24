@@ -43,6 +43,16 @@ describe('buildRows', () => {
   });
 });
 
+describe('buildRows anahtarları', () => {
+  it('aynı yolun iki kaydı (git rm --cached sonrası) farklı anahtar alır', () => {
+    const removed: FileChange = { path: 'README.md', origPath: null, x: 'D', y: '.', kind: 'changed' };
+    const untracked: FileChange = { path: 'README.md', origPath: null, x: '?', y: '?', kind: 'untracked' };
+    const rows = buildRows([dirty], { [dirty.path]: st({ files: [removed, untracked] }) }, {});
+    expect(new Set(rows.map((r) => r.key)).size).toBe(3);
+    expect(resolveCursor(rows, rows[2]!.key, 2)).toBe(2);
+  });
+});
+
 describe('resolveCursor', () => {
   const rows = buildRows([clean, dirty], states, {});
   const keyOfB = rows[3]!.key;

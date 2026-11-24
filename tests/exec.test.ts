@@ -1,6 +1,8 @@
+import { access, chmod, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { pickErrorLine, runGit } from '../src/git/exec.js';
-import { initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 describe('runGit', () => {
   it('başarıda stdout döner', async () => {
@@ -38,6 +40,45 @@ describe('runGit', () => {
     const r = await runGit(repo, ['-c', 'alias.bekle=!sleep 30', 'bekle'], { timeoutMs: 200 });
     expect(r).toMatchObject({ ok: false, error: 'zaman aşımı' });
     expect(Date.now() - started).toBeLessThan(5000);
+  });
+});
+
+describe('runGit sağlamlığı', () => {
+  it('zaman aşımında kilit dosyası ve alt süreç bırakmaz', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    const hook = join(repo, '.git', 'hooks', 'pre-commit');
+    const pidFile = join(repo, '.git', 'hook.pid');
+    await writeFile(hook, `#!/bin/sh\necho $$ > "${pidFile}"\nsleep 30\n`);
+    await chmod(hook, 0o755);
+    await writeFile(join(repo, 'README.md'), 'değişti\n');
+
+    // commit -a hook çalışırken index.lock'u tutar.
+    const r = await runGit(repo, ['commit', '-a', '-m', 'feat: x'], { timeoutMs: 1500 });
+    expect(r).toMatchObject({ ok: false, error: 'zaman aşımı' });
+
+    const lockExists = await access(join(repo, '.git', 'index.lock')).then(() => true, () => false);
+    expect(lockExists).toBe(false);
+    const hookPid = Number((await readFile(pidFile, 'utf8')).trim());
+    expect(() => process.kill(hookPid, 0)).toThrow(); // hook süreci de bitmiş
+    expect((await git(repo, 'rev-list', '--count', 'HEAD')).trim()).toBe('1');
+  });
+
+  it('NUL içeren argümanda reject etmez', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await expect(runGit(repo, ['commit', '-m', 'a\0b'])).resolves.toMatchObject({ ok: false });
+  });
+
+  it('ortamdan gelen GIT_DIR başka repoya yönlendiremez', async () => {
+    const parent = await makeTmpDir();
+    const repoA = await initRepo(parent, 'a', { commit: true });
+    const repoB = await initRepo(parent, 'b', { commit: true });
+    process.env.GIT_DIR = join(repoB, '.git');
+    try {
+      const r = await runGit(repoA, ['rev-parse', '--absolute-git-dir']);
+      expect(r).toEqual({ ok: true, stdout: `${join(repoA, '.git')}\n` });
+    } finally {
+      delete process.env.GIT_DIR;
+    }
   });
 });
 
