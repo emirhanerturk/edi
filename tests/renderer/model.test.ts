@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FileChange, RepoStatus } from '../../src/git/types';
 import {
   changeCount,
+  fileLetter,
   commitTarget,
   groupFiles,
   isDeletion,
@@ -143,5 +144,22 @@ describe('commitTarget', () => {
   it('çakışma varken pasif', () => {
     expect(commitTarget(groups(0, 2, 1)).enabled).toBe(false);
     expect(commitTarget(groups(1, 0, 1)).enabled).toBe(false);
+  });
+});
+
+describe('fileLetter', () => {
+  const change = (x: string, y: string, kind: FileChange['kind'] = 'changed'): FileChange => ({ path: 'p', origPath: null, x, y, kind });
+
+  it('çalışma ağacı durumunu, yoksa stage durumunu verir', () => {
+    expect(fileLetter(change('.', 'M'))).toBe('M');
+    expect(fileLetter(change('A', '.'))).toBe('A');
+    expect(fileLetter(change('A', 'M'))).toBe('M');
+    expect(fileLetter(change('R', '.'))).toBe('R');
+    expect(fileLetter(change('.', 'D'))).toBe('D');
+  });
+
+  it('yeni dosya ? ve çakışma U', () => {
+    expect(fileLetter(change('?', '?', 'untracked'))).toBe('?');
+    expect(fileLetter(change('U', 'U', 'conflicted'))).toBe('U');
   });
 });

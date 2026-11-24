@@ -29,6 +29,31 @@ describe('clampWidths', () => {
   });
 });
 
+describe('clampWidths, orta panel açıkken', () => {
+  it('yer varken iki genişlik de korunur', () => {
+    expect(clampWidths({ left: 492, right: 372, total: 1440, center: true })).toEqual({ left: 492, right: 372 });
+  });
+
+  it('orta panele en az 360 piksel kalır: önce sol panel daralır', () => {
+    expect(clampWidths({ left: 800, right: 372, total: 1440, center: true })).toEqual({ left: 708, right: 372 });
+    expect(clampWidths({ left: 492, right: 372, total: 1100, center: true })).toEqual({ left: 368, right: 372 });
+  });
+
+  it('sol en küçük genişliğine inince sağ panel daralır', () => {
+    expect(clampWidths({ left: 492, right: 372, total: 1000, center: true })).toEqual({ left: 320, right: 320 });
+    expect(clampWidths({ left: 492, right: 900, total: 1440, center: true })).toEqual({ left: 320, right: 760 });
+  });
+
+  it('hiçbiri en küçük genişliğinin altına inmez', () => {
+    expect(clampWidths({ left: 100, right: 100, total: 1440, center: true })).toEqual({ left: 320, right: 300 });
+    expect(clampWidths({ left: 492, right: 372, total: 700, center: true })).toEqual({ left: 320, right: 300 });
+  });
+
+  it('sayı olmayan sol genişlik en küçük değere düşer', () => {
+    expect(clampWidths({ left: Number.NaN, right: 372, total: 1440, center: true })).toEqual({ left: 320, right: 372 });
+  });
+});
+
 describe('Splitter', () => {
   function renderSplitter() {
     const handlers = { onStart: vi.fn(), onDrag: vi.fn(), onEnd: vi.fn() };

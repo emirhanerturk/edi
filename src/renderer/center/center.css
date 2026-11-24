@@ -1,0 +1,53 @@
+/* Orta panel: dosya ve diff görünümü. */
+.center {
+  flex: 1 1 0;
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.center-tab {
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.center-tab[data-preview='true'] .tab-title {
+  font-style: italic;
+}
+
+.tab-letter {
+  flex: none;
+}
+
+.tab-hint {
+  flex: 0 10 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.center-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.center-note {
+  margin: 0;
+  padding: 24px 14px;
+  color: var(--muted);
+}
+
+/* Orta panel açıkken terminaller kayıtlı genişliğinde durur; pencere daralınca önce onlar daralır. */
+.app-body.with-center > .terminals {
+  flex: 0 1 var(--left-width, 492px);
+  min-width: 320px;
+}
+
+.app-body.with-center > .git {
+  max-width: max(300px, calc(100% - 680px));
+}

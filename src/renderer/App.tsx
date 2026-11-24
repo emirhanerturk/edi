@@ -1,5 +1,6 @@
 import { type CSSProperties, useEffect, useRef } from 'react';
 import { edi } from './bridge';
+import { CenterPanel } from './center/CenterPanel';
 import { EmptyState } from './components/EmptyState';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
@@ -12,6 +13,8 @@ export function App() {
   const ready = useApp((s) => s.ready);
   const dir = useApp((s) => s.workspace.dir);
   const right = useApp((s) => s.layout.right);
+  const left = useApp((s) => s.layout.left);
+  const centerOpen = useApp((s) => s.center.open);
   const body = useRef<HTMLElement>(null);
   const dragStart = useRef(0);
 
@@ -49,8 +52,23 @@ export function App() {
       ) : dir === null ? (
         <EmptyState />
       ) : (
-        <main className="app-body" ref={body} style={{ '--right-width': `${right}px` } as CSSProperties}>
+        <main
+          className={`app-body${centerOpen ? ' with-center' : ''}`}
+          ref={body}
+          style={{ '--right-width': `${right}px`, '--left-width': `${left}px` } as CSSProperties}
+        >
           <TerminalPanel />
+          {centerOpen && (
+            <Splitter
+              label="Resize the terminal panel"
+              onStart={() => {
+                dragStart.current = body.current?.querySelector('.terminals')?.getBoundingClientRect().width ?? left;
+              }}
+              onDrag={(dx) => useApp.getState().resizeLeft(dragStart.current + dx, body.current?.clientWidth ?? window.innerWidth)}
+              onEnd={() => useApp.getState().saveLayout()}
+            />
+          )}
+          <CenterPanel />
           <Splitter
             label="Resize the Git panel"
             onStart={() => {

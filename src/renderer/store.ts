@@ -2,6 +2,17 @@ import { create } from 'zustand';
 import type { GitOp, Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import { edi } from './bridge';
+import {
+  type CenterState,
+  type CenterTarget,
+  EMPTY_CENTER,
+  activateCenterTab,
+  closeCenterTab,
+  openTarget,
+  pinCenterTab,
+  setPanelOpen,
+  syncCenter,
+} from './center/tabs';
 import { clampWidths } from './components/Splitter';
 import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
@@ -89,8 +100,19 @@ interface AppStore {
   dismissOpenError(): void;
   /** Sağ panelin genişliğini, `total` genişliğindeki alana sığdırarak değiştirir. */
   resizeRight(right: number, total: number): void;
+  /** Sol panelin (terminaller) orta panel açıkkenki genişliğini değiştirir. */
+  resizeLeft(left: number, total: number): void;
   /** Panel genişliklerini kalıcı duruma yazar. */
   saveLayout(): void;
+
+  /** Orta panel: açık dosya ve diff sekmeleri. */
+  center: CenterState;
+  /** Tek tık önizleme (`pin` false), çift tık kalıcı sekme açar; panel kapalıysa açılır. */
+  openInCenter(target: CenterTarget, pin: boolean): void;
+  closeCenterTab(id: string): void;
+  activateCenterTab(id: string): void;
+  pinCenterTab(id: string): void;
+  setCenterOpen(open: boolean): void;
 
   tabs: Tab[];
   activeTab: number | null;
@@ -133,12 +155,24 @@ export const useApp = create<AppStore>((set, get) => ({
     if (!result.ok && result.cancelled) return; // Kullanıcı vazgeçti: hata değil.
     set({ openError: result.ok ? null : `${dir}: ${result.error}` });
   },
+  // Sürüklenen panelin genişliği değişir; ötekinin kayıtlı değeri korunur (dar pencerede CSS daraltır).
   resizeRight(right, total) {
-    set((state) => ({ layout: { ...state.layout, right: clampWidths({ left: state.layout.left, right, total }).right } }));
+    set((state) => ({ layout: { ...state.layout, right: clampWidths({ left: state.layout.left, right, total, center: state.center.open }).right } }));
+  },
+  resizeLeft(left, total) {
+    set((state) => ({ layout: { ...state.layout, left: clampWidths({ left, right: state.layout.right, total, center: true }).left } }));
   },
   saveLayout() {
-    edi.setLayout({ right: get().layout.right });
+    const { left, right } = get().layout;
+    edi.setLayout({ left, right });
   },
+
+  center: EMPTY_CENTER,
+  openInCenter: (target, pin) => set((state) => ({ center: openTarget(state.center, target, pin) })),
+  closeCenterTab: (id) => set((state) => ({ center: closeCenterTab(state.center, id) })),
+  activateCenterTab: (id) => set((state) => ({ center: activateCenterTab(state.center, id) })),
+  pinCenterTab: (id) => set((state) => ({ center: pinCenterTab(state.center, id) })),
+  setCenterOpen: (open) => set((state) => ({ center: setPanelOpen(state.center, open) })),
   dismissOpenError: () => set({ openError: null }),
 
   tabs: [],
@@ -226,7 +260,13 @@ export const useApp = create<AppStore>((set, get) => ({
 /** Ana süreçten ilk durumu alır ve değişikliklere abone olur. Dönen işlev abonelikleri kaldırır. */
 export function connect(): () => void {
   const off = [
-    edi.on('workspace', (workspace) => useApp.setState({ workspace })),
+    edi.on('workspace', (workspace) =>
+      useApp.setState((state) => ({
+        workspace,
+        // Klasör değiştiyse ya da bir repo kaybolduysa ona ait sekmeler kapanır.
+        center: syncCenter(state.center, state.workspace.dir, workspace.dir, workspace.repos.map((repo) => repo.path)),
+      })),
+    ),
     edi.on('recent', (recent) => useApp.setState({ recent })),
     edi.on('pty:data', (id, data) => writeTerminal(id, data)),
     edi.on('tabs', (states) => useApp.setState((state) => ({ tabs: applyTabStates(state.tabs, states, Date.now()) }))),
