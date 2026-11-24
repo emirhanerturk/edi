@@ -190,6 +190,7 @@ export class AppCore {
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
+    ipcMain.handle('view:listDir', (_event, repoPath: unknown, dirPath: unknown) => this.viewOps.listDir(repoPath, dirPath));
     ipcMain.handle('view:openInZed', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.openInZed(repoPath, filePath));
     ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));
     ipcMain.handle('history:log', (_event, repoPath: unknown, count: unknown) => this.historyOps.log(repoPath, count));

@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RepoStatus } from '../../src/git/types';
 import type { RepoView } from '../../src/shared/api';
 
-const bridge = vi.hoisted(() => ({ listFiles: vi.fn(async (_repoPath: string) => ({ ok: true, files: ['a.ts'] })) }));
+const bridge = vi.hoisted(() => ({
+  listFiles: vi.fn(async (_repoPath: string) => ({ ok: true, files: ['a.ts'], ignored: ['dist/'] })),
+  listDir: vi.fn(async (_repoPath: string, _dirPath: string) => ({ ok: true, entries: [{ name: 'app.js', dir: false }], more: 0 })),
+}));
 vi.mock('../../src/renderer/bridge', () => ({ edi: bridge }));
 
 const { useApp } = await import('../../src/renderer/store');
@@ -58,5 +61,25 @@ describe('FilesPanel dosya listesini yeniden okur', () => {
     show('/w/b', [repo('/w/b')]);
     show('/w/a', [repo('/w/a')]);
     expect(bridge.listFiles.mock.calls.map((call) => call[0])).toEqual(['/w/a', '/w/b', '/w/a']);
+  });
+});
+
+describe('FilesPanel yok sayılan klasörü', () => {
+  it('açılınca okur, kapanıp yeniden açılınca tazeler; içinde olmayan açık klasör için okumaz', async () => {
+    bridge.listDir.mockClear();
+    useApp.setState({ filesOpen: {} });
+    show('/w/a', [repo('/w/a')]);
+    render(<FilesPanel />);
+    await act(async () => {});
+    expect(bridge.listDir).not.toHaveBeenCalled();
+    act(() => useApp.getState().toggleFilesDir('/w/a\nsrc', true));
+    expect(bridge.listDir).not.toHaveBeenCalled();
+    act(() => useApp.getState().toggleFilesDir('/w/a\ndist', true));
+    await act(async () => {});
+    expect(bridge.listDir.mock.calls).toEqual([['/w/a', 'dist']]);
+    act(() => useApp.getState().toggleFilesDir('/w/a\ndist', false));
+    act(() => useApp.getState().toggleFilesDir('/w/a\ndist', true));
+    await act(async () => {});
+    expect(bridge.listDir).toHaveBeenCalledTimes(2);
   });
 });

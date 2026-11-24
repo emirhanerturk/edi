@@ -302,8 +302,9 @@ belirlemez. (Benim kararım.)
 Açık klasördeki repolar en üst düzeyde, Git sekmesindeki gibi ayrı bölümler olarak
 (aynı satır yüksekliği; açık repo vurgulu); her birinin altında çalışma ağacı.
 `.gitignore`'a takılan dosyalar ve klasörler soluk gösterilir (2026-11-24, kullanıcı
-istedi); yok sayılan bir dosya açılabilir, yok sayılan bir klasörün içi listelenmez
-(ör. `node_modules`, `dist`). Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
+istedi). Yok sayılan bir klasörün içi git'ten gelmez; klasör açılınca yalnız o seviye
+diskten okunur (en çok 2.000 kayıt, fazlası "N more not shown"), kapanınca unutulur.
+İçindekiler de soluk ve açılabilir (ör. `node_modules`, `ios`, `dist`). Değişen dosyalar durum harfi ve rengiyle, değişiklik içeren
 klasörler nokta ile işaretlenir. Bir dosyaya tıklamak dosya görünümünü açar.
 Sekme başlığındaki düğme tüm klasörleri kapatır. Açık klasörün kendisi tek bir
 repoysa ağaç doğrudan o reponun içeriğiyle başlar.

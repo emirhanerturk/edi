@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { MAX_FILE_BYTES, listFiles, readRepoFile, resolveInRepo } from '../src/git/files.js';
+import { MAX_FILE_BYTES, OUTSIDE, listDir, listFiles, readRepoFile, resolveInRepo } from '../src/git/files.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const run = promisify(execFile);
@@ -167,5 +167,56 @@ describe('readRepoFile', () => {
     await writeFile(join(repo, '.gitignore'), 'x\n');
     expect(await readRepoFile(repo, '.github/ci.yml')).toMatchObject({ kind: 'text' });
     expect(await readRepoFile(repo, '.gitignore')).toMatchObject({ kind: 'text' });
+  });
+});
+
+describe('listDir', () => {
+  it('bir klasörün tek seviyesini ada göre sıralı verir; alt klasörler ve klasöre giden bağlar işaretli', async () => {
+    const { dir, repo } = await repoWithOutside();
+    await mkdir(join(repo, 'node_modules', 'react', 'lib'), { recursive: true });
+    await mkdir(join(repo, 'node_modules', '.bin'));
+    await writeFile(join(repo, 'node_modules', 'react', 'index.js'), 'x\n');
+    await writeFile(join(repo, 'node_modules', 'b.json'), 'x\n');
+    await symlink(join(repo, 'node_modules', 'react'), join(repo, 'node_modules', 'alias'));
+    await symlink(join(dir, 'outside-dir'), join(repo, 'node_modules', 'dis'));
+    await mkdir(join(repo, 'node_modules', '.git'));
+    expect(await listDir(repo, 'node_modules')).toEqual({
+      ok: true,
+      entries: [
+        { name: '.bin', dir: true },
+        { name: 'alias', dir: true },
+        { name: 'b.json', dir: false },
+        { name: 'dis', dir: true },
+        { name: 'react', dir: true },
+      ],
+      more: 0,
+    });
+    // Dışarıyı gösteren bağın içi okunmaz.
+    expect(await listDir(repo, 'node_modules/dis')).toEqual({ ok: false, error: OUTSIDE });
+    expect(await listDir(repo, 'node_modules/react')).toMatchObject({ ok: true, entries: [{ name: 'index.js', dir: false }, { name: 'lib', dir: true }] });
+  });
+
+  it('repo dışı, .git, olmayan ve dosya olan yollar okunmaz', async () => {
+    const { repo } = await repoWithOutside();
+    expect(await listDir(repo, '../outside-dir')).toEqual({ ok: false, error: OUTSIDE });
+    expect(await listDir(repo, '.git')).toEqual({ ok: false, error: OUTSIDE });
+    expect(await listDir(repo, '')).toEqual({ ok: false, error: OUTSIDE });
+    expect(await listDir(repo, 'yok')).toEqual({ ok: false, error: 'Folder not found' });
+    expect(await listDir(repo, 'README.md')).toEqual({ ok: false, error: 'Not a folder' });
+  });
+
+  it('sınırdan fazla kayıt varsa ilkleri verir, kalanını sayar', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    await mkdir(join(repo, 'dist'));
+    for (const name of ['c', 'a', 'e', 'b', 'd']) await writeFile(join(repo, 'dist', name), 'x\n');
+    expect(await listDir(repo, 'dist', 3)).toEqual({
+      ok: true,
+      entries: [
+        { name: 'a', dir: false },
+        { name: 'b', dir: false },
+        { name: 'c', dir: false },
+      ],
+      more: 2,
+    });
   });
 });

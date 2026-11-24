@@ -23,7 +23,7 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   that the next click reuses, a double click keeps the tab. The open view follows the file
   as it changes on disk.
 - **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
-  (an ignored folder's contents are not listed). Changed files carry
+  (an ignored folder is read from disk one level at a time when you open it). Changed files carry
   their status letter, folders that contain changes a dot. Clicking a file opens it read-only.
   Files over 1 MB and binary files are not shown.
 - **History tab.** The recent commits of every repository's current branch in one timeline,

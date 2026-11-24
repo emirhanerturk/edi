@@ -1,5 +1,5 @@
 // Files sekmesinin saf mantığı: dosya listesinden ağaç, ağaçtan ekrandaki satırlar.
-import type { FileChange } from '../../git/types';
+import type { DirEntry, FileChange } from '../../git/types';
 import { fileLetter } from '../git/model';
 
 export interface TreeNode {
@@ -31,7 +31,13 @@ const byName = (a: TreeNode, b: TreeNode) => {
  * listesi bir yoklama geriden gelse de yeni dosya hemen görünür. Silinen dosyalar listelenmez,
  * ama bulundukları klasör değişiklik içerir sayılır.
  */
-export function buildTree(files: string[], changes: FileChange[], ignored: string[] = []): TreeNode[] {
+export function buildTree(
+  files: string[],
+  changes: FileChange[],
+  ignored: string[] = [],
+  /** Yüklenmiş yok sayılan klasörlerin içi: klasör yolu → tek seviye kayıtlar. */
+  loaded: Record<string, DirEntry[]> = {},
+): TreeNode[] {
   const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
   const dirs = new Map<string, TreeNode>([['', root]]);
 
@@ -78,6 +84,19 @@ export function buildTree(files: string[], changes: FileChange[], ignored: strin
     }
   }
 
+  // Açılıp okunmuş yok sayılan klasörlerin içi; içindeki her şey de yok sayılmıştır.
+  for (const [dir, entries] of Object.entries(loaded)) {
+    for (const entry of entries) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.dir) {
+        dirOf(path).ignored = true;
+      } else if (!seen.has(path)) {
+        seen.add(path);
+        dirOf(dir).children.push({ name: entry.name, path, kind: 'file', children: [], letter: null, dirty: false, ignored: true });
+      }
+    }
+  }
+
   // Değişikliği içeren her klasör (silinen dosyanınki de) işaretlenir; ağaçta olmayan klasör atlanır.
   for (const change of changes) {
     let dir = parentPath(change.path);
@@ -94,6 +113,11 @@ export function buildTree(files: string[], changes: FileChange[], ignored: strin
   };
   sort(root);
   return root.children;
+}
+
+/** Yol, yok sayılan bir klasörün kendisi ya da içinde mi (`ignored`: `listFiles`'ın listesi). */
+export function insideIgnored(path: string, ignored: string[]): boolean {
+  return ignored.some((entry) => entry.endsWith('/') && (`${path}/` === entry || path.startsWith(entry)));
 }
 
 export interface TreeRow {

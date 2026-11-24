@@ -3,9 +3,9 @@
  * bu dosyadan çalışan kod almaz.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { CommitDetail, CommitFile, CommitResult, CommitSummary, FileChange, FileContent, FileList, LogResult, RepoStatus } from '../git/types.js';
+import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus } from '../git/types.js';
 
-export type { CommitDetail, CommitFile, CommitResult, CommitSummary, FileContent, FileList, LogResult };
+export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult };
 
 export interface RepoView {
   name: string;
@@ -134,8 +134,10 @@ export interface EdiApi {
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` repoya göre görelidir ve repo içinde kalmalıdır; ana süreç doğrular. */
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
-  /** Çalışma ağacındaki dosyalar; `.gitignore`'a takılanlar gelmez. */
+  /** Çalışma ağacındaki dosyalar; `.gitignore`'a takılanlar ayrı listede (klasörün içi olmadan). */
   listFiles(repoPath: string): Promise<FileList>;
+  /** Repo içindeki bir klasörün tek seviyesi; yok sayılan klasörün içini göstermek için. */
+  listDir(repoPath: string, dirPath: string): Promise<DirList>;
   /** Dosyayı, `filePath` null ise repo klasörünü Zed'de açar. */
   openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
   /** Terminaldeki bir web bağlantısını varsayılan tarayıcıda açar (yalnız http/https). */

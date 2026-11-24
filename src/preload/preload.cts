@@ -17,6 +17,7 @@ const api: EdiApi = {
   diff: (repoPath, filePath) => ipcRenderer.invoke('view:diff', repoPath, filePath),
   readFile: (repoPath, filePath) => ipcRenderer.invoke('view:read', repoPath, filePath),
   listFiles: (repoPath) => ipcRenderer.invoke('view:list', repoPath),
+  listDir: (repoPath, dirPath) => ipcRenderer.invoke('view:listDir', repoPath, dirPath),
   openInZed: (repoPath, filePath) => ipcRenderer.invoke('view:openInZed', repoPath, filePath),
   openUrl: (url) => ipcRenderer.invoke('shell:openUrl', url),
   log: (repoPath, count) => ipcRenderer.invoke('history:log', repoPath, count),

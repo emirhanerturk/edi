@@ -37,6 +37,7 @@ function renderView(over: Partial<FilesPanelViewProps> = {}) {
     repos: [appRepo, apiRepo],
     single: false,
     lists,
+    dirs: {},
     open: {},
     selected: null,
     onToggle: vi.fn(),
@@ -96,18 +97,49 @@ describe('FilesPanelView', () => {
     expect(rows().filter((row) => row.getAttribute('aria-current') === 'true').map((row) => row.dataset.name)).toEqual(['play.tsx']);
   });
 
-  it('yok sayılan dosya soluk görünür ve açılır; yok sayılan klasör soluk görünür, açılmaz', () => {
+  it('yok sayılan dosya ve klasör soluk görünür; dosya açılır, klasör açılıp kapanır', () => {
     const props = renderView({ open: { '/w/quizei-app\n': true } });
     const row = (name: string) => rows().find((r) => r.dataset.name === name)!;
     expect(row('.env').dataset.ignored).toBe('true');
     expect(row('node_modules').dataset.ignored).toBe('true');
     expect(row('package.json').dataset.ignored).toBeUndefined();
-    expect(row('node_modules').getAttribute('aria-expanded')).toBeNull();
+    expect(row('node_modules').getAttribute('aria-expanded')).toBe('false');
     expect(row('node_modules').title).toBe('node_modules (ignored by git)');
     fireEvent.click(row('node_modules'));
-    expect(props.onToggle).not.toHaveBeenCalled();
+    expect(props.onToggle).toHaveBeenCalledWith('/w/quizei-app\nnode_modules', true);
     fireEvent.click(row('.env'));
     expect(props.onOpenFile).toHaveBeenCalledWith('/w/quizei-app', '.env', false);
+  });
+
+  it('açık yok sayılan klasör yüklenirken bunu söyler, sonra içini soluk gösterir; fazlasını sayar', () => {
+    const open = { '/w/quizei-app\n': true, '/w/quizei-app\nnode_modules': true };
+    renderView({ open });
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    cleanup();
+    renderView({ open, dirs: { '/w/quizei-app\nnode_modules': { ok: false, error: 'Folder not found' } } });
+    expect(screen.getByText('Folder not found')).toBeTruthy();
+    cleanup();
+    renderView({
+      open,
+      dirs: {
+        '/w/quizei-app\nnode_modules': {
+          ok: true,
+          entries: [
+            { name: 'react', dir: true },
+            { name: '.yarn-integrity', dir: false },
+          ],
+          more: 1200,
+        },
+      },
+    });
+    expect(brief().slice(0, 5)).toEqual(['quizei-app ●', '-app ●', '-node_modules', '--react', '--.yarn-integrity']);
+    expect(rows().find((r) => r.dataset.name === 'react')!.dataset.ignored).toBe('true');
+    const more = screen.getByText('1,200 more not shown');
+    const last = rows().find((r) => r.dataset.name === '.yarn-integrity')!;
+    const next = rows().find((r) => r.dataset.name === 'package.json')!;
+    // Not, klasörün son satırından sonra ve bir sonraki kardeşten önce gelir.
+    expect(last.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("çok repolu görünümde her repo, Git sekmesindeki gibi ayrı bir bölümdür; açık olan vurgulanır", () => {
