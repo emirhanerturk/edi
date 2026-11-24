@@ -31,7 +31,7 @@ function useFileTokens(text: string | null, path: string): Token[][] | null {
 type MonacoModule = typeof import('./editor/monaco');
 let monacoModule: Promise<MonacoModule> | null = null;
 /** Monaco loads once, the first time a text file opens. */
-const loadMonaco = () => (monacoModule ??= import('./editor/monaco'));
+export const loadMonaco = () => (monacoModule ??= import('./editor/monaco'));
 
 const noSubscribe = () => () => undefined;
 

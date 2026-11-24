@@ -90,4 +90,18 @@ describe('CenterTabs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
     expect(onClosePanel).toHaveBeenCalledTimes(1);
   });
+
+  it('the + button and a double click on the empty part of the bar open a new file; a tab double click does not', () => {
+    const onNew = vi.fn();
+    const onPin = vi.fn();
+    render(<CenterTabs tabs={labels} active={labels[0]!.id} onActivate={vi.fn()} onPin={onPin} onClose={vi.fn()} onClosePanel={vi.fn()} onNew={onNew} />);
+    fireEvent.click(screen.getByRole('button', { name: 'New file' }));
+    expect(onNew).toHaveBeenCalledTimes(1);
+    fireEvent.doubleClick(screen.getByRole('tablist'));
+    expect(onNew).toHaveBeenCalledTimes(2);
+    fireEvent.doubleClick(screen.getAllByTestId('center-tab')[0]!);
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Close panel' }));
+    expect(onNew).toHaveBeenCalledTimes(2);
+    expect(onPin).toHaveBeenCalledTimes(1);
+  });
 });

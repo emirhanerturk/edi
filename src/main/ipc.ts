@@ -65,6 +65,12 @@ export class AppCore {
       trash: (target) => shell.trashItem(target),
       reveal: (target) => shell.showItemInFolder(target),
       menu: (items) => this.popup(items),
+      choosePath: async (defaultPath) => {
+        const win = this.getWindow();
+        const options = { defaultPath, properties: ['createDirectory' as const, 'showOverwriteConfirmation' as const] };
+        const result = await (win && !win.isDestroyed() ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options));
+        return result.canceled || !result.filePath ? null : result.filePath;
+      },
     });
     this.historyOps = new HistoryOps(this.workspace);
     this.ptys = new PtyManager({
@@ -242,6 +248,7 @@ export class AppCore {
     ipcMain.handle('files:trash', (_event, repoPath: unknown, path: unknown, unsaved: unknown) => this.fileOps.trash(repoPath, path, unsaved));
     ipcMain.handle('files:reveal', (_event, repoPath: unknown, path: unknown) => this.fileOps.reveal(repoPath, path));
     ipcMain.handle('files:menu', (_event, kind: unknown) => this.fileOps.menu(kind));
+    ipcMain.handle('files:saveNew', (_event, text: unknown, repoPath: unknown) => this.fileOps.saveNew(text, repoPath));
     ipcMain.handle('view:headText', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.headText(repoPath, filePath));
     ipcMain.handle('view:blame', (_event, repoPath: unknown, filePath: unknown, text: unknown) => this.viewOps.blame(repoPath, filePath, text));
     ipcMain.handle('view:write', (_event, repoPath: unknown, filePath: unknown, text: unknown, expected: unknown) =>

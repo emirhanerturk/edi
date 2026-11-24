@@ -24,6 +24,7 @@ const api: EdiApi = {
   trashEntry: (repoPath, path, unsaved) => ipcRenderer.invoke('files:trash', repoPath, path, unsaved),
   revealEntry: (repoPath, path) => ipcRenderer.invoke('files:reveal', repoPath, path),
   filesMenu: (kind) => ipcRenderer.invoke('files:menu', kind),
+  saveNew: (text, repoPath) => ipcRenderer.invoke('files:saveNew', text, repoPath),
   headText: (repoPath, filePath) => ipcRenderer.invoke('view:headText', repoPath, filePath),
   blame: (repoPath, filePath, text) => ipcRenderer.invoke('view:blame', repoPath, filePath, text),
   setUnsaved: (count) => ipcRenderer.send('edits:unsaved', count),

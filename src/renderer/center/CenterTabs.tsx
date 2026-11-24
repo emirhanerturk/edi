@@ -1,10 +1,10 @@
-import { CloseIcon, CommitIcon } from '../components/icons';
+import { CloseIcon, CommitIcon, PlusIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 
 /** How a tab looks in the bar. */
 export interface TabLabel {
   id: string;
-  kind: 'diff' | 'file' | 'commit';
+  kind: 'diff' | 'file' | 'commit' | 'untitled';
   name: string;
   /** The file's folder; empty if at the root. */
   dir: string;
@@ -22,12 +22,20 @@ export interface CenterTabsProps {
   onPin(id: string): void;
   onClose(id: string): void;
   onClosePanel(): void;
+  /** The + button, or a double click on the empty part of the bar: a new untitled file. */
+  onNew?(): void;
 }
 
 /** The center panel's tab bar. The button at the right end closes the panel; the tabs stay put. */
-export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePanel }: CenterTabsProps) {
+export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePanel, onNew }: CenterTabsProps) {
   return (
-    <div className="tabbar center-tabbar">
+    <div
+      className="tabbar center-tabbar"
+      onDoubleClick={(event) => {
+        // Only the empty part: not a tab or a button.
+        if (!(event.target as HTMLElement).closest('.center-tab, button')) onNew?.();
+      }}
+    >
       <div className="tabbar-tabs" role="tablist" aria-label="Open files">
         {tabs.map((tab) => {
           const isActive = tab.id === active;
@@ -79,6 +87,11 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
           );
         })}
       </div>
+      {onNew && (
+        <button className="tabbar-add" data-testid="new-untitled" aria-label="New file" title="New file (⌘N)" onClick={onNew}>
+          <PlusIcon size={14} />
+        </button>
+      )}
       <div className="spacer" />
       <button className="tabbar-add" aria-label="Close panel" title="Close panel" onClick={onClosePanel}>
         <CloseIcon size={14} />

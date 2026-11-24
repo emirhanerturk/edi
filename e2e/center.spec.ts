@@ -515,3 +515,49 @@ async function clickLine(page: Page, line: number) {
   await page.getByTestId('file-editor').locator('.line-numbers').getByText(String(line), { exact: true }).click();
   await page.keyboard.press('ArrowLeft');
 }
+
+test('a new untitled file: ⌘N or +, typed, saved through the Save panel into a repo, then a normal file tab', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  const { app, page } = await launch({ openDir: dir });
+  const savePanelReturns = (filePath: string) =>
+    app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = (async () => ({ canceled: false, filePath: path })) as typeof dialog.showSaveDialog;
+    }, filePath);
+  try {
+    // ⌘N works with the center panel closed.
+    await page.locator('body').click();
+    await page.keyboard.press('Meta+n');
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'untitled');
+    await expect(centerTabs(page)).toHaveText(['Untitled-1']);
+    await page.getByTestId('new-untitled').click();
+    await expect(centerTabs(page)).toHaveText(['Untitled-1', 'Untitled-2']);
+
+    const editor = page.getByTestId('file-editor');
+    await editor.locator('.view-lines').click();
+    await page.keyboard.type('# Notes');
+    await expect(centerTabs(page).nth(1)).toHaveAttribute('data-unsaved', 'true');
+
+    // Outside every repo: refused, the text stays.
+    await savePanelReturns(join(dir, 'loose.md'));
+    await page.keyboard.press('Meta+s');
+    await expect(page.locator('.edit-bar')).toContainText('Save it inside one of the repositories in this folder');
+    await expect.poll(() => editorLines(page)).toEqual(['# Notes']);
+
+    await savePanelReturns(join(repo, 'notes.md'));
+    await page.keyboard.press('Meta+s');
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
+    // A new, untracked file: its tab carries the "?" mark.
+    await expect(centerTabs(page)).toHaveText(['Untitled-1', '?notes.md']);
+    await expect(centerTabs(page).nth(1)).not.toHaveAttribute('data-unsaved', 'true');
+    expect(await readFile(join(repo, 'notes.md'), 'utf8')).toBe('# Notes');
+    await expect.poll(() => editorLines(page)).toEqual(['# Notes']);
+
+    // An empty untitled tab closes without asking.
+    await centerTabs(page).first().click();
+    await centerTabs(page).first().getByRole('button', { name: 'Close tab' }).click();
+    await expect(centerTabs(page)).toHaveText(['?notes.md']);
+  } finally {
+    await app.close();
+  }
+});

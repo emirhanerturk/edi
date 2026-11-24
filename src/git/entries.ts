@@ -38,8 +38,8 @@ async function folderIn(repo: string, relDir: string, missing: string): Promise<
   return isDir ? located : { ok: false, error: missing };
 }
 
-/** Creates an empty file or a folder at `relPath`; never overwrites. */
-export async function createEntry(repo: string, relPath: unknown, kind: 'file' | 'dir'): Promise<EntryResult> {
+/** Creates a file (empty, or with `text`) or a folder at `relPath`; never overwrites. */
+export async function createEntry(repo: string, relPath: unknown, kind: 'file' | 'dir', text = ''): Promise<EntryResult> {
   if (!staysInside(relPath)) return { ok: false, error: OUTSIDE };
   const { parent, name } = splitPath(relPath);
   if (!validName(name)) return INVALID_NAME;
@@ -47,7 +47,7 @@ export async function createEntry(repo: string, relPath: unknown, kind: 'file' |
   if (!folder.ok) return folder;
   const target = join(folder.target, name);
   try {
-    if (kind === 'file') await writeFile(target, '', { flag: 'wx' });
+    if (kind === 'file') await writeFile(target, text, { flag: 'wx' });
     else await mkdir(target);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return taken(name);

@@ -30,6 +30,10 @@ export function App() {
       let handled = true;
       if (key === 'o' && !event.shiftKey) void edi.chooseFolder();
       else if (key === 't') void newTab({ claude: event.shiftKey });
+      else if (key === 'n' && !event.shiftKey) {
+        if (useApp.getState().workspace.dir === null) handled = false;
+        else useApp.getState().newUntitled();
+      }
       else if (key === 'w' && !event.shiftKey) {
         if (activeTab !== null) closeTab(activeTab);
       } else if (/^[1-9]$/.test(key) && !event.shiftKey) {

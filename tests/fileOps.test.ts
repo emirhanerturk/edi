@@ -23,6 +23,8 @@ async function setup() {
   const trashed: string[] = [];
   const revealed: string[] = [];
   let answer = true;
+  const offered: string[] = [];
+  let chosen: string | null = null;
   const ops = new FileOps(ws, {
     ask: async (question) => {
       asked.push(question);
@@ -33,8 +35,22 @@ async function setup() {
     },
     reveal: (target) => revealed.push(target),
     menu: async () => 'rename',
+    choosePath: async (defaultPath) => {
+      offered.push(defaultPath);
+      return chosen;
+    },
   });
-  return { repo, ops, asked, trashed, revealed, answer: (yes: boolean) => (answer = yes) };
+  return {
+    dir,
+    repo,
+    ops,
+    asked,
+    trashed,
+    revealed,
+    offered,
+    answer: (yes: boolean) => (answer = yes),
+    choose: (path: string | null) => (chosen = path),
+  };
 }
 
 const exists = (path: string) => access(path).then(() => true, () => false);
@@ -95,6 +111,41 @@ describe('FileOps', () => {
     const { ops } = await setup();
     expect(await ops.menu('file')).toBe('rename');
     expect(await ops.menu('nonsense')).toBeNull();
+  });
+});
+
+describe('FileOps.saveNew', () => {
+  it('offers the Save panel in the suggested repo and writes the text there', async () => {
+    const { repo, ops, offered, choose } = await setup();
+    choose(join(repo, 'src', 'notes.md'));
+    expect(await ops.saveNew('hello\n', repo)).toEqual({ ok: true, repoPath: repo, path: 'src/notes.md' });
+    expect(offered).toEqual([join(repo, 'Untitled.txt')]);
+    expect(await readFile(join(repo, 'src', 'notes.md'), 'utf8')).toBe('hello\n');
+  });
+
+  it('starts in the open folder when the suggestion is not a repo; Cancel writes nothing', async () => {
+    const { dir, ops, offered } = await setup();
+    expect(await ops.saveNew('x', '/elsewhere')).toEqual({ ok: false, error: '', cancelled: true });
+    expect(offered).toEqual([join(dir, 'Untitled.txt')]);
+  });
+
+  it('refuses a place outside every repo, inside .git, and an existing file', async () => {
+    const { dir, repo, ops, choose } = await setup();
+    choose(join(dir, 'loose.txt'));
+    expect(await ops.saveNew('x', repo)).toEqual({ ok: false, error: 'Save it inside one of the repositories in this folder' });
+    expect(await exists(join(dir, 'loose.txt'))).toBe(false);
+    choose(join(repo, '.git', 'x'));
+    expect(await ops.saveNew('x', repo)).toEqual({ ok: false, error: 'File is outside the repository' });
+    choose(join(repo, 'src', 'a.ts'));
+    expect(await ops.saveNew('x', repo)).toEqual({ ok: false, error: 'A file or folder named a.ts already exists' });
+    expect(await readFile(join(repo, 'src', 'a.ts'), 'utf8')).toBe('a\n');
+  });
+
+  it('refuses text that is not a string or too large', async () => {
+    const { repo, ops, offered } = await setup();
+    expect(await ops.saveNew(7, repo)).toEqual({ ok: false, error: 'Invalid text' });
+    expect(await ops.saveNew('x'.repeat(5 * 1_048_576 + 1), repo)).toEqual({ ok: false, error: 'The text is too large to save' });
+    expect(offered).toEqual([]);
   });
 });
 

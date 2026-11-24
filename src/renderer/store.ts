@@ -11,6 +11,8 @@ import {
   closeCenterTab,
   moveFileTabs,
   openTarget,
+  openUntitled,
+  replaceCenterTab,
   pinCenterTab,
   setPanelOpen,
   syncCenter,
@@ -126,6 +128,10 @@ interface AppStore {
   openInCenter(target: CenterTarget, pin: boolean): void;
   /** Closes a tab; one with unsaved edits asks first. */
   closeCenterTab(id: string): Promise<void>;
+  /** A new "Untitled-N" editor; saving it starts in the active tab's repo (or the only repo). */
+  newUntitled(): void;
+  /** Puts `target` in the place of tab `id` (an untitled tab once saved). */
+  replaceCenterTab(id: string, target: CenterTarget): void;
   activateCenterTab(id: string): void;
   pinCenterTab(id: string): void;
   setCenterOpen(open: boolean): void;
@@ -239,6 +245,15 @@ export const useApp = create<AppStore>((set, get) => ({
     if (get().unsaved[id] && !(await edi.confirmDiscard(tab.path.slice(tab.path.lastIndexOf('/') + 1)))) return;
     set((state) => ({ center: closeCenterTab(state.center, id) }));
   },
+  newUntitled() {
+    set((state) => {
+      const active = state.center.tabs.find((tab) => tab.id === state.center.active);
+      const { repos, dir } = state.workspace;
+      const suggested = active && active.repoPath !== '' ? active.repoPath : repos.length === 1 && repos[0]!.path === dir ? repos[0]!.path : null;
+      return { center: openUntitled(state.center, suggested) };
+    });
+  },
+  replaceCenterTab: (id, target) => set((state) => ({ center: replaceCenterTab(state.center, id, target) })),
   activateCenterTab: (id) => set((state) => ({ center: activateCenterTab(state.center, id) })),
   pinCenterTab: (id) => set((state) => ({ center: pinCenterTab(state.center, id) })),
   setCenterOpen: (open) => set((state) => ({ center: setPanelOpen(state.center, open) })),

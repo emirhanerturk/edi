@@ -1,8 +1,9 @@
 // The Files tab's changes to the working tree: new files and folders, rename, Trash, Finder, and its context menu.
-import { lstat } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { createEntry, entryPath, renameEntry } from '../git/entries.js';
-import { OUTSIDE } from '../git/files.js';
-import type { EntryOpResult, FilesMenuAction, FilesMenuKind } from '../shared/api.js';
+import { MAX_WRITE_BYTES, OUTSIDE } from '../git/files.js';
+import type { EntryOpResult, FilesMenuAction, FilesMenuKind, SaveNewResult } from '../shared/api.js';
 import { type Question, renameQuestion, trashQuestion } from './questions.js';
 import type { Workspace } from './workspace.js';
 
@@ -12,6 +13,8 @@ export interface FileOpsDeps {
   reveal(target: string): void;
   /** Shows the native menu; `-` labels are separators. Resolves with the chosen item's id, or null. */
   menu(items: MenuItem[]): Promise<FilesMenuAction | null>;
+  /** The Save panel, starting at `defaultPath`; the chosen absolute path, or null if cancelled. */
+  choosePath(defaultPath: string): Promise<string | null>;
 }
 
 export interface MenuItem {
@@ -106,6 +109,42 @@ export class FileOps {
     if (!entry.ok) return entry;
     this.deps.reveal(entry.target);
     return { ok: true };
+  }
+
+  /**
+   * Saves an untitled editor's text as a new file: the Save panel starts in `suggested` (a repo) or the
+   * open folder. The place must be inside one of the folder's repos, and an existing file is never
+   * replaced (the panel can't be stopped from offering one).
+   */
+  async saveNew(text: unknown, suggested: unknown): Promise<SaveNewResult> {
+    if (typeof text !== 'string') return { ok: false, error: 'Invalid text' };
+    if (Buffer.byteLength(text) > MAX_WRITE_BYTES) return { ok: false, error: 'The text is too large to save' };
+    const start = this.repo(suggested)?.path ?? this.ws.view().dir;
+    if (start === null) return { ok: false, error: 'No folder is open' };
+    const chosen = await this.deps.choosePath(join(start, 'Untitled.txt'));
+    if (chosen === null) return CANCELLED;
+    const place = await this.repoHolding(dirname(chosen));
+    if (!place) return { ok: false, error: 'Save it inside one of the repositories in this folder' };
+    const relPath = place.rel === '' ? basename(chosen) : `${place.rel}/${basename(chosen)}`;
+    const result = await createEntry(place.repo, relPath, 'file', text);
+    if (!result.ok) return result;
+    await this.ws.refresh(place.repo);
+    return { ok: true, repoPath: place.repo, path: result.path };
+  }
+
+  /** The innermost discovered repo holding `dir`, and `dir` relative to it ('/'-separated). */
+  private async repoHolding(dir: string): Promise<{ repo: string; rel: string } | null> {
+    const real = await realpath(dir).catch(() => null);
+    if (real === null) return null;
+    let best: { repo: string; rel: string; depth: number } | null = null;
+    for (const repo of this.ws.view().repos) {
+      const root = await realpath(repo.path).catch(() => null);
+      if (root === null) continue;
+      const rel = relative(root, real);
+      if (rel.startsWith('..') || isAbsolute(rel)) continue;
+      if (!best || root.length > best.depth) best = { repo: repo.path, rel: rel.split(sep).join('/'), depth: root.length };
+    }
+    return best && { repo: best.repo, rel: best.rel };
   }
 
   async menu(kind: unknown): Promise<FilesMenuAction | null> {

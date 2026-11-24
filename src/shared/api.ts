@@ -76,6 +76,8 @@ export type DiffView = { ok: true; diff: ParsedDiff; file: FileChange } | { ok: 
 
 /** A file or folder change from the Files tab. `path`: where it is now. `cancelled`: the user said no at the question. */
 export type EntryOpResult = { ok: true; path: string } | { ok: false; error: string; cancelled?: true };
+/** Saving an untitled editor: where the new file is. `cancelled`: the Save panel was closed. */
+export type SaveNewResult = { ok: true; repoPath: string; path: string } | { ok: false; error: string; cancelled?: true };
 /** The kind of Files tab row that was right-clicked, and what was picked from its menu. */
 export type FilesMenuKind = 'repo' | 'dir' | 'file';
 export type FilesMenuAction = 'newFile' | 'newFolder' | 'rename' | 'trash' | 'reveal';
@@ -174,6 +176,8 @@ export interface EdiApi {
   trashEntry(repoPath: string, path: string, unsaved: number): Promise<EntryOpResult>;
   /** Shows it in Finder; '' is the repo itself. */
   revealEntry(repoPath: string, path: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Saves an untitled editor's text as a new file through the Save panel, starting in `repoPath` if given. */
+  saveNew(text: string, repoPath: string | null): Promise<SaveNewResult>;
   /** The native right-click menu of a Files tab row; the picked action, or null. */
   filesMenu(kind: FilesMenuKind): Promise<FilesMenuAction | null>;
   /** The file's text at HEAD (null if not in HEAD), to mark the editor's changed lines. */
