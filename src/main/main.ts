@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { BrowserWindow, Menu, app } from 'electron';
+import { BrowserWindow, Menu, app, screen } from 'electron';
+import { AppCore } from './ipc.js';
 
 // Testler ve geliştirme, kullanıcının gerçek ayar klasörüne dokunmasın diye ayrı bir klasör verebilir.
 if (process.env.EDI_USER_DATA) app.setPath('userData', process.env.EDI_USER_DATA);
@@ -10,11 +11,25 @@ const devUrl = process.env.VITE_DEV_SERVER_URL;
 const hidden = process.env.EDI_HIDDEN === '1';
 
 let win: BrowserWindow | null = null;
+let core: AppCore;
+
+/** Kayıtlı konum hâlâ bir ekranın içindeyse kullanılır (ekran çıkarılmış olabilir). */
+function savedBounds(): { x: number; y: number; width: number; height: number } | undefined {
+  const saved = core.persisted.window;
+  if (!saved) return undefined;
+  const visible = screen.getAllDisplays().some(({ workArea }) => {
+    const overlapX = Math.min(saved.x + saved.width, workArea.x + workArea.width) - Math.max(saved.x, workArea.x);
+    const overlapY = Math.min(saved.y + saved.height, workArea.y + workArea.height) - Math.max(saved.y, workArea.y);
+    return overlapX > 120 && overlapY > 80;
+  });
+  return visible ? saved : undefined;
+}
 
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1440,
     height: 900,
+    ...savedBounds(),
     minWidth: 900,
     minHeight: 560,
     show: false,
@@ -37,6 +52,12 @@ function createWindow(): void {
   win.webContents.on('will-navigate', (event) => event.preventDefault());
 
   if (!hidden) win.once('ready-to-show', () => win?.show());
+  win.on('close', () => {
+    if (win && !win.isMinimized() && !win.isFullScreen()) {
+      const bounds = win.getBounds();
+      core.update((state) => ({ ...state, window: bounds }));
+    }
+  });
   win.on('closed', () => {
     win = null;
   });
@@ -45,7 +66,7 @@ function createWindow(): void {
   else void win.loadFile(path.join(here, '../renderer/index.html'));
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Varsayılan menüdeki Cmd+W pencereyi, Cmd+R sayfayı (ve terminalleri) kapatır; ikisi de istenmiyor.
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -54,7 +75,21 @@ app.whenReady().then(() => {
       { label: 'View', submenu: [{ role: 'toggleDevTools' }] },
     ]),
   );
+  core = await AppCore.create(path.join(app.getPath('userData'), 'state.json'), () => win);
+  core.register();
+  // Klasör pencere açılmadan önce açılır: sayfa ilk durumu istediğinde repolar hazırdır.
+  await core.openInitial(process.env.EDI_OPEN_DIR);
   createWindow();
 });
 
 app.on('window-all-closed', () => app.quit());
+
+let flushed = false;
+app.on('before-quit', (event) => {
+  if (flushed) return;
+  // Son durum (pencere konumu) diske yazılmadan çıkma.
+  event.preventDefault();
+  flushed = true;
+  core?.dispose();
+  void (core?.flush() ?? Promise.resolve()).finally(() => app.quit());
+});

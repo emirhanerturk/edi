@@ -1,0 +1,286 @@
+/* Pencere kabuğu: başlık çubuğu, durum çubuğu, boş durum, menüler ve düğmeler. */
+
+.spacer {
+  flex: 1;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* Düğmeler */
+.button-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: #fff;
+}
+
+.button-primary:disabled {
+  background: var(--chip);
+  color: var(--muted);
+}
+
+.button-large {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.keycap {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+
+/* Başlık çubuğu */
+.titlebar-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.titlebar-sessions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.folder {
+  position: relative;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.folder-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--chip-quiet);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.folder-button:hover {
+  background: var(--chip);
+}
+
+.folder-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* Açılır menü */
+.menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 220px;
+  padding: 5px;
+  border-radius: 9px;
+  background: var(--panel-open);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-menu {
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 340px;
+}
+
+.menu-label {
+  padding: 6px 9px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--selected);
+  outline: none;
+}
+
+.menu-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-item-hint {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--chip);
+}
+
+/* Durum çubuğu */
+.statusbar {
+  height: 26px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Boş durum */
+.empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.empty-box {
+  width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.empty-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.empty-head p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.empty-error {
+  margin: -12px 0 0;
+  color: var(--red);
+  user-select: text;
+}
+
+.empty-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.empty-recent .section-label {
+  padding: 0 2px 4px;
+}
+
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.recent-row:hover {
+  background: var(--panel-open);
+  border-color: var(--border);
+}
+
+.recent-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.recent-count {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.empty-hints {
+  display: flex;
+  gap: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--chip);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.empty-hints .mono {
+  color: var(--text-2);
+  margin-right: 6px;
+}
