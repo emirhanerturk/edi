@@ -25,6 +25,12 @@ describe('runGit', () => {
     expect((await runGit(repo, args, { okCodes: [0, 1] })).ok).toBe(true);
   });
 
+  it("git hatayı stdout'a yazdığında onu döner", async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
+    const r = await runGit(repo, ['commit', '-m', 'feat: boş']);
+    expect(!r.ok && r.error).toMatch(/nothing to commit/);
+  });
+
   it('zaman aşımında süreci keser', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     const started = Date.now();

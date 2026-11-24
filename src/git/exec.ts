@@ -53,7 +53,8 @@ export function runGit(cwd: string, args: string[], opts: RunGitOptions = {}): P
     child.on('error', (err) => finish({ ok: false, error: err.message, stdout }));
     child.on('close', (code) => {
       if (code !== null && okCodes.includes(code)) finish({ ok: true, stdout });
-      else finish({ ok: false, error: pickErrorLine(stderr), stdout });
+      // Bazı git hataları ("nothing to commit" gibi) stderr'e değil stdout'a yazılır.
+      else finish({ ok: false, error: pickErrorLine(stderr.trim() === '' ? stdout : stderr), stdout });
     });
   });
 }
