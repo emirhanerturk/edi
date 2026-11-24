@@ -46,6 +46,23 @@ function normalize(raw: unknown): Persisted {
   };
 }
 
+/** Kaydedilebilecek en dar ve en geniş panel. */
+const WIDTH_MIN = 200;
+const WIDTH_MAX = 4000;
+const width = (value: unknown, current: number) =>
+  typeof value === 'number' && Number.isFinite(value) && value >= WIDTH_MIN && value <= WIDTH_MAX ? Math.round(value) : current;
+
+/** Sayfadan gelen düzen değişikliğini uygular. Sayfa güvenilir sayılmaz: geçersiz her alan yok sayılır. */
+export function mergeLayout(layout: Layout, patch: unknown): Layout {
+  if (!isRecord(patch)) return layout;
+  return {
+    left: width(patch.left, layout.left),
+    right: width(patch.right, layout.right),
+    diffMode: oneOf(patch.diffMode, ['split', 'inline'] as const, layout.diffMode),
+    historyLayout: oneOf(patch.historyLayout, ['timeline', 'byRepo'] as const, layout.historyLayout),
+  };
+}
+
 export async function loadState(file: string): Promise<Persisted> {
   try {
     return normalize(JSON.parse(await readFile(file, 'utf8')));

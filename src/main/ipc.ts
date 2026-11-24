@@ -1,13 +1,13 @@
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
-import { basename } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { type BrowserWindow, dialog, ipcMain } from 'electron';
 import { listPs } from '../procs.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
 import type { AppState, EdiEvents, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
-import { type Persisted, addRecent, loadState, saveState } from './store.js';
+import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
 import { tabStates } from './tabs.js';
 import { Workspace } from './workspace.js';
 
@@ -15,6 +15,13 @@ import { Workspace } from './workspace.js';
 const PROCESSES_MS = 3000;
 /** Yeni açılan sekmede komutun başlaması için beklenen süre; sonra bir kez erken yoklanır. */
 const AFTER_CREATE_MS = 700;
+/** Sürükleme gibi art arda gelen düzen değişiklikleri bu kadar bekletilip bir kez yazılır. */
+const LAYOUT_SAVE_MS = 400;
+
+const QUESTIONS = {
+  quit: { message: 'Quit edi?', suffix: '', confirm: 'Quit' },
+  switch: { message: 'Switch folders?', suffix: ' Switching closes every terminal.', confirm: 'Switch' },
+} as const;
 
 /** Ana sürecin durumu ve sayfayla konuştuğu her şey. */
 export class AppCore {
@@ -26,6 +33,7 @@ export class AppCore {
   private processTimer: NodeJS.Timeout | null = null;
   private pollingProcesses = false;
   private tabsSent = '';
+  private layoutTimer: NodeJS.Timeout | null = null;
 
   private constructor(
     private readonly stateFile: string,
@@ -64,11 +72,63 @@ export class AppCore {
   }
 
   flush(): Promise<void> {
+    if (this.layoutTimer) {
+      clearTimeout(this.layoutTimer);
+      this.layoutTimer = null;
+      this.update((state) => state);
+    }
     return this.saving;
+  }
+
+  /** Düzen değişikliğini hemen belleğe alır, diske gecikmeli yazar. */
+  setLayout(patch: unknown): void {
+    this.state = { ...this.state, layout: mergeLayout(this.state.layout, patch) };
+    if (this.layoutTimer) clearTimeout(this.layoutTimer);
+    this.layoutTimer = setTimeout(() => {
+      this.layoutTimer = null;
+      this.update((state) => state);
+    }, LAYOUT_SAVE_MS);
+  }
+
+  /** Kabuğun dışında süreç çalıştıran terminal sayısı; süreç listesi şimdi okunur. */
+  async busyTerminals(): Promise<number> {
+    const ptys = this.ptyInfos();
+    if (ptys.length === 0) return 0;
+    const [ps, pids] = await Promise.all([listPs(), listClaudePids()]);
+    return tabStates(ptys, ps, new Set(pids)).filter((tab) => tab.busy).length;
+  }
+
+  /** Çalışan süreç varsa kullanıcıya sorar. Yoksa ya da onaylanırsa true. */
+  async confirmBusy(kind: keyof typeof QUESTIONS): Promise<boolean> {
+    const busy = await this.busyTerminals().catch(() => 0);
+    if (busy === 0) return true;
+    const { message, suffix, confirm } = QUESTIONS[kind];
+    const options = {
+      type: 'warning' as const,
+      message,
+      detail: `${busy} ${busy === 1 ? 'terminal still has' : 'terminals still have'} a running process.${suffix}`,
+      buttons: [confirm, 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    };
+    const win = this.getWindow();
+    const { response } = await (win && !win.isDestroyed() ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+    return response === 0;
+  }
+
+  private ptyInfos() {
+    return this.ptys.ids().flatMap((id) => {
+      const info = this.ptys.info(id);
+      return info ? [{ id, ...info }] : [];
+    });
   }
 
   async openFolder(dir: string): Promise<OpenResult> {
     const previous = this.workspace.view().dir;
+    // Klasör değişince terminaller kapanır: çalışan süreç varsa önce sorulur.
+    if (previous !== null && resolve(dir) !== previous && (await stat(dir).then((s) => s.isDirectory(), () => false))) {
+      if (!(await this.confirmBusy('switch'))) return { ok: false, error: 'Cancelled', cancelled: true };
+    }
     const result = await this.workspace.open(dir);
     if (!result.ok) return result;
     const opened = this.workspace.view().dir ?? dir;
@@ -111,6 +171,7 @@ export class AppCore {
       typeof dir === 'string' ? this.openFolder(dir) : { ok: false, error: 'Folder not found' },
     );
     ipcMain.handle('workspace:rescan', () => this.workspace.rescan());
+    ipcMain.on('layout:set', (_event, patch: unknown) => this.setLayout(patch));
 
     // Repo yolu ve işlem GitOps'ta doğrulanır; buradan git'e serbest biçimli hiçbir şey geçmez.
     ipcMain.handle('git:run', (_event, repoPath: unknown, op: unknown) => this.gitOps.run(repoPath as string, op as GitOp));
@@ -148,6 +209,7 @@ export class AppCore {
 
   dispose(): void {
     if (this.processTimer) clearInterval(this.processTimer);
+    this.processTimer = null;
     this.workspace.dispose();
     this.ptys.killAll();
   }
@@ -159,11 +221,7 @@ export class AppCore {
     try {
       const [ps, pids] = await Promise.all([listPs(), listClaudePids()]);
 
-      const ptys = this.ptys.ids().flatMap((id) => {
-        const info = this.ptys.info(id);
-        return info ? [{ id, ...info }] : [];
-      });
-      const tabs = tabStates(ptys, ps, new Set(pids));
+      const tabs = tabStates(this.ptyInfos(), ps, new Set(pids));
       // Yalnız değişince gönderilir: sayfa her üç saniyede boşuna yeniden çizilmez.
       const serialized = JSON.stringify(tabs);
       if (serialized !== this.tabsSent) {

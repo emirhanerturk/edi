@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { GitOp, Layout, RecentFolder, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import { edi } from './bridge';
+import { clampWidths } from './components/Splitter';
 import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
 export interface Tab {
@@ -73,6 +74,10 @@ interface AppStore {
   openError: string | null;
   openFolder(dir: string): Promise<void>;
   dismissOpenError(): void;
+  /** Sağ panelin genişliğini, `total` genişliğindeki alana sığdırarak değiştirir. */
+  resizeRight(right: number, total: number): void;
+  /** Panel genişliklerini kalıcı duruma yazar. */
+  saveLayout(): void;
 
   tabs: Tab[];
   activeTab: number | null;
@@ -112,7 +117,14 @@ export const useApp = create<AppStore>((set, get) => ({
   openError: null,
   async openFolder(dir) {
     const result = await edi.openFolder(dir);
+    if (!result.ok && result.cancelled) return; // Kullanıcı vazgeçti: hata değil.
     set({ openError: result.ok ? null : `${dir}: ${result.error}` });
+  },
+  resizeRight(right, total) {
+    set((state) => ({ layout: { ...state.layout, right: clampWidths({ left: state.layout.left, right, total }).right } }));
+  },
+  saveLayout() {
+    edi.setLayout({ right: get().layout.right });
   },
   dismissOpenError: () => set({ openError: null }),
 

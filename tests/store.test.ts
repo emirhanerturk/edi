@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULTS, addRecent, loadState, saveState } from '../src/main/store.js';
+import { DEFAULTS, addRecent, loadState, mergeLayout, saveState } from '../src/main/store.js';
 import { makeTmpDir } from './helpers/tmpRepo.js';
 
 describe('kalıcı durum', () => {
@@ -62,5 +62,33 @@ describe('kalıcı durum', () => {
     await saveState(file, state);
     expect(await loadState(file)).toEqual(state);
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(state);
+  });
+});
+
+describe('mergeLayout', () => {
+  const base = DEFAULTS.layout;
+
+  it('geçerli alanları uygular, diğerlerini korur', () => {
+    expect(mergeLayout(base, { right: 450 })).toEqual({ ...base, right: 450 });
+    expect(mergeLayout(base, { left: 600.4, diffMode: 'inline', historyLayout: 'byRepo' })).toEqual({
+      left: 600,
+      right: 372,
+      diffMode: 'inline',
+      historyLayout: 'byRepo',
+    });
+  });
+
+  it('sayfadan gelen bozuk değerleri yok sayar', () => {
+    expect(mergeLayout(base, { right: 'geniş', left: Number.NaN, diffMode: 'yan yana', historyLayout: 7 })).toEqual(base);
+    expect(mergeLayout(base, { right: 1e9 })).toEqual(base);
+    expect(mergeLayout(base, { right: 12 })).toEqual(base);
+    expect(mergeLayout(base, { right: Number.POSITIVE_INFINITY })).toEqual(base);
+    expect(mergeLayout(base, null)).toEqual(base);
+    expect(mergeLayout(base, [1, 2])).toEqual(base);
+    expect(mergeLayout(base, 'x')).toEqual(base);
+  });
+
+  it('bilinmeyen alanları taşımaz', () => {
+    expect(mergeLayout(base, { right: 400, __proto__: { x: 1 }, extra: true })).toEqual({ ...base, right: 400 });
   });
 });

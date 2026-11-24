@@ -1,8 +1,10 @@
 /* Sağ panel: Git sekmesi. */
 .git {
   flex: none;
-  width: 372px;
-  min-width: 0;
+  width: var(--right-width, 372px);
+  /* Pencere daralınca terminale en az 320 piksel kalır. */
+  min-width: 300px;
+  max-width: max(300px, calc(100% - 320px));
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--line);

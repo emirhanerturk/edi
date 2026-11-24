@@ -10,6 +10,7 @@ const api: EdiApi = {
   chooseFolder: () => ipcRenderer.invoke('folder:choose'),
   openFolder: (dir) => ipcRenderer.invoke('folder:open', dir),
   rescan: () => ipcRenderer.invoke('workspace:rescan'),
+  setLayout: (patch) => ipcRenderer.send('layout:set', patch),
   git: (repoPath, op) => ipcRenderer.invoke('git:run', repoPath, op),
   fetchAll: () => ipcRenderer.invoke('git:fetchAll'),
   branches: (repoPath) => ipcRenderer.invoke('git:branches', repoPath),

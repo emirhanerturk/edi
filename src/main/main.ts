@@ -25,6 +25,30 @@ function savedBounds(): { x: number; y: number; width: number; height: number } 
   return visible ? saved : undefined;
 }
 
+let quitting: 'no' | 'asking' | 'yes' = 'no';
+
+/** Çıkışın tek yolu: çalışan terminal varsa sorar, son durumu diske yazar, sonra çıkar. */
+async function requestQuit(): Promise<void> {
+  if (quitting !== 'no') return;
+  quitting = 'asking';
+  try {
+    if (!(await core.confirmBusy('quit'))) {
+      quitting = 'no';
+      return;
+    }
+    if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
+      const bounds = win.getBounds();
+      core.update((state) => ({ ...state, window: bounds }));
+    }
+    core.dispose();
+    await core.flush();
+  } catch {
+    // Soru ya da kayıt başarısız olsa da kullanıcı çıkabilmeli.
+  }
+  quitting = 'yes';
+  app.quit();
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1440,
@@ -52,11 +76,11 @@ function createWindow(): void {
   win.webContents.on('will-navigate', (event) => event.preventDefault());
 
   if (!hidden) win.once('ready-to-show', () => win?.show());
-  win.on('close', () => {
-    if (win && !win.isMinimized() && !win.isFullScreen()) {
-      const bounds = win.getBounds();
-      core.update((state) => ({ ...state, window: bounds }));
-    }
+  // Pencereyi kapatmak uygulamadan çıkmaktır; çalışan terminal varsa önce sorulur.
+  win.on('close', (event) => {
+    if (quitting === 'yes') return;
+    event.preventDefault();
+    void requestQuit();
   });
   win.on('closed', () => {
     win = null;
@@ -84,12 +108,8 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => app.quit());
 
-let flushed = false;
 app.on('before-quit', (event) => {
-  if (flushed) return;
-  // Son durum (pencere konumu) diske yazılmadan çıkma.
+  if (quitting === 'yes') return;
   event.preventDefault();
-  flushed = true;
-  core?.dispose();
-  void (core?.flush() ?? Promise.resolve()).finally(() => app.quit());
+  void requestQuit();
 });

@@ -284,3 +284,41 @@
   color: var(--text-2);
   margin-right: 6px;
 }
+
+/* Paneller arasındaki sürüklenebilir çizgi: görünen çizgi panelin kenarlığıdır, bu yalnız tutma alanı. */
+.splitter {
+  flex: none;
+  position: relative;
+  z-index: 5;
+  width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  -webkit-app-region: no-drag;
+}
+
+.splitter::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background 120ms;
+}
+
+.splitter:hover::after,
+.splitter.dragging::after,
+.splitter:focus-visible::after {
+  background: var(--muted);
+}
+
+.splitter:focus-visible {
+  outline: none;
+}
+
+body.resizing,
+body.resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}

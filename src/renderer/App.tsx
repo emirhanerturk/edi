@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { type CSSProperties, useEffect, useRef } from 'react';
 import { edi } from './bridge';
 import { EmptyState } from './components/EmptyState';
+import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { TitleBar } from './components/TitleBar';
 import { GitPanel } from './git/GitPanel';
@@ -10,6 +11,9 @@ import { TerminalPanel } from './terminals/TerminalPanel';
 export function App() {
   const ready = useApp((s) => s.ready);
   const dir = useApp((s) => s.workspace.dir);
+  const right = useApp((s) => s.layout.right);
+  const body = useRef<HTMLElement>(null);
+  const dragStart = useRef(0);
 
   useEffect(() => connect(), []);
 
@@ -45,8 +49,17 @@ export function App() {
       ) : dir === null ? (
         <EmptyState />
       ) : (
-        <main className="app-body">
+        <main className="app-body" ref={body} style={{ '--right-width': `${right}px` } as CSSProperties}>
           <TerminalPanel />
+          <Splitter
+            label="Resize the Git panel"
+            onStart={() => {
+              // Görünen genişlikten başlanır: pencere daraldıysa kayıtlı değerden küçük olabilir.
+              dragStart.current = body.current?.querySelector('.git')?.getBoundingClientRect().width ?? right;
+            }}
+            onDrag={(dx) => useApp.getState().resizeRight(dragStart.current - dx, body.current?.clientWidth ?? window.innerWidth)}
+            onEnd={() => useApp.getState().saveLayout()}
+          />
           <GitPanel />
         </main>
       )}

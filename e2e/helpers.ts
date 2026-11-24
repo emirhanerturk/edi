@@ -65,5 +65,35 @@ export async function launch(opts: { openDir?: string; userData?: string } = {})
   const app = await _electron.launch({ args: [root], env });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
+  // Görünmez pencerede soru kutusu yanıtlanamaz: testlerde varsayılan yanıt ilk düğmedir (onay).
+  await answerDialogs(app, 0);
   return { app, page, userData };
+}
+
+type Asked = { message: string; detail: string; buttons: string[] };
+
+/**
+ * Bundan sonra uygulamanın soracağı "çalışan süreç var" sorularını verilen düğmeyle yanıtlar ve
+ * kaydeder. Sayfanın `window.confirm` kutuları da Electron'da aynı işlevden geçer; onlara
+ * dokunulmaz (Playwright'ın `dialog` olayıyla yanıtlanırlar).
+ */
+export async function answerDialogs(app: ElectronApplication, response: number): Promise<void> {
+  await app.evaluate(({ dialog }, answer) => {
+    const store = globalThis as unknown as { __ediDialogs?: Asked[]; __ediRealDialog?: typeof dialog.showMessageBox };
+    store.__ediDialogs ??= [];
+    store.__ediRealDialog ??= dialog.showMessageBox.bind(dialog);
+    const real = store.__ediRealDialog;
+    const fake = async (...args: unknown[]) => {
+      const options = (args.length > 1 ? args[1] : args[0]) as Partial<Asked>;
+      if (!options.detail?.includes('running process')) return (real as (...a: unknown[]) => unknown)(...args);
+      store.__ediDialogs?.push({ message: options.message ?? '', detail: options.detail, buttons: options.buttons ?? [] });
+      return { response: answer, checkboxChecked: false };
+    };
+    dialog.showMessageBox = fake as unknown as typeof dialog.showMessageBox;
+  }, response);
+}
+
+/** Şimdiye kadar sorulan soru kutuları. */
+export function askedDialogs(app: ElectronApplication): Promise<Asked[]> {
+  return app.evaluate(() => (globalThis as unknown as { __ediDialogs?: Asked[] }).__ediDialogs ?? []);
 }

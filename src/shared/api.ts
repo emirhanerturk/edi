@@ -64,7 +64,8 @@ export type OpResult = { ok: true; message: string } | { ok: false; error: strin
 
 export type BranchList = { ok: true; branches: string[]; current: string | null } | { ok: false; error: string };
 
-export type OpenResult = { ok: true } | { ok: false; error: string };
+/** `cancelled`: kullanıcı, çalışan terminaller sorusunda vazgeçti; bu bir hata değildir. */
+export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
 
 export interface NewTerminal {
   cols: number;
@@ -106,6 +107,8 @@ export interface EdiApi {
   chooseFolder(): Promise<void>;
   openFolder(dir: string): Promise<OpenResult>;
   rescan(): Promise<void>;
+  /** Panel genişliği gibi düzen tercihlerini kaydeder; ana süreç doğrular. */
+  setLayout(patch: Partial<Layout>): void;
   /** `repoPath` keşfedilmiş bir reponun yolu olmalıdır; ana süreç doğrular. */
   git(repoPath: string, op: GitOp): Promise<OpResult>;
   /** Remote'u olan tüm repolarda fetch; repo başına sonucu döner. */
