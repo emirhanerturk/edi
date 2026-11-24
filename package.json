@@ -15,14 +15,16 @@
     "start": "npm run build && electron .",
     "test": "vitest run",
     "e2e": "npm run build && playwright test",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json",
+    "icon": "electron scripts/make-icon.mjs",
+    "dist": "node scripts/dist.mjs",
+    "e2e:dist": "playwright test -c playwright.dist.config.ts"
   },
   "dependencies": {
-    "node-pty": "^1.1.0",
-    "react": "^19.3.1",
-    "shiki": "^4.6.0"
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
+    "@electron/packager": "20.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@playwright/test": "^1.65.1",
@@ -37,7 +39,9 @@
     "@xterm/xterm": "^6.0.0",
     "electron": "^45.4.1",
     "jsdom": "^31.0.1",
+    "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "shiki": "^4.6.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.1",

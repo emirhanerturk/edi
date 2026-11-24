@@ -1,0 +1,18 @@
+#!/bin/sh
+# edi [folder]: klasörü edi'de açar. edi zaten açıksa aynı pencere o klasöre geçer
+# (yeni kopya tek-kopya kilidine takılır ve klasörü açık olana devreder).
+app="${EDI_APP:-/Applications/edi.app}"
+
+if [ "$#" -gt 1 ]; then
+  echo 'usage: edi [folder]' >&2
+  exit 2
+fi
+if [ "$#" -eq 0 ]; then
+  exec open -a "$app"
+fi
+if ! dir=$(CDPATH= cd -- "$1" 2>/dev/null && pwd -P) || [ ! -d "$1" ]; then
+  echo "edi: not a folder: $1" >&2
+  exit 1
+fi
+# Tek parça (`--open=<yol>`): Chromium ikinci kopyanın argümanlarını yeniden sıralayabilir.
+exec open -n -a "$app" --args "--open=$dir"

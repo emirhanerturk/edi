@@ -398,8 +398,17 @@ Tasarım onaylandıktan sonra kullanıcının istediği, henüz planlanmamış �
   aittir: komut, kurulu uygulamayı başlatan küçük bir betiktir (PATH'e konur),
   uygulama da başlatılırken verilen klasörü açar. Uygulama zaten açıksa aynı pencere
   o klasöre geçer; çalışan terminal varsa klasör değiştirmedeki soru burada da sorulur.
-  Yol verilmezse uygulama son klasörle açılır. Komutun PATH'e nasıl konacağı
-  (uygulamadan "Install command line tool" mu, elle bağ mı) planlanırken kararlaştırılır.
+  Yol verilmezse uygulama son klasörle açılır.
+  **Kurulum (kullanıcı seçti, 2026-11-24):** `npm run dist` uygulamayı üretir,
+  `/Applications/edi.app`'e kopyalar ve `~/.local/bin/edi` bağını kurar (`~/.local/bin`
+  kullanıcının PATH'inde; yönetici şifresi gerekmez). Yeniden çalıştırılınca günceller.
+  edi açıkken kurulum yapılmaz ("önce edi'den çık"); orada edi'ye ait olmayan bir
+  `edi.app` ya da `~/.local/bin/edi` varsa üzerine yazılmaz.
+- **Giriş kabuğu ortamı (plan 4):** Dock'tan açılan uygulama kullanıcının kabuk
+  ayarlarını (PATH: nvm'deki node, Homebrew) almaz; git hook'ları (ör. husky) "node
+  bulunamadı" diye düşer. Paketli uygulama açılırken giriş kabuğunun ortamı bir kez
+  okunur (`$SHELL -ilc`, zaman aşımıyla) ve ana sürecin ortamına eklenir; okunamazsa
+  eldeki ortamla devam edilir.
 - **Uygulama ikonu (2026-11-24):** kullanıcı "Wordmark" seçeneğini seçti
   (`docs/design/icon/wordmark.svg`). Plan 4'te `.icns` bundan üretilir.
 
