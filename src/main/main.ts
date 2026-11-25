@@ -180,6 +180,7 @@ app.whenReady().then(async () => {
           },
           { type: 'separator' },
           { label: 'Fetch Automatically', type: 'checkbox', checked: core.persisted.autoFetch, click: (item) => core.setAutoFetch(item.checked) },
+          { label: 'Keep Mac Awake', type: 'checkbox', checked: core.persisted.keepAwake, click: (item) => core.setKeepAwake(item.checked) },
           { type: 'separator' },
           { role: 'toggleDevTools' },
         ],

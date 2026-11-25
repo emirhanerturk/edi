@@ -10,6 +10,8 @@ export interface Persisted {
   window: { x: number; y: number; width: number; height: number } | null;
   /** Fetch every repo with a remote every few minutes (View > Fetch Automatically). */
   autoFetch: boolean;
+  /** The Mac doesn't go to sleep on its own while edi is open (View > Keep Mac Awake). */
+  keepAwake: boolean;
 }
 
 export const DEFAULTS: Persisted = {
@@ -18,6 +20,7 @@ export const DEFAULTS: Persisted = {
   layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
   window: null,
   autoFetch: true,
+  keepAwake: false,
 };
 
 const RECENT_MAX = 8;
@@ -49,6 +52,7 @@ function normalize(raw: unknown): Persisted {
     },
     window: win && bounds ? { x: win.x as number, y: win.y as number, width: win.width as number, height: win.height as number } : null,
     autoFetch: typeof raw.autoFetch === 'boolean' ? raw.autoFetch : DEFAULTS.autoFetch,
+    keepAwake: typeof raw.keepAwake === 'boolean' ? raw.keepAwake : DEFAULTS.keepAwake,
   };
 }
 

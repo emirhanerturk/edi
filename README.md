@@ -62,6 +62,9 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   the Git tab.
 - **Layout.** View > Layout puts the terminals on the right and the Git, History and Files
   panel on the left.
+- **Keep Mac Awake.** View > Keep Mac Awake stops the Mac from going to sleep on its own while
+  edi is open, so a long Claude Code session or build keeps running. The display may still
+  turn off, and closing a laptop's lid still puts it to sleep. Off unless you turn it on.
 - **Remembers** the last folder, recent folders, the window position, the panel widths and
   sides, the diff layout and the History layout.
 

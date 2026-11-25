@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
 import { basename, resolve } from 'node:path';
-import { type BrowserWindow, Menu, dialog, ipcMain, net, protocol, shell } from 'electron';
+import { type BrowserWindow, Menu, dialog, ipcMain, net, powerSaveBlocker, protocol, shell } from 'electron';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
 import { serveMedia } from './media.js';
@@ -11,6 +11,7 @@ import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
 import type { AppState, ClaudeUsage, EdiEvents, GitOp, Layout, OpenResult, ServerInfo, StashMenuAction, TerminalCreated } from '../shared/api.js';
 import { AutoFetch } from './autoFetch.js';
+import { KeepAwake } from './keepAwake.js';
 import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
@@ -38,6 +39,7 @@ export class AppCore {
   readonly ptys: PtyManager;
   readonly gitOps: GitOps;
   readonly autoFetch: AutoFetch;
+  private readonly keepAwake: KeepAwake;
   readonly viewOps: ViewOps;
   private readonly fileOps: FileOps;
   readonly historyOps: HistoryOps;
@@ -79,6 +81,7 @@ export class AppCore {
       },
       state.autoFetch,
     );
+    this.keepAwake = new KeepAwake(powerSaveBlocker, state.keepAwake);
     this.viewOps = new ViewOps(this.workspace);
     this.fileOps = new FileOps(this.workspace, {
       ask: (question) => this.ask(question),
@@ -171,6 +174,12 @@ export class AppCore {
   setAutoFetch(enabled: boolean): void {
     this.autoFetch.setEnabled(enabled);
     this.update((state) => ({ ...state, autoFetch: enabled }));
+  }
+
+  /** View > Keep Mac Awake. */
+  setKeepAwake(enabled: boolean): void {
+    this.keepAwake.setEnabled(enabled);
+    this.update((state) => ({ ...state, keepAwake: enabled }));
   }
 
   /** View > Layout: which side the terminal panel is on. The page follows at once. */
@@ -426,6 +435,7 @@ export class AppCore {
     if (this.usageTimer) clearInterval(this.usageTimer);
     this.usageTimer = null;
     this.autoFetch.dispose();
+    this.keepAwake.dispose();
     this.workspace.dispose();
     this.ptys.killAll();
   }
