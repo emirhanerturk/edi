@@ -1,3 +1,4 @@
+import { menuKeys } from './keys';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { EDITORS, type EditorId } from '../../shared/editors';
 import { ExternalIcon } from './icons';
@@ -29,6 +30,7 @@ export function OpenInMenu({ onOpen, button, className = '' }: OpenInMenuProps) 
     <div
       className={`open-in ${className}`}
       ref={menu.ref}
+      onKeyDown={menuKeys}
       onMouseEnter={() => {
         stay();
         menu.setOpen(true);

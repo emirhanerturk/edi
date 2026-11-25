@@ -1,3 +1,4 @@
+import { menuKeys } from '../components/keys';
 import { usePopover } from '../components/usePopover';
 import type { ServerRow } from './model';
 import './servers.css';
@@ -8,7 +9,7 @@ export function ServersMenu({ rows, onOpen }: { rows: ServerRow[]; onOpen(url: s
   if (rows.length === 0) return null;
   const label = `${rows.length} ${rows.length === 1 ? 'server' : 'servers'}`;
   return (
-    <div className="servers" ref={ref}>
+    <div className="servers" ref={ref} onKeyDown={menuKeys}>
       <button className="servers-button" data-testid="servers" aria-haspopup="menu" aria-expanded={open} aria-label={label} onClick={() => setOpen(!open)}>
         <span className="servers-dot">●</span> {label}
       </button>

@@ -1,3 +1,4 @@
+import { menuKeys } from '../components/keys';
 import type { ReactNode } from 'react';
 import { ChevronDown } from '../components/icons';
 import { usePopover } from '../components/usePopover';
@@ -45,7 +46,7 @@ export function CommitBox({ target, message, busy, canPush, onChange, onCommit, 
         }}
       />
       <div className="commit-actions">
-        <div className="commit-split" ref={menu.ref}>
+        <div className="commit-split" ref={menu.ref} onKeyDown={menuKeys}>
           <button
             className={`commit-button${target.all ? ' commit-all' : ''}`}
             data-testid="commit-button"

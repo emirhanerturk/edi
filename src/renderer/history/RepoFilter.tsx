@@ -1,3 +1,4 @@
+import { menuKeys } from '../components/keys';
 import { ChevronDown } from '../components/icons';
 import { usePopover } from '../components/usePopover';
 
@@ -19,7 +20,7 @@ export function RepoFilter({ repos, filter, onFilter }: RepoFilterProps) {
     onFilter(path);
   };
   return (
-    <div className="history-filter" ref={ref}>
+    <div className="history-filter" ref={ref} onKeyDown={menuKeys}>
       <button
         className={`history-filter-button${current ? ' filtered' : ''}`}
         aria-haspopup="menu"

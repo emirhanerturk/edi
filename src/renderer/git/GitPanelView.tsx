@@ -1,3 +1,4 @@
+import { openKey } from '../components/keys';
 import { OpenInMenu } from '../components/OpenInMenu';
 import type { EditorId } from '../../shared/editors';
 import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
@@ -455,9 +456,7 @@ function CommitRow(props: { testId: string; commit: CommitSummary; meta: string;
       onClick={() => onOpen(commit.oid, false)}
       onDoubleClick={() => onOpen(commit.oid, true)}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        onOpen(commit.oid, false);
+        if (event.target === event.currentTarget) openKey(event, (pin) => onOpen(commit.oid, pin));
       }}
     >
       <span className="file-name">{commit.subject}</span>
@@ -640,9 +639,7 @@ function StashGroup({ repoPath, count, current, busy, canApply, limit, load, sel
                 onClick={() => onOpen(stash, false)}
                 onDoubleClick={() => onOpen(stash, true)}
                 onKeyDown={(event) => {
-                  if (event.key !== 'Enter') return;
-                  event.preventDefault();
-                  onOpen(stash, false);
+                  if (event.target === event.currentTarget) openKey(event, (pin) => onOpen(stash, pin));
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -741,9 +738,7 @@ function FileRow({ file, group, busy, selected, run, open, openIn }: FileRowProp
       onClick={() => open(file, false)}
       onDoubleClick={() => open(file, true)}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        open(file, false);
+        if (event.target === event.currentTarget) openKey(event, (pin) => open(file, pin));
       }}
     >
       <span className="file-letter mono" style={{ color: letterColor(mark) }}>

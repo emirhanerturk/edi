@@ -17,6 +17,24 @@ function renderTabs(active = labels[0]!.id) {
   return handlers;
 }
 
+describe('CenterTabs from the keyboard', () => {
+  it('Tab reaches the active tab; Left and Right activate the neighbours; Enter keeps a preview tab', () => {
+    const handlers = renderTabs(labels[1]!.id);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
+    tabs[1]!.focus();
+    fireEvent.keyDown(tabs[1]!, { key: 'ArrowRight' });
+    expect(handlers.onActivate).toHaveBeenLastCalledWith(labels[2]!.id);
+    expect(document.activeElement).toBe(tabs[2]);
+    fireEvent.keyDown(tabs[2]!, { key: 'ArrowRight' }); // wraps around
+    expect(handlers.onActivate).toHaveBeenLastCalledWith(labels[0]!.id);
+    fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(handlers.onActivate).toHaveBeenLastCalledWith(labels[2]!.id);
+    fireEvent.keyDown(tabs[1]!, { key: 'Enter' });
+    expect(handlers.onPin).toHaveBeenCalledWith(labels[1]!.id);
+  });
+});
+
 describe('CenterTabs', () => {
   it('a tab with unsaved edits shows a dot that is always visible and still closes the tab', () => {
     const { onClose } = renderTabs();

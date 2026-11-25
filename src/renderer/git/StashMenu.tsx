@@ -1,3 +1,4 @@
+import { menuKeys } from '../components/keys';
 import { ArchiveArrowDown } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { type Placement, placeMenu } from '../components/placeMenu';
@@ -61,7 +62,7 @@ export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked
   const disabled = busy || blocked;
 
   return (
-    <div className="stash" ref={menu.ref}>
+    <div className="stash" ref={menu.ref} onKeyDown={menuKeys}>
       <button
         ref={button}
         className="stash-button"

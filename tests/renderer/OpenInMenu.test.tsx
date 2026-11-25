@@ -49,4 +49,19 @@ describe('OpenInMenu', () => {
     expect(items()).toEqual(['Antigravity', 'Zed']);
     expect(onRow).not.toHaveBeenCalled();
   });
+
+  it('Down from the button goes into the menu; Up and Down move between the editors', () => {
+    render(<OpenInMenu onOpen={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'Open in…' });
+    button.focus();
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Antigravity');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Zed');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' }); // wraps around
+    expect(document.activeElement?.textContent).toBe('Antigravity');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' });
+    expect(document.activeElement?.textContent).toBe('Zed');
+  });
 });

@@ -1,3 +1,4 @@
+import { openKey } from '../components/keys';
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import type { CommitSummary } from '../../git/types';
 import { ArrowUp, BranchIcon, ChevronDown, ChevronRight, TagIcon, WarningIcon } from '../components/icons';
@@ -35,7 +36,7 @@ export interface HistoryPanelViewProps {
   onLoadMore(): void;
 }
 
-/** Click previews, double click opens a permanent tab, Enter previews. */
+/** Click previews, double click opens a permanent tab; Enter or Space previews, ⌘Enter opens a permanent tab. */
 function openHandlers(open: (pin: boolean) => void) {
   return {
     role: 'button',
@@ -43,7 +44,7 @@ function openHandlers(open: (pin: boolean) => void) {
     onClick: () => open(false),
     onDoubleClick: () => open(true),
     onKeyDown: (event: KeyboardEvent) => {
-      if (event.key === 'Enter') open(false);
+      openKey(event, open);
     },
   } as const;
 }

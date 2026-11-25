@@ -1,3 +1,4 @@
+import { menuKeys } from '../components/keys';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BranchInfo, BranchList } from '../../shared/api';
 import { BranchIcon, CheckIcon, PlusIcon } from '../components/icons';
@@ -89,7 +90,7 @@ export function BranchMenu({ current, title, disabled, load, onSwitch, onCreate 
   };
 
   return (
-    <div className="branch" ref={menu.ref}>
+    <div className="branch" ref={menu.ref} onKeyDown={menuKeys}>
       <button
         ref={button}
         className="branch-chip mono"

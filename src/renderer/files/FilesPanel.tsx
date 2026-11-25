@@ -1,3 +1,4 @@
+import { openKey, treeKeys } from '../components/keys';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { DirEntry, DirList, FileList } from '../../git/types';
 import type { FilesMenuKind, RepoView } from '../../shared/api';
@@ -229,7 +230,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
 
   if (single) {
     return (
-      <div className="git-list files-tree single" role="tree" aria-label="Files">
+      <div className="git-list files-tree single" role="tree" aria-label="Files" onKeyDown={treeKeys}>
         {notice}
         {treeLines(repos[0]!, 0).map(renderLine)}
       </div>
@@ -238,7 +239,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
 
   // Multi-repo view: each repo is its own section, as in the Git tab; the open one is highlighted.
   return (
-    <div className="git-list files-tree" role="tree" aria-label="Files">
+    <div className="git-list files-tree" role="tree" aria-label="Files" onKeyDown={treeKeys}>
       {notice}
       {repos.map((repo) => {
         const isOpen = open[dirKey(repo.path, '')] === true;
@@ -309,10 +310,9 @@ function TreeItem(props: TreeItemProps) {
       }
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          onClick();
-        } else if (event.key === 'Backspace' && event.metaKey && props.onTrash) {
+        // Enter or Space opens (a folder opens or closes); ⌘Enter opens a file in a tab of its own.
+        if (openKey(event, (pin) => (pin && onDoubleClick ? onDoubleClick() : onClick()))) return;
+        if (event.key === 'Backspace' && event.metaKey && props.onTrash) {
           event.preventDefault();
           props.onTrash();
         } else if (event.key === 'F2' && props.onRename) {

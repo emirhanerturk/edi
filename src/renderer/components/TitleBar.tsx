@@ -1,3 +1,4 @@
+import { menuKeys } from './keys';
 import { edi } from '../bridge';
 import { plural, tildify } from '../format';
 import { useApp } from '../store';
@@ -41,7 +42,7 @@ function FolderMenu({ dir, home }: { dir: string; home: string }) {
   };
 
   return (
-    <div className="folder" ref={root}>
+    <div className="folder" ref={root} onKeyDown={menuKeys}>
       <button
         className="folder-button mono"
         data-testid="folder-button"
