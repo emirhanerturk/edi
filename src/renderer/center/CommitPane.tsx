@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
 import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
 import { letterColor } from '../git/model';
@@ -95,11 +95,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
           {prefix !== '' && <span className="prefix">{prefix}</span>}
           {rest === '' && prefix === '' ? '(no subject)' : rest}
         </h1>
-        {paragraphs.map((paragraph, index) => (
-          <p key={index} className="commit-body" data-testid="commit-body">
-            {paragraph}
-          </p>
-        ))}
+        {paragraphs.length > 0 && <CommitBody key={commit.oid} paragraphs={paragraphs} />}
         {/* Two groups: when they don't fit on one line, the counts and buttons move to a second one. */}
         <div className="commit-meta" data-testid="commit-meta">
           <div className="commit-meta-info">
@@ -169,6 +165,61 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
 }
 
 /** The single header button: collapses all if at least one file is expanded, expands all if all are collapsed. */
+/** A body this many lines tall or shorter shows whole; a longer one is cut to `FOLD_LINES` lines at first. */
+export const FOLD_AFTER_LINES = 4;
+export const FOLD_LINES = 3;
+
+/**
+ * The body's paragraphs. A long one shows its first lines fading out; a click on it, or on Show more,
+ * opens the rest. A click that ends a text selection doesn't. A new commit starts folded again (keyed by oid).
+ */
+function CommitBody({ paragraphs }: { paragraphs: string[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [long, setLong] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // Measured, not counted: how many lines a paragraph takes depends on the view's width.
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => {
+      const lineHeight = parseFloat(getComputedStyle(element).lineHeight) || 19;
+      setLong(element.scrollHeight > lineHeight * FOLD_AFTER_LINES + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [paragraphs]);
+
+  const folded = long && !open;
+  return (
+    <>
+      <div
+        ref={ref}
+        className="commit-text"
+        data-testid="commit-text"
+        data-folded={folded}
+        onClick={() => {
+          if (folded && (window.getSelection()?.isCollapsed ?? true)) setOpen(true);
+        }}
+      >
+        {paragraphs.map((paragraph, index) => (
+          <p key={index} className="commit-body" data-testid="commit-body">
+            {paragraph}
+          </p>
+        ))}
+      </div>
+      {long && (
+        <button className="commit-text-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </>
+  );
+}
+
 export function AllFilesButton({ allCollapsed, onCollapse, onExpand }: { allCollapsed: boolean; onCollapse(): void; onExpand(): void }) {
   const label = allCollapsed ? 'Expand all files' : 'Collapse all files';
   return (

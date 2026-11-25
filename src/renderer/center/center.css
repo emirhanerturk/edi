@@ -378,6 +378,35 @@
   color: var(--muted);
 }
 
+/* The body's paragraphs; folded, a long one shows FOLD_LINES (3) lines fading out. */
+.commit-text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.commit-text[data-folded='true'] {
+  max-height: calc(3 * 1.55em);
+  overflow: hidden;
+  cursor: pointer;
+  mask-image: linear-gradient(to bottom, #000 30%, transparent);
+}
+
+/* Right under the body: the header's 10px gap is too wide for it. */
+.commit-text-toggle {
+  align-self: flex-start;
+  margin-top: -6px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.commit-text-toggle:hover {
+  color: var(--text);
+}
+
 .commit-body {
   margin: 0;
   font-size: 12.5px;

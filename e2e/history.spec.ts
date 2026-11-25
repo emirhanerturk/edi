@@ -107,3 +107,35 @@ test('the History tab shows the commits of every repo', async () => {
     await second.app.close();
   }
 });
+
+test('a long commit body shows its first lines until clicked', async () => {
+  const dir = await tmpDir();
+  const repo = await makeRepo(dir, 'alpha');
+  await writeFile(join(repo, 'a.txt'), 'a\n');
+  await git(repo, 'add', '-A');
+  const long = Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1} explains one more part of the change.`).join('\n\n');
+  await git(repo, 'commit', '-q', '-m', 'feat: long story', '-m', long);
+  await git(repo, 'commit', '-q', '--allow-empty', '-m', 'fix: short story', '-m', 'One line is enough.');
+
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await page.getByRole('tab', { name: /History/ }).click();
+    const message = page.getByTestId('commit-text');
+    await page.getByTestId('history-commit').filter({ hasText: 'short story' }).click();
+    await expect(message).toHaveAttribute('data-folded', 'false');
+    await expect(page.getByRole('button', { name: 'Show more' })).toHaveCount(0);
+
+    await page.getByTestId('history-commit').filter({ hasText: 'long story' }).click();
+    await expect(message).toHaveAttribute('data-folded', 'true');
+    // Three lines show: about 58px of the six paragraphs' 166 or so.
+    const folded = (await message.boundingBox())!.height;
+    expect(folded).toBeLessThan(65);
+    await message.click();
+    await expect(message).toHaveAttribute('data-folded', 'false');
+    expect((await message.boundingBox())!.height).toBeGreaterThan(folded * 2);
+    await page.getByRole('button', { name: 'Show less' }).click();
+    await expect(message).toHaveAttribute('data-folded', 'true');
+  } finally {
+    await app.close();
+  }
+});
