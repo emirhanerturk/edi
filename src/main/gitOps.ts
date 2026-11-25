@@ -1,5 +1,5 @@
 import { commit, createBranch, fetchInBackground, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
-import { type UnpushedResult, readUnpushed, undoLastCommit } from '../git/unpushed.js';
+import { type IncomingResult, type UnpushedResult, readIncoming, readUnpushed, undoLastCommit } from '../git/unpushed.js';
 import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash } from '../git/stash.js';
 import { getStatus } from '../git/status.js';
 import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
@@ -164,6 +164,12 @@ export class GitOps {
     const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
     if (!repo) return { ok: false, error: 'Unknown repository' };
     return readUnpushed(repo.path);
+  }
+
+  async incoming(repoPath: unknown): Promise<IncomingResult> {
+    const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
+    if (!repo) return { ok: false, error: 'Unknown repository' };
+    return readIncoming(repo.path);
   }
 
   async stashes(repoPath: unknown): Promise<StashList> {

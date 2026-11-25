@@ -250,6 +250,7 @@ export class AppCore {
     ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
     ipcMain.handle('git:unpushed', (_event, repoPath: unknown) => this.gitOps.unpushed(repoPath));
+    ipcMain.handle('git:incoming', (_event, repoPath: unknown) => this.gitOps.incoming(repoPath));
     ipcMain.handle('git:stashes', (_event, repoPath: unknown) => this.gitOps.stashes(repoPath));
     ipcMain.handle('git:stash', (_event, repoPath: unknown, oid: unknown) => this.gitOps.stash(repoPath, oid));
     ipcMain.handle('git:stashMenu', (_event, canApply: unknown) => {

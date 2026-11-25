@@ -15,6 +15,7 @@ const api: EdiApi = {
   fetchAll: () => ipcRenderer.invoke('git:fetchAll'),
   branches: (repoPath) => ipcRenderer.invoke('git:branches', repoPath),
   unpushed: (repoPath) => ipcRenderer.invoke('git:unpushed', repoPath),
+  incoming: (repoPath) => ipcRenderer.invoke('git:incoming', repoPath),
   confirmUndo: (subject) => ipcRenderer.invoke('git:confirmUndo', subject),
   stashes: (repoPath) => ipcRenderer.invoke('git:stashes', repoPath),
   stash: (repoPath, oid) => ipcRenderer.invoke('git:stash', repoPath, oid),

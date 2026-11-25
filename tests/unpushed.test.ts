@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { readUnpushed, undoLastCommit } from '../src/git/unpushed.js';
+import { readIncoming, readUnpushed, undoLastCommit } from '../src/git/unpushed.js';
 import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 async function commitFile(repo: string, name: string, text: string, message: string) {
@@ -95,5 +95,40 @@ describe('undoLastCommit', () => {
   it('refuses a malformed oid', async () => {
     const { repo } = await repoAhead();
     expect(await undoLastCommit(repo, 'HEAD')).toEqual({ ok: false, error: 'Invalid commit' });
+  });
+});
+
+describe('readIncoming', () => {
+  it("lists a teammate's pushed commits once fetched, newest first, with the author; none once pulled", async () => {
+    const { repo } = await repoAhead();
+    await git(repo, 'push', '-q');
+    const bare = (await git(repo, 'remote', 'get-url', 'origin')).trim();
+    const peer = join(await makeTmpDir(), 'peer');
+    await git(repo, 'clone', '-q', bare, peer);
+    await git(peer, 'config', 'user.name', 'Peer');
+    await git(peer, 'config', 'user.email', 'peer@example.com');
+    const one = await commitFile(peer, 'p1.txt', '1\n', 'feat: from peer 1');
+    const two = await commitFile(peer, 'p2.txt', '2\n', 'feat: from peer 2');
+    await git(peer, 'push', '-q');
+
+    // Not fetched yet: nothing to show.
+    expect(await readIncoming(repo)).toEqual({ ok: true, commits: [] });
+    await git(repo, 'fetch', '-q');
+    const result = await readIncoming(repo);
+    expect(result.ok && result.commits.map((c) => [c.oid, c.subject, c.authorName])).toEqual([
+      [two, 'feat: from peer 2', 'Peer'],
+      [one, 'feat: from peer 1', 'Peer'],
+    ]);
+    // Local commits made meanwhile don't count: only what the upstream has and the branch doesn't.
+    await commitFile(repo, 'mine.txt', 'm\n', 'feat: mine');
+    const diverged = await readIncoming(repo);
+    expect(diverged.ok && diverged.commits.map((c) => c.oid)).toEqual([two, one]);
+    await git(repo, 'pull', '-q', '--rebase');
+    expect(await readIncoming(repo)).toEqual({ ok: true, commits: [] });
+  });
+
+  it('nothing without an upstream', async () => {
+    const lone = await initRepo(await makeTmpDir(), 'b', { commit: true });
+    expect(await readIncoming(lone)).toEqual({ ok: true, commits: [] });
   });
 });

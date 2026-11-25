@@ -1,10 +1,11 @@
-// Commits made but not pushed yet, and undoing the newest one (git reset --soft HEAD~1).
+// Commits made but not pushed yet, undoing the newest one (git reset --soft HEAD~1), and the commits
+// fetched from the upstream but not pulled yet.
 import { runGit } from './exec.js';
 import { NO_LAZY_FETCH, PINNED, SUMMARY_FORMAT, parseLog } from './log.js';
 import type { ActionResult } from './actions.js';
-import type { CommitSummary, UnpushedResult } from './types.js';
+import type { CommitSummary, IncomingResult, UnpushedResult } from './types.js';
 
-export type { UnpushedResult };
+export type { IncomingResult, UnpushedResult };
 
 /** At most this many are listed; the count in the header comes from the status. */
 const LIMIT = 50;
@@ -17,17 +18,31 @@ async function hasUpstream(repo: string): Promise<boolean> {
 
 const undoable = (commit: CommitSummary | undefined) => commit !== undefined && commit.parents === 1;
 
+/** The commits reachable from `from` but not from `not`, newest first (at most LIMIT). */
+async function commitsBetween(repo: string, from: string, not: string): Promise<{ ok: true; commits: CommitSummary[] } | { ok: false; error: string }> {
+  const log = await runGit(
+    repo,
+    [...PINNED, 'log', '-z', '--no-color', '--decorate=short', '--abbrev=7', `--format=${SUMMARY_FORMAT}`, `--max-count=${LIMIT}`, from, '--not', not, '--'],
+    { env: NO_LAZY_FETCH },
+  );
+  return log.ok ? { ok: true, commits: parseLog(log.stdout) } : { ok: false, error: log.error };
+}
+
 /** The branch's commits that its upstream doesn't have. None without an upstream: "unpushed" can't be told apart then. */
 export async function readUnpushed(repo: string): Promise<UnpushedResult> {
   if (!(await hasUpstream(repo))) return { ok: true, commits: [], canUndo: false };
-  const log = await runGit(
-    repo,
-    [...PINNED, 'log', '-z', '--no-color', '--decorate=short', '--abbrev=7', `--format=${SUMMARY_FORMAT}`, `--max-count=${LIMIT}`, 'HEAD', '--not', '@{u}', '--'],
-    { env: NO_LAZY_FETCH },
-  );
-  if (!log.ok) return { ok: false, error: log.error };
-  const commits = parseLog(log.stdout);
-  return { ok: true, commits, canUndo: undoable(commits[0]) };
+  const read = await commitsBetween(repo, 'HEAD', '@{u}');
+  if (!read.ok) return read;
+  return { ok: true, commits: read.commits, canUndo: undoable(read.commits[0]) };
+}
+
+/**
+ * The upstream's commits that the branch doesn't have yet: what a pull would bring, as of the last
+ * fetch (a teammate's push, once fetched). None without an upstream.
+ */
+export async function readIncoming(repo: string): Promise<IncomingResult> {
+  if (!(await hasUpstream(repo))) return { ok: true, commits: [] };
+  return commitsBetween(repo, '@{u}', 'HEAD');
 }
 
 /**
