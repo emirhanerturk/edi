@@ -35,9 +35,18 @@ export async function checkLink(linkPath, target) {
 }
 
 /** Whether the installed edi is running. */
+/**
+ * The `pgrep -f` pattern for edi's own processes: a command line that starts with a program inside the
+ * app. Anchored and escaped, so a process that only mentions the path (an editor with a file in it) or
+ * one in a look-alike folder (`edi.app.old`, `ediXapp`) doesn't count.
+ */
+export function runningPattern(appPath) {
+  return `^${`${appPath}/Contents/`.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}(MacOS|Frameworks)/`;
+}
+
 export async function isRunning(appPath) {
   try {
-    await run('pgrep', ['-f', `${appPath}/Contents/MacOS/`]);
+    await run('pgrep', ['-f', runningPattern(appPath)]);
     return true;
   } catch {
     return false; // pgrep exits with 1 when nothing matches.
@@ -87,8 +96,15 @@ async function replaceApp(built, appPath, hadApp, copy) {
   await rm(previous, { recursive: true, force: true });
 }
 
+/** A line to add when the command's folder isn't on `path` (a PATH value): `edi` wouldn't be found as typed. */
+export function pathNote(linkPath, path) {
+  const folder = dirname(linkPath);
+  const on = path.split(':').some((entry) => entry.replace(/\/+$/, '') === folder);
+  return on ? null : `${folder} is not on your PATH: add it (in ~/.zshrc: export PATH="${folder}:$PATH") to run edi from a terminal`;
+}
+
 /** Installs; returns what was done, one line per step. If a check fails, throws without touching anything. */
-export async function install({ built, appPath, linkPath, isRunning: running = isRunning, copy = ditto }) {
+export async function install({ built, appPath, linkPath, isRunning: running = isRunning, copy = ditto, path = process.env.PATH ?? '' }) {
   // Things may have changed while packaging: the checks run again right before installing.
   await preflight({ appPath, linkPath, isRunning: running });
   const target = await checkTarget(appPath);
@@ -105,5 +121,7 @@ export async function install({ built, appPath, linkPath, isRunning: running = i
   } else {
     lines.push(`${linkPath} already points to edi`);
   }
+  const note = pathNote(linkPath, path);
+  if (note) lines.push(note);
   return lines;
 }

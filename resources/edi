@@ -10,8 +10,15 @@ fi
 if [ "$#" -eq 0 ]; then
   exec open -a "$app"
 fi
-if ! dir=$(CDPATH= cd -- "$1" 2>/dev/null && pwd -P) || [ ! -d "$1" ]; then
+# `cd -` would go to the previous folder: a folder named - is reached as ./-.
+target=$1
+[ "$target" = - ] && target=./-
+if [ ! -d "$target" ]; then
   echo "edi: not a folder: $1" >&2
+  exit 1
+fi
+if ! dir=$(CDPATH= cd -- "$target" 2>/dev/null && pwd -P); then
+  echo "edi: no permission to open $1" >&2
   exit 1
 fi
 # One piece (`--open=<path>`): Chromium may reorder the second instance's arguments.
