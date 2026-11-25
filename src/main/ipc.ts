@@ -18,6 +18,7 @@ import { type Persisted, addRecent, loadState, mergeLayout, saveState, saveState
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
 import { openUrl } from './openUrl.js';
+import { Serial } from './serial.js';
 import { ViewOps } from './viewOps.js';
 import { Workspace } from './workspace.js';
 
@@ -54,6 +55,7 @@ export class AppCore {
   private usageSent = 'null';
   private readonly usagePath = usageFile(process.env, os.homedir());
   private layoutTimer: NodeJS.Timeout | null = null;
+  private readonly opening = new Serial<OpenResult>();
 
   private constructor(
     private readonly stateFile: string,
@@ -228,7 +230,16 @@ export class AppCore {
     });
   }
 
-  async openFolder(dir: string): Promise<OpenResult> {
+  /**
+   * Opens a folder. Requests run one at a time: two at once could mix one folder's repos into the
+   * other, and the second's terminal cleanup could kill a terminal just opened in the first. A request
+   * for a folder already being opened (a double click) shares that one's result.
+   */
+  openFolder(dir: string): Promise<OpenResult> {
+    return this.opening.run(resolve(dir), () => this.openFolderNow(dir));
+  }
+
+  private async openFolderNow(dir: string): Promise<OpenResult> {
     const previous = this.workspace.view().dir;
     // Changing folders closes the terminals: if a process is running, ask first.
     if (previous !== null && resolve(dir) !== previous && (await stat(dir).then((s) => s.isDirectory(), () => false))) {

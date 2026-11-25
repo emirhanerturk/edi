@@ -30,6 +30,8 @@ const hidden = process.env.EDI_HIDDEN === '1';
 
 let win: BrowserWindow | null = null;
 let core: AppCore;
+/** A folder handed over by `edi <folder>` before the app was ready: the latest one. */
+let handedOver: string | undefined;
 
 /** The saved position is used only if it is still within a display (the display may have been disconnected). */
 function savedBounds(): { x: number; y: number; width: number; height: number } | undefined {
@@ -157,7 +159,10 @@ app.on('second-instance', (_event, argv) => {
     win.focus();
   }
   const dir = folderArg(argv);
-  if (dir !== undefined && core) void core.openFolder(dir);
+  if (dir === undefined) return;
+  // Before the app is ready the folder is kept, and opened at startup in place of the usual one.
+  if (core) void core.openFolder(dir);
+  else handedOver = dir;
 });
 
 app.whenReady().then(async () => {
@@ -192,7 +197,7 @@ app.whenReady().then(async () => {
   });
   core.register();
   // The folder is opened before the window: the repos are ready when the page asks for the initial state.
-  await core.openInitial(folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
+  await core.openInitial(handedOver ?? folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
   createWindow();
 });
 

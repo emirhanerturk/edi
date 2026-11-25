@@ -47,11 +47,15 @@ export class Workspace {
     }
 
     this.stop();
-    this.generation++;
+    const generation = ++this.generation;
     this.dir = real;
-    this.repos = (await discoverRepos(real)).map(emptyView);
+    const found = await discoverRepos(real);
+    // Another folder was opened, or the workspace closed, meanwhile: this one is no longer wanted.
+    if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
+    this.repos = found.map(emptyView);
     this.applySessions();
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
+    if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
     this.timer = setInterval(() => void this.refreshAll(), this.statusMs);
     return { ok: true, repoCount: this.repos.length };
   }

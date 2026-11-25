@@ -97,6 +97,21 @@ describe('Workspace', () => {
     }
   });
 
+  it('of two folders opened at once, one wins with its own repos and the other gives way', async () => {
+    const first = await makeTmpDir();
+    for (const name of ['a', 'b', 'c', 'd']) await initRepo(first, name, { commit: true });
+    const second = await makeTmpDir();
+    await initRepo(second, 'z', { commit: true });
+    const { ws } = makeWorkspace();
+
+    // Which one wins depends on which folder check ends last; the app itself opens one at a time.
+    const results = await Promise.all([ws.open(first), ws.open(second)]);
+    const won = results.findIndex((result) => result.ok);
+    expect(results[1 - won]).toEqual({ ok: false, error: 'Another folder was opened' });
+    expect(ws.view().dir).toBe(won === 0 ? first : second);
+    expect(ws.view().repos.map((repo) => repo.name)).toEqual(won === 0 ? ['a', 'b', 'c', 'd'] : ['z']);
+  });
+
   it('treats only discovered paths as repos', async () => {
     const dir = await makeTmpDir();
     const repo = await initRepo(dir, 'a', { commit: true });
