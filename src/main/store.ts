@@ -7,6 +7,8 @@ export interface Persisted {
   recent: RecentFolder[];
   layout: Layout;
   window: { x: number; y: number; width: number; height: number } | null;
+  /** Fetch every repo with a remote every few minutes (View > Fetch Automatically). */
+  autoFetch: boolean;
 }
 
 export const DEFAULTS: Persisted = {
@@ -14,6 +16,7 @@ export const DEFAULTS: Persisted = {
   recent: [],
   layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline' },
   window: null,
+  autoFetch: true,
 };
 
 const RECENT_MAX = 8;
@@ -43,6 +46,7 @@ function normalize(raw: unknown): Persisted {
       historyLayout: oneOf(layout.historyLayout, ['timeline', 'byRepo'] as const, DEFAULTS.layout.historyLayout),
     },
     window: win && bounds ? { x: win.x as number, y: win.y as number, width: win.width as number, height: win.height as number } : null,
+    autoFetch: typeof raw.autoFetch === 'boolean' ? raw.autoFetch : DEFAULTS.autoFetch,
   };
 }
 

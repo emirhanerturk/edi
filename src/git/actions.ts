@@ -138,6 +138,19 @@ export function fetchRepo(repo: string): Promise<ActionResult> {
   return act(repo, ['fetch'], 'Fetched', { timeoutMs: FETCH_TIMEOUT_MS });
 }
 
+/** A fetch nobody asked for gives up sooner: the next round tries again. */
+const BACKGROUND_FETCH_TIMEOUT_MS = 60_000;
+/**
+ * Nothing may ask for a password behind the user's back: no credential manager window
+ * (`GCM_INTERACTIVE`), no askpass program for git or ssh. A remote that needs one fails instead.
+ */
+export const NO_PROMPTS: Record<string, string> = { GCM_INTERACTIVE: 'never', GIT_ASKPASS: '', SSH_ASKPASS: '', SSH_ASKPASS_REQUIRE: 'never' };
+
+/** The automatic fetch: quiet, with no prompt and a shorter timeout than the Fetch button's. */
+export function fetchInBackground(repo: string): Promise<ActionResult> {
+  return act(repo, ['fetch', '--quiet'], 'Fetched', { timeoutMs: BACKGROUND_FETCH_TIMEOUT_MS, env: NO_PROMPTS });
+}
+
 export async function listBranches(repo: string): Promise<BranchList> {
   // Name, "ahead 1, behind 2" (empty when in sync or without an upstream, "gone" if it was deleted) and date.
   // Reads only local refs: the counts are as of the last fetch.

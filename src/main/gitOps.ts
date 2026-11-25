@@ -1,4 +1,4 @@
-import { commit, createBranch, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
+import { commit, createBranch, fetchInBackground, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
 import { type UnpushedResult, readUnpushed, undoLastCommit } from '../git/unpushed.js';
 import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash } from '../git/stash.js';
 import { getStatus } from '../git/status.js';
@@ -34,6 +34,9 @@ export function busyLabel(op: GitOp): string {
       return 'Working…';
   }
 }
+
+/** After this many automatic fetches fail in a row, a repo is left alone until a fetch, pull or push of the user's succeeds. */
+export const BACKGROUND_FAILURES_MAX = 3;
 
 const UNKNOWN_REPO: OpResult = { ok: false, error: 'Unknown repository' };
 const INVALID: OpResult = { ok: false, error: 'Invalid operation' };
@@ -85,6 +88,10 @@ function isValidOp(op: unknown): op is GitOp {
  */
 export class GitOps {
   private readonly running = new Set<string>();
+  /** Automatic fetches in progress, by repo: an operation of the user's waits for its repo's to end. */
+  private readonly background = new Map<string, Promise<unknown>>();
+  /** Automatic fetches that failed in a row, by repo. */
+  private readonly failures = new Map<string, number>();
 
   constructor(private readonly ws: Workspace) {}
 
@@ -97,7 +104,12 @@ export class GitOps {
     this.running.add(repo.path);
     this.ws.setBusy(repo.path, busyLabel(op));
     try {
-      return await this.execute(repo.path, op);
+      // Two git processes changing the same refs can trip over each other's locks.
+      await this.background.get(repo.path);
+      const result = await this.execute(repo.path, op);
+      // The remote answered the user: the automatic fetch may try again.
+      if (result.ok && (op.op === 'fetch' || op.op === 'pull' || op.op === 'push')) this.failures.delete(repo.path);
+      return result;
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     } finally {
@@ -106,6 +118,34 @@ export class GitOps {
       this.running.delete(repo.path);
       this.ws.setBusy(repo.path, null);
     }
+  }
+
+  /**
+   * The automatic fetch of one repo. Unlike the Fetch button it shows no busy label and no error, holds
+   * no lock (an operation started meanwhile waits for it instead of being refused), and is skipped while
+   * anything else runs in the repo, or after it kept failing. False when it didn't run.
+   */
+  async fetchQuietly(repoPath: string): Promise<boolean> {
+    const repo = this.ws.repo(repoPath);
+    if (!repo?.hasRemote || repo.busy !== null || this.running.has(repo.path) || this.background.has(repo.path)) return false;
+    if ((this.failures.get(repo.path) ?? 0) >= BACKGROUND_FAILURES_MAX) return false;
+    const job = (async () => {
+      const result = await fetchInBackground(repo.path);
+      if (!result.ok) {
+        this.failures.set(repo.path, (this.failures.get(repo.path) ?? 0) + 1);
+        return;
+      }
+      this.failures.delete(repo.path);
+      // The ahead/behind counts come from the remote branches just updated.
+      await this.ws.refresh(repo.path);
+    })().catch(() => undefined);
+    this.background.set(repo.path, job);
+    try {
+      await job;
+    } finally {
+      this.background.delete(repo.path);
+    }
+    return true;
   }
 
   /** Fetches in every repo that has a remote and no other operation running. */

@@ -101,6 +101,8 @@ function createWindow(): void {
     event.preventDefault();
     void requestQuit();
   });
+  // Back at the window: the repos not fetched for a minute are fetched now.
+  win.on('focus', () => void core.autoFetch.focus());
   win.on('closed', () => {
     win = null;
   });
@@ -139,15 +141,22 @@ app.on('second-instance', (_event, argv) => {
 
 app.whenReady().then(async () => {
   if (!primary) return;
+  core = await AppCore.create(path.join(app.getPath('userData'), 'state.json'), () => win);
   // In the default menu, Cmd+W closes the window and Cmd+R reloads the page (closing the terminals); neither is wanted.
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       { role: 'appMenu' },
       { role: 'editMenu' },
-      { label: 'View', submenu: [{ role: 'toggleDevTools' }] },
+      {
+        label: 'View',
+        submenu: [
+          { label: 'Fetch Automatically', type: 'checkbox', checked: core.persisted.autoFetch, click: (item) => core.setAutoFetch(item.checked) },
+          { type: 'separator' },
+          { role: 'toggleDevTools' },
+        ],
+      },
     ]),
   );
-  core = await AppCore.create(path.join(app.getPath('userData'), 'state.json'), () => win);
   core.register();
   // The folder is opened before the window: the repos are ready when the page asks for the initial state.
   await core.openInitial(folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
