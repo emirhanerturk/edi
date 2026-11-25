@@ -1,9 +1,9 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Workspace } from '../src/main/workspace.js';
 import type { WorkspaceView } from '../src/shared/api.js';
-import { addBareRemote, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const open: Workspace[] = [];
 afterEach(() => {
@@ -67,6 +67,34 @@ describe('Workspace', () => {
     await writeFile(join(b, 'new.txt'), 'x\n');
     await until(() => ws.view().repos[1]?.status?.files.length === 1);
     expect(ws.view().repos[1]?.error).toBeNull();
+  });
+
+  it("reports a fast repo's change while a slow repo's status is still being read", async () => {
+    const dir = await makeTmpDir();
+    const slow = await initRepo(dir, 'a', { commit: true });
+    const fast = await initRepo(dir, 'b', { commit: true });
+    const { ws, views } = makeWorkspace();
+    await ws.open(dir);
+
+    // git status in the slow repo runs this fsmonitor hook, which waits until the test releases it.
+    const hooks = await makeTmpDir();
+    const hook = join(hooks, 'wait.sh');
+    await writeFile(hook, `#!/bin/sh\ntouch "${hooks}/started"\nwhile [ ! -f "${hooks}/release" ]; do sleep 0.05; done\nexit 1\n`);
+    await chmod(hook, 0o755);
+    await git(slow, 'config', 'core.fsmonitor', hook);
+    const exists = (file: string) => access(file).then(() => true, () => false);
+    try {
+      let started = false;
+      await until(() => {
+        void exists(join(hooks, 'started')).then((yes) => (started = yes));
+        return started;
+      });
+
+      await writeFile(join(fast, 'new.txt'), 'x\n');
+      await until(() => views.at(-1)?.repos[1]?.status?.files.length === 1, 2000);
+    } finally {
+      await writeFile(join(hooks, 'release'), '');
+    }
   });
 
   it('treats only discovered paths as repos', async () => {

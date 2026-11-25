@@ -7,6 +7,8 @@ import type { RepoView, WorkspaceView } from '../shared/api.js';
 
 /** How many status polls between rereads of the remote list. */
 const REMOTES_EVERY = 15;
+/** Statuses that arrive within this long of each other reach the page in one update. */
+const EMIT_BATCH_MS = 30;
 
 export type OpenWorkspaceResult = { ok: true; repoCount: number } | { ok: false; error: string };
 
@@ -28,6 +30,7 @@ export class Workspace {
   private readonly onChange: (view: WorkspaceView) => void;
   private readonly statusMs: number;
   private rounds = 0;
+  private emitTimer: NodeJS.Timeout | null = null;
 
   constructor(opts: { onChange: (view: WorkspaceView) => void; statusMs?: number }) {
     this.onChange = opts.onChange;
@@ -104,11 +107,20 @@ export class Workspace {
   private stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.emitTimer) clearTimeout(this.emitTimer);
+    this.emitTimer = null;
     this.inFlight.clear();
   }
 
   private emit(): void {
+    if (this.emitTimer) clearTimeout(this.emitTimer);
+    this.emitTimer = null;
     this.onChange(this.view());
+  }
+
+  /** An update shortly: the statuses of other repos arriving meanwhile go along with it. */
+  private emitSoon(): void {
+    this.emitTimer ??= setTimeout(() => this.emit(), EMIT_BATCH_MS);
   }
 
   private patch(path: string, change: Partial<RepoView>): void {
@@ -144,7 +156,8 @@ export class Workspace {
     const generation = this.generation;
     // A remote added from the terminal is noticed within about half a minute.
     if (++this.rounds % REMOTES_EVERY === 0) void this.refreshRemotes();
-    await Promise.all(this.repos.map((repo) => this.refreshOne(repo.path)));
+    // Each repo's status reaches the page as it arrives: a slow repo doesn't hold up the others.
+    await Promise.all(this.repos.map((repo) => this.refreshOne(repo.path).then((read) => read && this.emitSoon())));
     if (generation !== this.generation) return;
     this.refreshedAt = Date.now();
     this.emit();
