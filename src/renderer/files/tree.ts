@@ -119,6 +119,45 @@ export function buildTree(
   return root.children;
 }
 
+interface TreeInputs {
+  changes: string;
+  ignored: string[];
+  loaded: Record<string, DirEntry[]>;
+  emptyDirs: string[];
+  tree: TreeNode[];
+}
+
+/** The default for a list left out: one array, so that leaving it out twice counts as the same. */
+const NONE: string[] = [];
+
+/** The last tree built for each file list (the list is replaced, not changed, when it is read again). */
+const trees = new WeakMap<string[], TreeInputs>();
+
+const sameLoaded = (a: Record<string, DirEntry[]>, b: Record<string, DirEntry[]>) => {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+};
+
+/**
+ * `buildTree`, built again only when its inputs change. The Files tab is drawn again on every status
+ * poll, and the change list arrives as a new array each time even when nothing changed: it is
+ * compared by content, the rest (kept as they are in the store) by identity.
+ */
+export function cachedTree(
+  files: string[],
+  changes: FileChange[],
+  ignored: string[] = NONE,
+  loaded: Record<string, DirEntry[]> = {},
+  emptyDirs: string[] = NONE,
+): TreeNode[] {
+  const key = JSON.stringify(changes);
+  const last = trees.get(files);
+  if (last && last.changes === key && last.ignored === ignored && last.emptyDirs === emptyDirs && sameLoaded(last.loaded, loaded)) return last.tree;
+  const tree = buildTree(files, changes, ignored, loaded, emptyDirs);
+  trees.set(files, { changes: key, ignored, loaded, emptyDirs, tree });
+  return tree;
+}
+
 /** Whether the path is an ignored folder itself or inside one (`ignored`: the list from `listFiles`). */
 export function insideIgnored(path: string, ignored: string[]): boolean {
   return ignored.some((entry) => entry.endsWith('/') && (`${path}/` === entry || path.startsWith(entry)));

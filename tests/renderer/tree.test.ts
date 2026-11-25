@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FileChange } from '../../src/git/types';
-import { type TreeNode, buildTree, flattenTree, insideIgnored } from '../../src/renderer/files/tree';
+import { type TreeNode, buildTree, cachedTree, flattenTree, insideIgnored } from '../../src/renderer/files/tree';
 
 const change = (path: string, x: string, y: string, kind: FileChange['kind'] = 'changed'): FileChange => ({ path, origPath: null, x, y, kind });
 /** The tree in readable form: folder "name/", changed file "name M", folder with changes "name/ ●". */
@@ -103,6 +103,31 @@ describe('buildTree', () => {
     expect(tree.map((node) => `${node.kind}:${node.path}`)).toEqual(['dir:new', 'file:a.ts']);
     expect(tree[0]!.children.map((node) => `${node.kind}:${node.path}`)).toEqual(['dir:new/inner']);
     expect(tree[0]!.children[0]!.children).toEqual([]);
+  });
+});
+
+describe('cachedTree', () => {
+  const untracked = (path: string) => change(path, '?', '?', 'untracked');
+
+  it('gives back the same tree while the inputs are the same, the change list compared by content', () => {
+    const files = ['a.ts', 'src/b.ts'];
+    const ignored = ['dist/'];
+    const loaded = { dist: [{ name: 'x.js', dir: false }] };
+    const first = cachedTree(files, [untracked('c.ts')], ignored, loaded);
+    expect(first).toEqual(buildTree(files, [untracked('c.ts')], ignored, loaded));
+    // A new but equal change list (the next poll), and a new record holding the same folder contents.
+    expect(cachedTree(files, [untracked('c.ts')], ignored, { ...loaded })).toBe(first);
+  });
+
+  it('builds again when anything changes', () => {
+    const files = ['a.ts'];
+    const ignored: string[] = [];
+    const first = cachedTree(files, [], ignored);
+    const changed = cachedTree(files, [untracked('b.ts')], ignored);
+    expect(changed).not.toBe(first);
+    expect(changed.map((node) => node.name)).toEqual(['a.ts', 'b.ts']);
+    expect(cachedTree(['a.ts'], [untracked('b.ts')], ignored)).not.toBe(changed); // a file list read again
+    expect(cachedTree(files, [untracked('b.ts')], ignored, { dist: [] })).not.toBe(changed);
   });
 });
 

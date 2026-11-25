@@ -8,7 +8,7 @@ import { FileTypeIcon } from './fileIcons';
 import { type FilesEdit, unsavedUnder } from './filesEdit';
 import { letterColor } from '../git/model';
 import { useApp } from '../store';
-import { type TreeRow, buildTree, flattenTree, insideIgnored } from './tree';
+import { type TreeRow, cachedTree, flattenTree, insideIgnored } from './tree';
 import './files.css';
 
 /** Key for open folders: the repo path and the folder's path relative to the repo (empty for the repo root). */
@@ -73,7 +73,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
     for (const [key, dir] of Object.entries(dirs)) {
       if (key.startsWith(prefix) && dir.ok) loaded[key.slice(prefix.length)] = dir.entries;
     }
-    const tree = buildTree(list.files, repo.status?.files ?? [], list.ignored, loaded, list.dirs);
+    const tree = cachedTree(list.files, repo.status?.files ?? [], list.ignored, loaded, list.dirs);
     const lines: Line[] = [];
     const newHere = (parent: string, at: number) => {
       if (edit?.mode === 'new' && edit.repoPath === repo.path && edit.parent === parent) {
