@@ -124,6 +124,12 @@ test('All projects (⇧⌘O) shows the Projects screen over the open project, wh
     await expect(cards.nth(0)).toContainText('Open');
     await expect(cards.nth(1)).not.toContainText('Last opened');
 
+    // The title bar's menus open over it: were the menu under the screen, the screen would take the click.
+    await page.getByTestId('project-button').click();
+    await page.getByTestId('project-menu').getByRole('menuitem', { name: /All projects/ }).click();
+    await expect(page.getByTestId('project-menu')).toHaveCount(0);
+    await expect(projects).toBeVisible();
+
     await page.keyboard.press('Escape');
     await expect(projects).toHaveCount(0);
     // The terminal was never closed.
