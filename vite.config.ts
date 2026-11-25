@@ -12,8 +12,8 @@ function contentSecurityPolicy(): Plugin {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'", // xterm writes inline styles to measure
     "font-src 'self'",
-    // Images and videos in the file view come from the main process's `edi-media:` scheme.
-    "img-src 'self' data: edi-media:",
+    // Images and videos in the file view come from the main process's `edi-media:` scheme, project logos from `edi-logo:`.
+    "img-src 'self' data: edi-media: edi-logo:",
     "media-src edi-media:",
     "connect-src 'none'",
     // The editor's background worker (Monaco) is a file of the app itself.

@@ -1,6 +1,19 @@
 import type { EditorId } from '../shared/editors';
 import { create } from 'zustand';
-import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, StashEntry, StashMenuAction, StashRetry, TabState, WorkspaceView } from '../shared/api';
+import type {
+  ClaudeUsage,
+  GitOp,
+  Layout,
+  LogResult,
+  ProjectDraft,
+  ProjectView,
+  ServerInfo,
+  StashEntry,
+  StashMenuAction,
+  StashRetry,
+  TabState,
+  WorkspaceView,
+} from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
 import type { FilesEdit } from './files/filesEdit';
 import { edi } from './bridge';
@@ -110,6 +123,20 @@ export interface HistoryEntry {
 export const canLoadMore = (entry: HistoryEntry | undefined): boolean =>
   entry !== undefined && entry.log?.ok === true && entry.log.hasMore && entry.limit < HISTORY_MAX;
 
+/** The New project or Edit project sheet. */
+export interface SheetState {
+  mode: 'new' | 'edit';
+  /** The project being edited; null for a new one. */
+  projectId: string | null;
+  /** The folder and what was found in it. */
+  draft: ProjectDraft;
+  /** A new number for every sheet opened: the form starts over. */
+  serial: number;
+}
+
+let sheetSerial = 0;
+const newSheet = (draft: ProjectDraft): SheetState => ({ mode: 'new', projectId: null, draft, serial: ++sheetSerial });
+
 /** Latest request per repo: a stale reply that arrives late doesn't overwrite the newer one. */
 const historyRequests = new Map<string, number>();
 let historySerial = 0;
@@ -119,12 +146,29 @@ interface AppStore {
   ready: boolean;
   home: string;
   workspace: WorkspaceView;
-  recent: RecentFolder[];
+  /** Last opened first. */
+  projects: ProjectView[];
   layout: Layout;
-  /** Why the folder couldn't be opened. */
+  /** Why the project couldn't be opened (shown on the Projects screen). */
   openError: string | null;
-  openFolder(dir: string): Promise<void>;
+  openProject(projectId: string): Promise<void>;
   dismissOpenError(): void;
+  /** The Projects screen is shown over the open project (All projects, ⇧⌘O). */
+  projectsShown: boolean;
+  showProjects(shown: boolean): void;
+  /** The New project or Edit project sheet; null when none is open. */
+  sheet: SheetState | null;
+  /** New project (⌘O): the folder panel, then the sheet (or the folder's project opens). */
+  startNewProject(): Promise<void>;
+  /** Edit project…: the sheet for the project. */
+  startEditProject(projectId: string): Promise<void>;
+  closeSheet(): void;
+  /** Remove from list (the main process asks first); a failure shows on the Projects screen. True if it went. */
+  removeProject(projectId: string): Promise<boolean>;
+  /** Locate…: the folder panel, for a project whose folder has moved. */
+  locateProject(projectId: string): Promise<void>;
+  /** Opens one of a project's links from the Projects screen; a failure shows there. */
+  openProjectLink(url: string): Promise<void>;
   /** Changes the right panel's width, fitting it into an area `total` wide. */
   resizeRight(right: number, total: number): void;
   /** Changes the left panel's (terminals) width for when the center panel is open. */
@@ -235,13 +279,55 @@ export const useApp = create<AppStore>((set, get) => ({
   ready: false,
   home: '',
   workspace: EMPTY,
-  recent: [],
+  projects: [],
   layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
   openError: null,
-  async openFolder(dir) {
-    const result = await edi.openFolder(dir);
+  async openProject(projectId) {
+    const project = get().projects.find((other) => other.id === projectId);
+    // The open project: back to it.
+    if (project?.open) {
+      set({ projectsShown: false, openError: null });
+      return;
+    }
+    const result = await edi.openProject(projectId);
     if (!result.ok && result.cancelled) return; // The user cancelled: not an error.
-    set({ openError: result.ok ? null : `${dir}: ${result.error}` });
+    set(result.ok ? { openError: null, projectsShown: false } : { openError: `${project?.name ?? 'Project'}: ${result.error}` });
+  },
+  projectsShown: false,
+  showProjects: (shown) => set({ projectsShown: shown && get().workspace.dir !== null, openError: null }),
+  sheet: null,
+  async startNewProject() {
+    if (get().sheet !== null) return;
+    const draft = await edi.newProject();
+    // A folder that already was a project opened; the screen goes back to it.
+    if (draft === null) {
+      if (get().workspace.dir !== null) set({ projectsShown: false });
+      return;
+    }
+    set({ sheet: newSheet(draft) });
+  },
+  async startEditProject(projectId) {
+    if (get().sheet !== null) return;
+    const draft = await edi.projectDraft(projectId);
+    if (draft === null || !get().projects.some((project) => project.id === projectId)) return;
+    set({ sheet: { mode: 'edit', projectId, draft, serial: ++sheetSerial } });
+  },
+  closeSheet: () => set({ sheet: null }),
+  async removeProject(projectId) {
+    const name = get().projects.find((project) => project.id === projectId)?.name ?? 'Project';
+    const result = await edi.removeProject(projectId);
+    if (!result.ok && !result.cancelled) set({ openError: `${name}: ${result.error}` });
+    return result.ok;
+  },
+  async locateProject(projectId) {
+    const name = get().projects.find((project) => project.id === projectId)?.name ?? 'Project';
+    const result = await edi.locateProject(projectId);
+    if (!result.ok && !result.cancelled) set({ openError: `${name}: ${result.error}` });
+    else if (result.ok) set({ openError: null });
+  },
+  async openProjectLink(url) {
+    const result = await edi.openUrl(url);
+    if (!result.ok) set({ openError: `${result.error}: ${url}` });
   },
   // The dragged panel's width changes; the other's saved value is kept (CSS shrinks it in a narrow window).
   resizeRight(right, total) {
@@ -514,9 +600,19 @@ export function connect(): () => void {
         ...keepHistory(state, workspace),
         // The old folder's terminals closed; their servers go too (the next poll also sends an empty list).
         servers: workspace.dir === state.workspace.dir ? state.servers : [],
+        // Another project opened, or none is open: the Projects screen isn't over one any more.
+        projectsShown: workspace.dir === state.workspace.dir ? state.projectsShown : false,
       })),
     ),
-    edi.on('recent', (recent) => useApp.setState({ recent })),
+    edi.on('projects', (projects) =>
+      useApp.setState((state) => ({
+        projects,
+        // The project being edited is gone: its sheet closes.
+        sheet: state.sheet?.projectId && !projects.some((project) => project.id === state.sheet?.projectId) ? null : state.sheet,
+      })),
+    ),
+    // `edi <folder>` for a folder that isn't a project yet.
+    edi.on('project:draft', (draft) => useApp.setState({ sheet: newSheet(draft) })),
     edi.on('servers', (servers) => useApp.setState({ servers })),
     edi.on('usage', (usage) => useApp.setState({ usage })),
     // Only the side: the widths here may be newer than the main process's (a drag not saved yet).
@@ -529,7 +625,9 @@ export function connect(): () => void {
       })),
     ),
   ];
-  void edi.getState().then((state) => useApp.setState({ ...state, ready: true }));
+  void edi.getState().then(({ draft, ...state }) =>
+    useApp.setState((current) => ({ ...state, ready: true, sheet: draft ? newSheet(draft) : current.sheet })),
+  );
   void edi.claudeUsage().then((usage) => useApp.setState({ usage }));
   return () => off.forEach((unsubscribe) => unsubscribe());
 }

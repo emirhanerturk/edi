@@ -1,0 +1,815 @@
+/* Projects: the screen edi opens on, the New and Edit project sheet, logos, and the project in the title bar. */
+
+/* Logos: an image, or the first letter of the name on one of six colors. */
+.logo-color[data-color='purple'] {
+  --logo: #c678dd;
+  --logo-tint: rgba(198, 120, 221, 0.2);
+}
+
+.logo-color[data-color='blue'] {
+  --logo: #61afef;
+  --logo-tint: rgba(97, 175, 239, 0.2);
+}
+
+.logo-color[data-color='cyan'] {
+  --logo: #56b6c2;
+  --logo-tint: rgba(86, 182, 194, 0.2);
+}
+
+.logo-color[data-color='green'] {
+  --logo: #98c379;
+  --logo-tint: rgba(152, 195, 121, 0.2);
+}
+
+.logo-color[data-color='orange'] {
+  --logo: #d19a66;
+  --logo-tint: rgba(209, 154, 102, 0.2);
+}
+
+.logo-color[data-color='gray'] {
+  --logo: #abb2bf;
+  --logo-tint: rgba(171, 178, 191, 0.16);
+}
+
+.project-logo {
+  flex: none;
+  display: block;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  border-radius: calc(var(--logo-size) * 0.225);
+  object-fit: contain;
+}
+
+.project-logo.letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--logo-tint);
+  color: var(--logo);
+  font-size: calc(var(--logo-size) * 0.45);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* The Projects screen. Centred while it fits; scrolls once it doesn't. */
+.projects {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 40px 24px;
+  overflow: auto;
+}
+
+/* All projects: over the open project, below the title bar. */
+.projects.overlay {
+  position: fixed;
+  top: 38px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--bg);
+}
+
+.projects-box {
+  width: min(1104px, 100%);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.projects-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.projects-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.projects-error {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -8px 0 0;
+  color: var(--red);
+  user-select: text;
+}
+
+.projects-error .button-quiet {
+  margin-left: 0;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.project-card-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.project-card {
+  width: 100%;
+  height: 152px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.project-card.is-last,
+.project-card.is-open {
+  border-color: #4b5263;
+}
+
+.project-card:not(.missing):hover,
+.project-card:focus-visible {
+  background: var(--panel-open);
+  border-color: #4b5263;
+  outline: none;
+}
+
+.project-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.project-badge {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.project-badge.open {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.project-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.project-name {
+  margin-top: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-path {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.project-foot-fixed {
+  flex: none;
+}
+
+.project-foot-globe {
+  margin-left: 6px;
+}
+
+.project-foot-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* More actions: shows with the pointer over the card (over its badge) or with the keyboard on it. */
+.project-more {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--chip);
+  color: var(--text);
+  opacity: 0;
+}
+
+.project-card-wrap:hover .project-more,
+.project-more:focus-visible {
+  opacity: 1;
+}
+
+/* The focus alone (on the first card at startup) leaves the badge in view. */
+.project-card-wrap.has-badge:hover .project-badge {
+  visibility: hidden;
+}
+
+.project-more:hover {
+  background: var(--chip-strong);
+}
+
+/* A project whose folder has moved. */
+.project-card.missing .project-name {
+  color: var(--text-2);
+}
+
+.project-card.missing .project-logo {
+  opacity: 0.5;
+}
+
+.project-missing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.project-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-actions .button-outline {
+  height: 26px;
+}
+
+.project-actions .button-quiet {
+  margin-left: 0;
+}
+
+.project-new {
+  height: 152px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px dashed #4b5263;
+  color: var(--text);
+}
+
+.project-new:hover,
+.project-new:focus-visible {
+  background: var(--panel);
+  outline: none;
+}
+
+.project-new-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--chip-quiet);
+}
+
+.project-new-title {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.project-new-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.projects-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--chip);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.projects-hints .mono {
+  color: var(--text-2);
+  margin-right: 6px;
+}
+
+/* The sheet: over the whole window, the title bar too. */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(13, 15, 19, 0.66);
+  -webkit-app-region: no-drag;
+}
+
+.sheet {
+  width: 540px;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.sheet-title {
+  margin: 0;
+  padding: 20px 24px 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.sheet-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.sheet-label-optional {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.sheet-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sheet-note-path {
+  color: var(--text-2);
+  user-select: text;
+}
+
+.sheet-taken,
+.sheet-error {
+  color: var(--red);
+}
+
+.sheet-error {
+  margin: 0;
+  user-select: text;
+}
+
+.sheet-folder {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 0 12px;
+  border-radius: 8px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.sheet-folder-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-change {
+  flex: none;
+  height: 28px;
+}
+
+.sheet-input {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  user-select: text;
+}
+
+.sheet-input:focus {
+  border-color: var(--accent);
+}
+
+/* Logo tiles: the images offered, the letter and Choose…. */
+.logo-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.logo-tile {
+  width: 68px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.logo-tile-button {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--input);
+  border: 1px solid var(--chip);
+}
+
+.logo-tile-button img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.logo-tile-button.on {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--accent);
+}
+
+.logo-tile-button.choose {
+  background: none;
+  border: 1px dashed #4b5263;
+  color: var(--text-2);
+}
+
+.logo-tile-button.choose:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.logo-tile-label {
+  max-width: 68px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logo-tile-label.on {
+  color: var(--text);
+}
+
+.logo-colors {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--logo);
+}
+
+.logo-swatch.on {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--accent);
+}
+
+/* Links: the star marks the main one. */
+.link-rows {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.link-row {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+}
+
+.link-row + .link-row {
+  border-top: 1px solid var(--chip);
+}
+
+.link-row.invalid .link-url {
+  color: var(--red);
+}
+
+.link-star,
+.link-remove {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.link-star.on {
+  color: var(--accent);
+}
+
+.link-star:hover,
+.link-remove:hover {
+  background: var(--chip);
+  color: var(--text);
+}
+
+.link-url,
+.link-label {
+  height: 30px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  user-select: text;
+}
+
+.link-url {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 12.5px;
+}
+
+.link-label {
+  flex: none;
+  width: 120px;
+  padding: 0 10px;
+  border-left: 1px solid var(--chip);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.link-add {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin-left: -6px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.link-add:hover {
+  color: var(--text);
+  background: var(--chip-quiet);
+}
+
+.sheet-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+}
+
+.sheet-cancel {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.sheet-cancel:hover {
+  border-color: var(--muted);
+}
+
+.sheet-submit {
+  height: 32px;
+  padding: 0 16px;
+}
+
+.sheet-remove {
+  height: 32px;
+  padding: 0 4px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.sheet-remove:hover {
+  color: var(--red);
+}
+
+/* The project in the title bar: right after the window buttons. */
+.titlebar-project {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.project-switch,
+.titlebar-links {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+}
+
+.project-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+  height: 26px;
+  padding: 0 8px 0 5px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.project-button:hover,
+.project-button[aria-expanded='true'] {
+  background: var(--chip);
+}
+
+.project-button-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.titlebar-divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+
+.titlebar-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 26px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.titlebar-link svg {
+  color: var(--muted);
+}
+
+.titlebar-link-text {
+  min-width: 0;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-link:hover .titlebar-link-text {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.links-more {
+  flex: none;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.links-more:hover,
+.links-more[aria-expanded='true'] {
+  border-color: #4b5263;
+  background: var(--chip);
+  color: var(--text);
+}
+
+.project-menu {
+  top: 31px;
+  left: -5px;
+  width: 300px;
+}
+
+.project-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px 8px;
+}
+
+.project-menu-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.project-menu-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-menu-path {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links-menu {
+  top: 31px;
+  left: -14px;
+  width: 320px;
+}
+
+.links-star {
+  flex: none;
+  width: 12px;
+  color: var(--accent);
+}
+
+.links-arrow {
+  color: var(--muted);
+}

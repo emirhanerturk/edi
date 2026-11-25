@@ -49,8 +49,12 @@ export interface Launched {
   userData: string;
 }
 
-/** Launches the app with an empty user data folder (or the given one) and a hidden window. */
-export async function launch(opts: { openDir?: string; userData?: string; usageFile?: string } = {}): Promise<Launched> {
+/**
+ * Launches the app with an empty user data folder (or the given one) and a hidden window. `openDir`
+ * opens that folder as it is (a project is made for it if needed); `args` are passed on, such as the
+ * `edi` command's `--open=<folder>`.
+ */
+export async function launch(opts: { openDir?: string; userData?: string; usageFile?: string; args?: string[] } = {}): Promise<Launched> {
   const userData = opts.userData ?? (await tmpDir('edi-e2e-data-'));
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(GIT_ENV)) {
@@ -64,7 +68,7 @@ export async function launch(opts: { openDir?: string; userData?: string; usageF
   env.EDI_USAGE_FILE = opts.usageFile ?? join(userData, 'claude-usage.json');
   if (opts.openDir) env.EDI_OPEN_DIR = opts.openDir;
 
-  const app = await _electron.launch({ args: [root], env });
+  const app = await _electron.launch({ args: [root, ...(opts.args ?? [])], env });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   // A hidden window cannot answer a dialog: in tests the default answer is the first button (confirm).
@@ -75,9 +79,10 @@ export async function launch(opts: { openDir?: string; userData?: string; usageF
 type Asked = { message: string; detail: string; buttons: string[] };
 
 /**
- * From now on, answers the app's "Quit edi?" and "Switch folders?" dialogs with the given button and
- * records them, whatever they ask about (a running process, unsaved files, a git operation): one left
- * unanswered in the hidden window would hang the test's closing. Other dialogs, and the page's
+ * From now on, answers the app's "Quit edi?", "Switch folders?", "Close the project?" and "Remove … from
+ * the list?" dialogs with the given button and records them, whatever they ask about (a running process,
+ * unsaved files, a git operation): one left unanswered in the hidden window would hang the test's
+ * closing. Other dialogs, and the page's
  * `window.confirm` boxes that go through the same function in Electron, are left alone (they are
  * answered through Playwright's `dialog` event).
  */
@@ -89,7 +94,9 @@ export async function answerDialogs(app: ElectronApplication, response: number):
     const real = store.__ediRealDialog;
     const fake = async (...args: unknown[]) => {
       const options = (args.length > 1 ? args[1] : args[0]) as Partial<Asked>;
-      if (options.message !== 'Quit edi?' && options.message !== 'Switch folders?') return (real as (...a: unknown[]) => unknown)(...args);
+      const message = options.message ?? '';
+      const ours = message === 'Quit edi?' || message === 'Switch folders?' || message === 'Close the project?' || message.startsWith('Remove "');
+      if (!ours) return (real as (...a: unknown[]) => unknown)(...args);
       store.__ediDialogs?.push({ message: options.message ?? '', detail: options.detail ?? '', buttons: options.buttons ?? [] });
       return { response: answer, checkboxChecked: false };
     };

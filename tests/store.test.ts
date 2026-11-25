@@ -1,7 +1,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULTS, addRecent, loadState, mergeLayout, saveState, saveStateSync } from '../src/main/store.js';
+import { DEFAULTS, loadState, mergeLayout, saveState, saveStateSync } from '../src/main/store.js';
 import { makeTmpDir } from './helpers/tmpRepo.js';
 
 describe('persistent state', () => {
@@ -23,17 +23,24 @@ describe('persistent state', () => {
     await writeFile(
       file,
       JSON.stringify({
-        lastDir: '/a/b',
+        projects: [
+          { id: 'p1', dir: '/a/b', name: '  Quizei ', logo: { kind: 'letter', color: 'teal' }, links: 'none', openedAt: 'yesterday', repoCount: 3 },
+          { id: 'p2', dir: 'relative', name: 'x' },
+          { id: 'p3', dir: '/a/b', name: 'a second one for the same folder' },
+          'x',
+        ],
         layout: { right: 420, diffMode: 'side by side', left: 'wide', terminals: 'middle' },
-        recent: [{ dir: '/a/b', repoCount: 3 }, { dir: 7 }, 'x'],
         window: { x: 1, y: 2, width: 'lots' },
         autoFetch: 'no',
         keepAwake: 1,
       }),
     );
-    expect(await loadState(file)).toEqual({
-      lastDir: '/a/b',
-      recent: [{ dir: '/a/b', repoCount: 3 }],
+    const state = await loadState(file);
+    expect(state.projects).toEqual([
+      { id: 'p1', dir: '/a/b', name: 'Quizei', logo: { kind: 'letter', color: expect.any(String) }, links: [], openedAt: 0, repoCount: 3 },
+    ]);
+    expect(state).toEqual({
+      projects: state.projects,
       layout: { left: 492, right: 420, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
       window: null,
       autoFetch: true,
@@ -41,25 +48,43 @@ describe('persistent state', () => {
     });
   });
 
-  it('addRecent moves a duplicate to the front and caps the list at 8', () => {
-    let state = DEFAULTS;
-    for (let i = 1; i <= 9; i++) state = addRecent(state, `/d/${i}`, i);
-    expect(state.recent.map((r) => r.dir)).toEqual(['/d/9', '/d/8', '/d/7', '/d/6', '/d/5', '/d/4', '/d/3', '/d/2']);
-
-    state = addRecent(state, '/d/5', 50);
-    expect(state.recent.slice(0, 2)).toEqual([
-      { dir: '/d/5', repoCount: 50 },
-      { dir: '/d/9', repoCount: 9 },
+  it('turns the recent folders of a file from before projects into projects, the last folder opened first', async () => {
+    const file = join(await makeTmpDir(), 'state.json');
+    await writeFile(
+      file,
+      JSON.stringify({
+        lastDir: '/s/quizei',
+        recent: [
+          { dir: '/s/quizei', repoCount: 8 },
+          { dir: '/s/beremo', repoCount: 1 },
+          { dir: 7 },
+          'x',
+        ],
+      }),
+    );
+    const { projects } = await loadState(file, 1_000);
+    expect(projects.map(({ dir, name, openedAt, repoCount, links }) => ({ dir, name, openedAt, repoCount, links }))).toEqual([
+      { dir: '/s/quizei', name: 'quizei', openedAt: 1_000, repoCount: 8, links: [] },
+      { dir: '/s/beremo', name: 'beremo', openedAt: 0, repoCount: 1, links: [] },
     ]);
-    expect(state.recent).toHaveLength(8);
-    expect(DEFAULTS.recent).toEqual([]); // the input is not mutated
+    expect(projects.every((project) => project.logo.kind === 'letter')).toBe(true);
+    expect(new Set(projects.map((project) => project.id)).size).toBe(2);
   });
 
   it('round-trips through saveState and loadState and creates the folder itself', async () => {
     const file = join(await makeTmpDir(), 'nested', 'state.json');
     const state = {
-      lastDir: '/a/klasör',
-      recent: [{ dir: '/a/klasör', repoCount: 2 }],
+      projects: [
+        {
+          id: 'a1b2-c3',
+          dir: '/a/klasör',
+          name: 'Klasör',
+          logo: { kind: 'image' as const, file: 'a1b2-c3-0f0f0f0f.svg' },
+          links: [{ url: 'https://quizei.com/', label: 'Site' }],
+          openedAt: 1_700_000_000_000,
+          repoCount: 2,
+        },
+      ],
       layout: { left: 500, right: 400, diffMode: 'inline' as const, historyLayout: 'byRepo' as const, terminals: 'right' as const },
       window: { x: 10, y: 20, width: 1200, height: 800 },
       autoFetch: false,
@@ -73,7 +98,7 @@ describe('persistent state', () => {
   it('saveStateSync writes the same file before returning, leaving no temporary file', async () => {
     const dir = await makeTmpDir();
     const file = join(dir, 'nested', 'state.json');
-    const state = { ...DEFAULTS, lastDir: '/a/klasör' };
+    const state = { ...DEFAULTS, autoFetch: false };
     saveStateSync(file, state);
     expect(await loadState(file)).toEqual(state);
     expect(await readdir(join(dir, 'nested'))).toEqual(['state.json']);

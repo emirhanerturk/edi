@@ -105,11 +105,17 @@ export class Workspace {
     if (before !== JSON.stringify([this.rootSessions, this.repos.map((repo) => repo.claude)])) this.emit();
   }
 
-  dispose(): void {
+  /** No folder is open any more; late results from the one that was are ignored. */
+  close(): void {
     this.stop();
     this.generation++;
     this.dir = null;
     this.repos = [];
+    this.rootSessions = 0;
+  }
+
+  dispose(): void {
+    this.close();
   }
 
   private stop(): void {

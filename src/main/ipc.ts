@@ -1,21 +1,52 @@
-import { stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { type BrowserWindow, Menu, dialog, ipcMain, net, powerSaveBlocker, protocol, shell } from 'electron';
+import { discoverRepos } from '../git/discover.js';
+import { remoteWebUrl } from '../git/remoteUrl.js';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
+import { LOGO_EXTENSIONS, LogoCandidates, checkLogo, dropLogo, findLogos, logoUrl, serveLogo, storeLogo } from './logos.js';
 import { serveMedia } from './media.js';
-import { type BusyKind, type Question, busyQuestion, discardQuestion, dropStashQuestion, undoCommitQuestion } from './questions.js';
+import { type ProjectTemplate, byOpened, cleanInput, markOpened } from './projects.js';
+import {
+  type BusyKind,
+  type Question,
+  busyQuestion,
+  discardQuestion,
+  dropStashQuestion,
+  removeProjectQuestion,
+  undoCommitQuestion,
+} from './questions.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
+import { LOGO_SCHEME, linkName } from '../shared/projects.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, ClaudeUsage, EdiEvents, GitOp, Layout, OpenResult, ServerInfo, StashMenuAction, TerminalCreated } from '../shared/api.js';
+import type {
+  AppState,
+  ChosenLogo,
+  ClaudeUsage,
+  EdiEvents,
+  GitOp,
+  Layout,
+  OpenResult,
+  Project,
+  ProjectDraft,
+  ProjectInput,
+  ProjectLogo,
+  ProjectMenuAction,
+  ProjectView,
+  ServerInfo,
+  StashMenuAction,
+  TerminalCreated,
+} from '../shared/api.js';
 import { AutoFetch } from './autoFetch.js';
 import { KeepAwake } from './keepAwake.js';
 import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
-import { type Persisted, addRecent, loadState, mergeLayout, saveState, saveStateSync } from './store.js';
+import { type Persisted, loadState, mergeLayout, saveState, saveStateSync } from './store.js';
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
 import { openUrl } from './openUrl.js';
@@ -31,6 +62,20 @@ const USAGE_MS = 5000;
 const AFTER_CREATE_MS = 700;
 /** Rapid layout changes, such as dragging, are held this long and written once. */
 const LAYOUT_SAVE_MS = 400;
+
+const CANCELLED = { ok: false, error: 'Cancelled', cancelled: true } as const;
+const NO_PROJECT = { ok: false, error: 'Project not found' } as const;
+const isDir = (path: string) => stat(path).then((info) => info.isDirectory(), () => false);
+/** The folder's real path, or null if it isn't a folder. */
+const realDir = async (path: string): Promise<string | null> => {
+  try {
+    const real = await realpath(path);
+    return (await isDir(real)) ? real : null;
+  } catch {
+    return null;
+  }
+};
+const takenBy = (project: Project) => ({ ok: false, error: `This folder is already the project ${project.name}` }) as const;
 
 
 /** The main process's state and everything it talks to the page about. */
@@ -64,6 +109,16 @@ export class AppCore {
   private readonly usagePath = usageFile(process.env, os.homedir());
   private layoutTimer: NodeJS.Timeout | null = null;
   private readonly opening = new Serial<OpenResult>();
+  /** Where edi keeps its copies of the projects' logos. */
+  private readonly logoFolder: string;
+  /** The images offered in the sheet: the only ones, besides edi's copies, the page can show or have copied. */
+  private readonly logos = new LogoCandidates();
+  /** The page asked for its first state: from then on a New project sheet goes to it as an event. */
+  private pageLoaded = false;
+  /** The sheet `edi <folder>` asked for before the page had loaded; handed over with the first state. */
+  private pendingDraft: ProjectDraft | null = null;
+  /** The latest projects list being put together: an older one finishing later isn't sent over it. */
+  private projectsSent = 0;
 
   private constructor(
     private readonly stateFile: string,
@@ -71,6 +126,7 @@ export class AppCore {
     private readonly getWindow: () => BrowserWindow | null,
   ) {
     this.state = state;
+    this.logoFolder = join(dirname(stateFile), 'logos');
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
     this.gitOps = new GitOps(this.workspace);
     this.autoFetch = new AutoFetch(
@@ -269,17 +325,18 @@ export class AppCore {
   /**
    * Opens a folder. Requests run one at a time: two at once could mix one folder's repos into the
    * other, and the second's terminal cleanup could kill a terminal just opened in the first. A request
-   * for a folder already being opened (a double click) shares that one's result.
+   * for a folder already being opened (a double click) shares that one's result. Once open, the
+   * folder's project is marked opened; a folder without one gets one, from `template` if given.
    */
-  openFolder(dir: string): Promise<OpenResult> {
-    return this.opening.run(resolve(dir), () => this.openFolderNow(dir));
+  openFolder(dir: string, template?: ProjectTemplate): Promise<OpenResult> {
+    return this.opening.run(resolve(dir), () => this.openFolderNow(dir, template));
   }
 
-  private async openFolderNow(dir: string): Promise<OpenResult> {
+  private async openFolderNow(dir: string, template?: ProjectTemplate): Promise<OpenResult> {
     const previous = this.workspace.view().dir;
     // Changing folders closes the terminals: if a process is running, ask first.
-    if (previous !== null && resolve(dir) !== previous && (await stat(dir).then((s) => s.isDirectory(), () => false))) {
-      if (!(await this.confirmBusy('switch'))) return { ok: false, error: 'Cancelled', cancelled: true };
+    if (previous !== null && resolve(dir) !== previous && (await isDir(dir))) {
+      if (!(await this.confirmBusy('switch'))) return CANCELLED;
     }
     const result = await this.workspace.open(dir);
     if (!result.ok) return result;
@@ -290,23 +347,291 @@ export class AppCore {
       this.terminalsChanged++;
       this.sendServers([]);
     }
-    this.update((state) => ({ ...addRecent(state, opened, result.repoCount), lastDir: opened }));
+    const now = Date.now();
+    this.update((state) => ({ ...state, projects: markOpened(state.projects, opened, result.repoCount, now, template) }));
     this.send('workspace', this.workspace.view());
-    this.send('recent', this.state.recent);
+    void this.sendProjects();
     void this.pollProcesses();
     return { ok: true };
   }
 
-  /** On startup: the requested folder, otherwise the last one opened (if it still exists). */
-  async openInitial(requested: string | undefined): Promise<void> {
-    const dir = requested ?? this.state.lastDir;
-    if (!dir) return;
-    const exists = await stat(dir).then((s) => s.isDirectory(), () => false);
-    if (exists) await this.openFolder(dir);
+  /** Closes the open folder and its terminals: the page shows the Projects screen. */
+  private closeFolder(): Promise<OpenResult> {
+    return this.opening.run('\0close', async () => {
+      this.workspace.close();
+      this.ptys.killAll();
+      this.terminalsChanged++;
+      // No terminal is left to ask about on quit; no poll runs without a folder to say so.
+      this.busyTabs = 0;
+      this.sendServers([]);
+      this.send('workspace', this.workspace.view());
+      return { ok: true };
+    });
   }
 
-  appState(): AppState {
-    return { home: os.homedir(), workspace: this.workspace.view(), recent: this.state.recent, layout: this.state.layout };
+  /**
+   * On startup nothing opens on its own: the page shows the Projects screen. `requested` (from
+   * `edi <folder>`) opens that folder's project, or the New project sheet for a folder that isn't one.
+   * `direct` (EDI_OPEN_DIR, for tests and development) opens the folder as it is, making it a project if needed.
+   */
+  async openInitial(requested: string | undefined, direct: string | undefined): Promise<void> {
+    if (requested !== undefined) await this.openRequested(requested);
+    else if (direct !== undefined && (await isDir(direct))) await this.openFolder(direct);
+  }
+
+  /** `edi <folder>`: the folder's project opens; for a folder that isn't a project yet the page shows the New project sheet. */
+  async openRequested(dir: string): Promise<void> {
+    const real = await realDir(dir);
+    if (real === null) return;
+    if (this.projectFor(real)) {
+      await this.openFolder(real);
+      return;
+    }
+    const draft = await this.draftFor(real, null);
+    if (this.pageLoaded) this.send('project:draft', draft);
+    else this.pendingDraft = draft;
+  }
+
+  async appState(): Promise<AppState> {
+    this.pageLoaded = true;
+    const draft = this.pendingDraft;
+    this.pendingDraft = null;
+    return { home: os.homedir(), workspace: this.workspace.view(), projects: await this.projectViews(), draft, layout: this.state.layout };
+  }
+
+  private project(id: unknown): Project | null {
+    return typeof id === 'string' ? (this.state.projects.find((project) => project.id === id) ?? null) : null;
+  }
+
+  private projectFor(dir: string): Project | null {
+    return this.state.projects.find((project) => project.dir === dir) ?? null;
+  }
+
+  private isOpen(project: Project): boolean {
+    return this.workspace.view().dir === project.dir;
+  }
+
+  /** The projects as the page sees them: last opened first, with whether each folder is still there. */
+  private projectViews(): Promise<ProjectView[]> {
+    return Promise.all(
+      byOpened(this.state.projects).map(async (project) => ({
+        ...project,
+        logoUrl: project.logo.kind === 'image' ? logoUrl(project.logo.file) : null,
+        exists: await isDir(project.dir),
+        open: this.isOpen(project),
+      })),
+    );
+  }
+
+  private async sendProjects(): Promise<void> {
+    const serial = ++this.projectsSent;
+    const views = await this.projectViews();
+    if (serial === this.projectsSent) this.send('projects', views);
+  }
+
+  private changeProjects(change: (projects: Project[]) => Project[]): void {
+    this.update((state) => ({ ...state, projects: change(state.projects) }));
+    void this.sendProjects();
+  }
+
+  /** The folder panel; the chosen folder's real path, or null if cancelled. */
+  private async pickFolder(title: string, defaultPath: string): Promise<string | null> {
+    const win = this.getWindow();
+    const options = { title, buttonLabel: 'Choose', defaultPath, properties: ['openDirectory' as const, 'createDirectory' as const] };
+    const picked = await (win && !win.isDestroyed() ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+    const dir = picked.filePaths[0];
+    return picked.canceled || !dir ? null : realDir(dir);
+  }
+
+  /** Where the folder panel starts for a new project: beside the last one opened, as projects tend to sit together. */
+  private async newProjectPlace(): Promise<string> {
+    const last = byOpened(this.state.projects)[0];
+    return last && (await isDir(dirname(last.dir))) ? dirname(last.dir) : os.homedir();
+  }
+
+  /** What the sheet starts with for a folder: its name and repos, the images that look like its logo, its repository's page. */
+  private async draftFor(dir: string, selfId: string | null): Promise<ProjectDraft> {
+    const repos = await discoverRepos(dir);
+    const [found, web] = await Promise.all([findLogos(dir, repos), repos.length === 1 ? remoteWebUrl(repos[0]!.path) : Promise.resolve(null)]);
+    const taken = this.state.projects.find((project) => project.dir === dir && project.id !== selfId);
+    return {
+      dir,
+      name: basename(dir) || dir,
+      repoCount: repos.length,
+      logos: found.map((path) => this.logos.add(join(dir, path), path)),
+      links: web ? [web] : [],
+      taken: taken ? { id: taken.id, name: taken.name } : null,
+    };
+  }
+
+  /** New project (⌘O): the folder panel, then either the folder's project opens or the sheet gets its starting values. */
+  async newProject(): Promise<ProjectDraft | null> {
+    const dir = await this.pickFolder('New project', await this.newProjectPlace());
+    if (dir === null) return null;
+    if (this.projectFor(dir)) {
+      await this.openFolder(dir);
+      return null;
+    }
+    return this.draftFor(dir, null);
+  }
+
+  /** Change… in the sheet. */
+  async chooseProjectFolder(projectId: unknown): Promise<ProjectDraft | null> {
+    const self = projectId === null ? null : this.project(projectId);
+    if (projectId !== null && (!self || this.isOpen(self))) return null;
+    const dir = await this.pickFolder('Choose the project’s folder', self ? dirname(self.dir) : await this.newProjectPlace());
+    return dir === null ? null : this.draftFor(dir, self?.id ?? null);
+  }
+
+  /** Edit project…: the images and repos of the project's folder. */
+  async projectDraft(projectId: unknown): Promise<ProjectDraft | null> {
+    const project = this.project(projectId);
+    if (!project) return null;
+    if (!(await isDir(project.dir))) return { dir: project.dir, name: project.name, repoCount: project.repoCount, logos: [], links: [], taken: null };
+    return this.draftFor(project.dir, project.id);
+  }
+
+  /** Choose… in the sheet: any image the user picks, checked before it is offered. */
+  async chooseLogo(): Promise<ChosenLogo> {
+    const win = this.getWindow();
+    const options = {
+      title: 'Choose a logo',
+      buttonLabel: 'Choose',
+      defaultPath: await this.newProjectPlace(),
+      properties: ['openFile' as const],
+      filters: [{ name: 'Images', extensions: LOGO_EXTENSIONS }],
+    };
+    const picked = await (win && !win.isDestroyed() ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+    const path = picked.filePaths[0];
+    if (picked.canceled || !path) return null;
+    const checked = await checkLogo(path);
+    return checked.ok ? { ok: true, logo: this.logos.add(checked.real, basename(path)) } : { ok: false, error: checked.error };
+  }
+
+  /**
+   * The logo the sheet picked, as it is kept: an image is copied into edi's folder first (`copied`, to
+   * delete if it ends up unused). `current` is the project's logo now, for `keep`.
+   */
+  private async logoFrom(
+    choice: ProjectInput['logo'],
+    projectId: string,
+    current: ProjectLogo | null,
+  ): Promise<{ ok: true; logo: ProjectLogo; copied: string | null } | { ok: false; error: string }> {
+    if (choice.kind === 'letter') return { ok: true, logo: { kind: 'letter', color: choice.color }, copied: null };
+    if (choice.kind === 'keep') return current ? { ok: true, logo: current, copied: null } : { ok: false, error: 'Invalid request' };
+    const source = this.logos.path(choice.id);
+    if (source === null) return { ok: false, error: 'The image is no longer offered; choose it again' };
+    const stored = await storeLogo(this.logoFolder, projectId, source);
+    return stored.ok ? { ok: true, logo: { kind: 'image', file: stored.file }, copied: stored.file } : stored;
+  }
+
+  /** The New project sheet's Create project: the project is made as its folder opens. */
+  async createProject(input: unknown): Promise<OpenResult> {
+    const clean = cleanInput(input);
+    if (!clean.ok) return clean;
+    const dir = await realDir(clean.input.dir);
+    if (dir === null) return { ok: false, error: 'Folder not found' };
+    const taken = this.projectFor(dir);
+    if (taken) return takenBy(taken);
+    const id = randomUUID();
+    const logo = await this.logoFrom(clean.input.logo, id, null);
+    if (!logo.ok) return logo;
+    const result = await this.openFolder(dir, { id, name: clean.input.name, logo: logo.logo, links: clean.input.links });
+    // Not opened (cancelled, or another request for the folder came first): the copy isn't anyone's.
+    if (logo.copied !== null && !this.project(id)) void dropLogo(this.logoFolder, logo.copied);
+    return result;
+  }
+
+  /** Edit project…'s Save. The open project keeps its folder. */
+  async updateProject(projectId: unknown, input: unknown): Promise<OpenResult> {
+    const project = this.project(projectId);
+    if (!project) return NO_PROJECT;
+    const clean = cleanInput(input);
+    if (!clean.ok) return clean;
+    let dir = project.dir;
+    if (clean.input.dir !== project.dir) {
+      if (this.isOpen(project)) return { ok: false, error: 'The open project stays in its folder' };
+      const real = await realDir(clean.input.dir);
+      if (real === null) return { ok: false, error: 'Folder not found' };
+      const taken = this.projectFor(real);
+      if (taken && taken.id !== project.id) return takenBy(taken);
+      dir = real;
+    }
+    const logo = await this.logoFrom(clean.input.logo, project.id, project.logo);
+    if (!logo.ok) return logo;
+    if (!this.project(project.id)) {
+      // Removed while the image was copied.
+      if (logo.copied !== null) void dropLogo(this.logoFolder, logo.copied);
+      return NO_PROJECT;
+    }
+    const { name, links } = clean.input;
+    this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links } : other)));
+    const old = project.logo;
+    if (old.kind === 'image' && (logo.logo.kind !== 'image' || logo.logo.file !== old.file)) void dropLogo(this.logoFolder, old.file);
+    return { ok: true };
+  }
+
+  /** Remove from list: after asking. The open project closes first (asking too if a terminal is busy). */
+  async removeProject(projectId: unknown): Promise<OpenResult> {
+    const project = this.project(projectId);
+    if (!project) return NO_PROJECT;
+    if (!(await this.ask(removeProjectQuestion(project.name)))) return CANCELLED;
+    if (this.isOpen(project)) {
+      if (!(await this.confirmBusy('close'))) return CANCELLED;
+      await this.closeFolder();
+    }
+    this.changeProjects((projects) => projects.filter((other) => other.id !== project.id));
+    if (project.logo.kind === 'image') void dropLogo(this.logoFolder, project.logo.file);
+    return { ok: true };
+  }
+
+  async openProject(projectId: unknown): Promise<OpenResult> {
+    const project = this.project(projectId);
+    if (!project) return NO_PROJECT;
+    if (!(await isDir(project.dir))) {
+      void this.sendProjects();
+      return { ok: false, error: 'Folder not found' };
+    }
+    return this.openFolder(project.dir);
+  }
+
+  /** Locate…: for a project whose folder has moved, the folder panel to find it. */
+  async locateProject(projectId: unknown): Promise<OpenResult> {
+    const project = this.project(projectId);
+    if (!project) return NO_PROJECT;
+    if (this.isOpen(project)) return { ok: false, error: 'The open project stays in its folder' };
+    const parent = dirname(project.dir);
+    const dir = await this.pickFolder(`Locate ${project.name}`, (await isDir(parent)) ? parent : os.homedir());
+    if (dir === null) return CANCELLED;
+    const taken = this.projectFor(dir);
+    if (taken && taken.id !== project.id) return takenBy(taken);
+    this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir } : other)));
+    return { ok: true };
+  }
+
+  async revealProject(projectId: unknown): Promise<void> {
+    const project = this.project(projectId);
+    if (project && (await isDir(project.dir))) shell.showItemInFolder(project.dir);
+  }
+
+  /** The right-click menu of a project card. */
+  async projectMenu(projectId: unknown): Promise<ProjectMenuAction | null> {
+    const project = this.project(projectId);
+    if (!project) return null;
+    const exists = await isDir(project.dir);
+    const items: { id: ProjectMenuAction | null; label: string; enabled?: boolean }[] = [{ id: 'open', label: 'Open', enabled: exists }];
+    if (project.links.length > 0) {
+      items.push({ id: null, label: '-' });
+      project.links.forEach((link, index) => items.push({ id: `link:${index}`, label: `Open ${linkName(link)}` }));
+    }
+    items.push(
+      { id: null, label: '-' },
+      { id: 'edit', label: 'Edit Project…' },
+      { id: 'reveal', label: 'Reveal in Finder', enabled: exists },
+      { id: null, label: '-' },
+      { id: 'remove', label: 'Remove from List…' },
+    );
+    return this.popup(items);
   }
 
   register(): void {
@@ -314,22 +639,21 @@ export class AppCore {
     protocol.handle(MEDIA_SCHEME, (request) =>
       serveMedia((repoPath) => this.workspace.repo(repoPath)?.path ?? null, request.url, request.headers.get('range')),
     );
+    // Logos: edi's own copies, and the images offered in the sheet.
+    protocol.handle(LOGO_SCHEME, (request) => serveLogo(this.logoFolder, this.logos, request.url));
     ipcMain.handle('state:get', () => this.appState());
-    ipcMain.handle('folder:choose', async () => {
-      const win = this.getWindow();
-      if (!win) return;
-      const picked = await dialog.showOpenDialog(win, {
-        title: 'Open a folder',
-        buttonLabel: 'Open',
-        defaultPath: this.workspace.view().dir ?? os.homedir(),
-        properties: ['openDirectory'],
-      });
-      const dir = picked.filePaths[0];
-      if (!picked.canceled && dir) await this.openFolder(dir);
-    });
-    ipcMain.handle('folder:open', (_event, dir: unknown) =>
-      typeof dir === 'string' ? this.openFolder(dir) : { ok: false, error: 'Folder not found' },
-    );
+    // A project is named by its id; only the main process turns it into a folder.
+    ipcMain.handle('project:new', () => this.newProject());
+    ipcMain.handle('project:chooseFolder', (_event, projectId: unknown) => this.chooseProjectFolder(projectId));
+    ipcMain.handle('project:sheet', (_event, projectId: unknown) => this.projectDraft(projectId));
+    ipcMain.handle('project:chooseLogo', () => this.chooseLogo());
+    ipcMain.handle('project:create', (_event, input: unknown) => this.createProject(input));
+    ipcMain.handle('project:update', (_event, projectId: unknown, input: unknown) => this.updateProject(projectId, input));
+    ipcMain.handle('project:remove', (_event, projectId: unknown) => this.removeProject(projectId));
+    ipcMain.handle('project:open', (_event, projectId: unknown) => this.openProject(projectId));
+    ipcMain.handle('project:locate', (_event, projectId: unknown) => this.locateProject(projectId));
+    ipcMain.handle('project:reveal', (_event, projectId: unknown) => this.revealProject(projectId));
+    ipcMain.handle('project:menu', (_event, projectId: unknown) => this.projectMenu(projectId));
     ipcMain.handle('workspace:rescan', () => this.workspace.rescan());
     ipcMain.on('layout:set', (_event, patch: unknown) => this.setLayout(patch));
 

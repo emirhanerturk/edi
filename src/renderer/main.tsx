@@ -12,6 +12,7 @@ import './theme.css';
 import './app.css';
 import './terminals/terminals.css';
 import './git/git.css';
+import './projects/projects.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 

@@ -1,8 +1,9 @@
 # edi
 
 A terminal manager with Git built in, for working across several repositories at once.
-It is not an IDE: there is no editor. You open a folder, run your shells and Claude Code
-sessions in tabs on the left, and see every repository under that folder — branch, changes,
+It is not an IDE: there is no editor. You open a project — a folder with a name, a logo and its
+links — run your shells and Claude Code sessions in tabs on the left, and see every repository
+under that folder — branch, changes,
 what is waiting to be pushed or pulled — on the right. Staging, committing and syncing happen
 from that list.
 
@@ -10,6 +11,20 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 
 ## What it does today
 
+- **Projects.** edi opens on the Projects screen and opens nothing on its own: every project as a
+  card in a grid, last opened first, the last one marked "Last opened" (Enter opens it). A project
+  is a folder with a name, a logo and links. New project (⌘O) picks the folder, then a sheet
+  suggests the folder's name, the images in it that look like a logo (favicon, logo, icon files)
+  and, for a single repository with a remote on GitHub, GitLab, Bitbucket or Codeberg, its page;
+  any other image can be chosen, or the name's first letter on one of six colors. A project has any
+  number of links; the starred one is the main link. Right-click a card (or its … button) for its
+  links, Edit project…, Reveal in Finder and Remove from list; a project whose folder has moved
+  offers Locate…. The folders opened before projects existed become projects named after them.
+- **Title bar.** The open project's logo and name sit at the left, right after the window buttons;
+  its menu edits the project, switches to another one (asking first if a terminal is busy), shows
+  All projects (⇧⌘O, over the open project, which keeps running; Esc goes back) or starts a new
+  one. Beside it the main link is written out with ↗ (a click opens it in the browser), and +N opens
+  the other links.
 - **Claude usage.** The 5-hour and weekly limits in the title bar, with reset times (see
   [Install](#install) for the one-line setup).
 - **Terminals.** Real login shells (`$SHELL -l`) in tabs. A tab is named after the process
@@ -65,12 +80,13 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Keep Mac Awake.** View > Keep Mac Awake stops the Mac from going to sleep on its own while
   edi is open, so a long Claude Code session or build keeps running. The display may still
   turn off, and closing a laptop's lid still puts it to sleep. Off unless you turn it on.
-- **Remembers** the last folder, recent folders, the window position, the panel widths and
+- **Remembers** the projects, the window position, the panel widths and
   sides, the diff layout and the History layout.
 
-- **The `edi` command.** `edi <folder>` opens that folder in edi from any terminal; `edi .`
-  opens the current one, `edi` alone brings edi to the front. When edi is already open, the
-  same window switches to the folder (asking first if a terminal is busy).
+- **The `edi` command.** `edi <folder>` opens that folder's project in edi from any terminal;
+  `edi .` the current folder's, `edi` alone brings edi to the front. A folder that isn't a project
+  yet gets the New project sheet, filled in. When edi is already open, the same window switches
+  (asking first if a terminal is busy).
 
 ## Setup
 
@@ -93,7 +109,7 @@ npm start        # run the built app
 The development copy keeps its settings in a folder of its own (`edi-dev`), apart from the
 installed app.
 
-`⌘O` opens a folder, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab,
+`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab,
 `⌘1`–`⌘9` switch tabs.
 
 ## Install
@@ -167,6 +183,15 @@ preferences:
   outside it or into any `.git` folder. Viewing never writes; creating, renaming and trashing
   go through the same check. A commit is named by its hex id
   and must resolve to a commit in that repository before Git reads it.
+- **Projects touch only edi's own files.** The page names a project by its id; only the main
+  process turns it into a folder. Removing a project from the list, after asking, only forgets
+  it: the folder and its repositories stay as they are. A logo is a copy edi keeps in its own
+  folder (`logos/`, beside its state file), checked first to be an image of at most 2 MB whose
+  content is the type its name says; the page can show only those copies and the images the main
+  process offered in the sheet, never a path of its own.
+- **Links open in the browser, nowhere else.** Only http and https addresses are kept and opened,
+  without a user name or password in them. edi never loads a link itself: no favicon is fetched,
+  a logo comes from the folder or a file you pick.
 - **One operation per repository at a time.** A second one is refused while the first runs.
 - **Conflicts are resolved elsewhere.** edi shows them and blocks committing; it does not
   try to resolve them.
@@ -174,14 +199,14 @@ preferences:
   `claude` command or pretends to be another terminal. It reads the process list and the
   terminal title, nothing more.
 - **No telemetry, no network.** Fonts are bundled. The app makes no requests of its own.
-- **Asks before closing running work.** Quitting, closing a tab or switching folders asks
-  first when a terminal still has a running process.
+- **Asks before closing running work.** Quitting, closing a tab, switching projects or removing
+  the open one asks first when a terminal still has a running process.
 
 ## Layout
 
 ```
 src/git/        Git commands, status and diff parsing, file listing (no Electron)
-src/main/       main process: workspace polling, Git operations, terminals, saved state
+src/main/       main process: workspace polling, Git operations, terminals, projects and logos, saved state
 src/preload/    the bridge exposed to the page
 src/renderer/   the React interface
 src/shared/     types and pure rules shared by both sides

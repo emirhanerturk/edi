@@ -129,8 +129,18 @@ test('switching folders with a running process asks first', async () => {
   const other = await tmpDir();
   await makeRepo(other, 'beta');
   const { app, page } = await launch({ openDir: dir });
+  // Making the other folder a project opens it, which switches folders.
   const open = (target: string) =>
-    page.evaluate((d) => (window as unknown as { edi: { openFolder(dir: string): Promise<unknown> } }).edi.openFolder(d), target);
+    page.evaluate(
+      (d) =>
+        (window as unknown as { edi: { createProject(input: unknown): Promise<unknown> } }).edi.createProject({
+          dir: d,
+          name: 'other',
+          logo: { kind: 'letter', color: 'blue' },
+          links: [],
+        }),
+      target,
+    );
   try {
     await page.locator('.term-host.active').click();
     await page.keyboard.type('sleep 60\n');

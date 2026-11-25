@@ -1,11 +1,11 @@
 import { type CSSProperties, useEffect, useRef } from 'react';
-import { edi } from './bridge';
 import { CenterPanel } from './center/CenterPanel';
-import { EmptyState } from './components/EmptyState';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { ViewErrorBar } from './components/ViewErrorBar';
 import { TitleBar } from './components/TitleBar';
+import { ProjectSheet } from './projects/ProjectSheet';
+import { ProjectsScreen } from './projects/ProjectsScreen';
 import { RightPanel } from './right/RightPanel';
 import { connect, useApp } from './store';
 import { TerminalPanel } from './terminals/TerminalPanel';
@@ -16,6 +16,8 @@ export function App() {
   const right = useApp((s) => s.layout.right);
   const left = useApp((s) => s.layout.left);
   const centerOpen = useApp((s) => s.center.open);
+  const projectsShown = useApp((s) => s.projectsShown);
+  const sheet = useApp((s) => s.sheet);
   // With the terminals on the right the row is drawn reversed, so a drag to the right narrows them.
   const flip = useApp((s) => s.layout.terminals === 'right') ? -1 : 1;
   const body = useRef<HTMLElement>(null);
@@ -27,20 +29,27 @@ export function App() {
     // Listened to in the capture phase: the shortcut is handled before it reaches the terminal, even when the terminal has focus.
     const onKey = (event: KeyboardEvent) => {
       if (!event.metaKey || event.ctrlKey || event.altKey) return;
-      const { tabs, activeTab, newTab, closeTab, activate } = useApp.getState();
+      const state = useApp.getState();
+      const { tabs, activeTab, newTab, closeTab, activate } = state;
+      // The project's terminals and files are behind the Projects screen or a sheet: their shortcuts wait.
+      const covered = state.sheet !== null || state.projectsShown || state.workspace.dir === null;
       const key = event.key.toLowerCase();
       let handled = true;
-      if (key === 'o' && !event.shiftKey) void edi.chooseFolder();
-      else if (key === 't') void newTab({ claude: event.shiftKey });
-      else if (key === 'n' && !event.shiftKey) {
-        if (useApp.getState().workspace.dir === null) handled = false;
-        else useApp.getState().newUntitled();
-      }
-      else if (key === 'w' && !event.shiftKey) {
-        if (activeTab !== null) closeTab(activeTab);
+      if (key === 'o' && !event.shiftKey) {
+        if (state.sheet === null) void state.startNewProject();
+      } else if (key === 'o') {
+        // All projects, and back.
+        if (state.sheet === null && state.workspace.dir !== null) state.showProjects(!state.projectsShown);
+      } else if (key === 't') {
+        if (!covered) void newTab({ claude: event.shiftKey });
+      } else if (key === 'n' && !event.shiftKey) {
+        if (covered) handled = false;
+        else state.newUntitled();
+      } else if (key === 'w' && !event.shiftKey) {
+        if (!covered && activeTab !== null) closeTab(activeTab);
       } else if (/^[1-9]$/.test(key) && !event.shiftKey) {
         const tab = tabs[Number(key) - 1];
-        if (tab) activate(tab.id);
+        if (!covered && tab) activate(tab.id);
       } else handled = false;
       if (handled) {
         event.preventDefault();
@@ -57,7 +66,7 @@ export function App() {
       {!ready ? (
         <main className="app-body" />
       ) : dir === null ? (
-        <EmptyState />
+        <ProjectsScreen overlay={false} />
       ) : (
         <main
           className={`app-body${centerOpen ? ' with-center' : ''}${flip === -1 ? ' terminals-right' : ''}`}
@@ -90,6 +99,9 @@ export function App() {
       )}
       {ready && dir !== null && <ViewErrorBar />}
       {ready && dir !== null && <StatusBar />}
+      {/* All projects: over the open project, which keeps running behind it. */}
+      {ready && dir !== null && projectsShown && <ProjectsScreen overlay />}
+      {sheet !== null && <ProjectSheet key={sheet.serial} sheet={sheet} />}
     </div>
   );
 }

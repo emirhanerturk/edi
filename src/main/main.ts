@@ -6,6 +6,7 @@ import { AppCore } from './ipc.js';
 import { setLoginEnv } from '../childEnv.js';
 import { readLoginEnv } from './loginEnv.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
+import { LOGO_SCHEME } from '../shared/projects.js';
 
 // Tests and development can pass a separate folder so they don't touch the user's real settings folder.
 // The unpackaged development build uses a separate folder too, so it doesn't hit the installed edi's
@@ -14,14 +15,17 @@ if (process.env.EDI_USER_DATA) app.setPath('userData', process.env.EDI_USER_DATA
 else if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'edi-dev'));
 
 // Single instance: `edi <folder>` starts a new instance; it can't get the lock, so it hands the folder
-// to the running one and quits. The open window switches to that folder (asking first if a terminal is running).
+// to the running one and quits. The open window switches to that folder's project (asking first if a
+// terminal is running), or shows the New project sheet for a folder that isn't one yet.
 const primary = app.requestSingleInstanceLock();
 if (!primary) app.quit();
 
 // The scheme for image and video previews, with stream and fetch support so videos can seek.
 // It must be registered before the app is ready.
+// Logos come from a scheme of their own, served only from edi's copies and the images offered in the sheet.
 protocol.registerSchemesAsPrivileged([
   { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } },
+  { scheme: LOGO_SCHEME, privileges: { standard: true, secure: true } },
 ]);
 
 const here = import.meta.dirname;
@@ -155,8 +159,8 @@ app.on('second-instance', (_event, argv) => {
   }
   const dir = folderArg(argv);
   if (dir === undefined) return;
-  // Before the app is ready the folder is kept, and opened at startup in place of the usual one.
-  if (core) void core.openFolder(dir);
+  // Before the app is ready the folder is kept, and opened at startup.
+  if (core) void core.openRequested(dir);
   else handedOver = dir;
 });
 
@@ -192,8 +196,8 @@ app.whenReady().then(async () => {
     sessionEnding = true;
   });
   core.register();
-  // The folder is opened before the window: the repos are ready when the page asks for the initial state.
-  await core.openInitial(handedOver ?? folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
+  // A folder asked for is opened before the window: the repos are ready when the page asks for the initial state.
+  await core.openInitial(handedOver ?? folderArg(process.argv), process.env.EDI_OPEN_DIR);
   createWindow();
 });
 
