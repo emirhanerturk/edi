@@ -1,7 +1,7 @@
 import { ArchiveArrowUp, ArchiveX, Pencil } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StashMenuAction, StashResult } from '../../shared/api';
-import { CheckIcon, CopyIcon } from '../components/icons';
+import { BranchIcon, CheckIcon, CopyIcon } from '../components/icons';
 import { stashTitle } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo } from '../history/time';
@@ -73,7 +73,8 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
           <div className="commit-meta-info">
             {entry.branch !== null && (
               <span className="commit-branch mono" title={`Stashed on ${entry.branch}`}>
-                {entry.branch}
+                <BranchIcon size={11} />
+                <span className="commit-branch-name">{entry.branch}</span>
               </span>
             )}
             {entry.branch !== null && <span aria-hidden="true">·</span>}

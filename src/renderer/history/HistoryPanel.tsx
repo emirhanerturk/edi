@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import type { CommitSummary } from '../../git/types';
-import { ArrowUp, ChevronDown, ChevronRight, TagIcon, WarningIcon } from '../components/icons';
+import { ArrowUp, BranchIcon, ChevronDown, ChevronRight, TagIcon, WarningIcon } from '../components/icons';
 import { useNow } from '../components/useNow';
 import { useApp } from '../store';
 import { type HistoryRow, type RepoGroup, type RepoLog, byRepo, historyKey, isRelease, timeline } from './model';
@@ -69,8 +69,9 @@ export function HistoryPanelView(props: HistoryPanelViewProps) {
       <div className="history-toolbar">
         {!oneRepo && <RepoFilter repos={repos} filter={filter} onFilter={onFilter} />}
         {single && branch !== null && (
-          <span className="history-branch mono" data-testid="history-branch">
-            {branch}
+          <span className="history-branch mono" data-testid="history-branch" title={branch}>
+            <BranchIcon size={11} />
+            <span className="history-branch-name">{branch}</span>
           </span>
         )}
         <div className="spacer" />
