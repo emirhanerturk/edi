@@ -1,7 +1,7 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULTS, addRecent, loadState, mergeLayout, saveState } from '../src/main/store.js';
+import { DEFAULTS, addRecent, loadState, mergeLayout, saveState, saveStateSync } from '../src/main/store.js';
 import { makeTmpDir } from './helpers/tmpRepo.js';
 
 describe('persistent state', () => {
@@ -65,6 +65,15 @@ describe('persistent state', () => {
     await saveState(file, state);
     expect(await loadState(file)).toEqual(state);
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(state);
+  });
+
+  it('saveStateSync writes the same file before returning, leaving no temporary file', async () => {
+    const dir = await makeTmpDir();
+    const file = join(dir, 'nested', 'state.json');
+    const state = { ...DEFAULTS, lastDir: '/a/klasör' };
+    saveStateSync(file, state);
+    expect(await loadState(file)).toEqual(state);
+    expect(await readdir(join(dir, 'nested'))).toEqual(['state.json']);
   });
 });
 

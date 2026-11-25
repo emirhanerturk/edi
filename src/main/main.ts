@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { BrowserWindow, Menu, app, protocol, screen } from 'electron';
+import { BrowserWindow, Menu, app, powerMonitor, protocol, screen } from 'electron';
 import { folderArg } from './args.js';
 import { AppCore } from './ipc.js';
 import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
@@ -44,6 +44,17 @@ function savedBounds(): { x: number; y: number; width: number; height: number } 
 }
 
 let quitting: 'no' | 'asking' | 'yes' = 'no';
+/** macOS is logging out, restarting or shutting down. */
+let sessionEnding = false;
+
+/** Keeps the window's position, and closes the terminals and timers. */
+function saveWindowAndDispose(): void {
+  if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
+    const bounds = win.getBounds();
+    core.update((state) => ({ ...state, window: bounds }));
+  }
+  core.dispose();
+}
 
 /** The only way out: asks if a terminal is running, writes the final state to disk, then quits. */
 async function requestQuit(): Promise<void> {
@@ -54,17 +65,27 @@ async function requestQuit(): Promise<void> {
       quitting = 'no';
       return;
     }
-    if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
-      const bounds = win.getBounds();
-      core.update((state) => ({ ...state, window: bounds }));
-    }
-    core.dispose();
+    saveWindowAndDispose();
     await core.flush();
   } catch {
     // The user must be able to quit even if the prompt or the save fails.
   }
   quitting = 'yes';
   app.quit();
+}
+
+/**
+ * The session is ending and nothing needs asking: quit without deferring. macOS takes a deferred quit
+ * as the app cancelling the logout, so the state is written before returning instead of awaited.
+ */
+function quitForSessionEnd(): void {
+  try {
+    saveWindowAndDispose();
+    core.saveNow();
+  } catch {
+    // The session ends either way.
+  }
+  quitting = 'yes';
 }
 
 function createWindow(): void {
@@ -165,6 +186,10 @@ app.whenReady().then(async () => {
       },
     ]),
   );
+  // Sent before macOS asks the apps to quit for a logout, restart or shutdown.
+  powerMonitor.on('shutdown', () => {
+    sessionEnding = true;
+  });
   core.register();
   // The folder is opened before the window: the repos are ready when the page asks for the initial state.
   await core.openInitial(folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
@@ -175,6 +200,12 @@ app.on('window-all-closed', () => app.quit());
 
 app.on('before-quit', (event) => {
   if (quitting === 'yes') return;
+  // Ending the session with nothing to ask about: let it go through. With a busy terminal, unsaved
+  // files or a git operation running, edi asks as on any quit, and macOS stops the logout meanwhile.
+  if (sessionEnding && quitting === 'no' && core && !core.wouldAskToQuit()) {
+    quitForSessionEnd();
+    return;
+  }
   event.preventDefault();
   void requestQuit();
 });

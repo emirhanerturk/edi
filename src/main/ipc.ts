@@ -14,7 +14,7 @@ import { AutoFetch } from './autoFetch.js';
 import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
-import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
+import { type Persisted, addRecent, loadState, mergeLayout, saveState, saveStateSync } from './store.js';
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
 import { openUrl } from './openUrl.js';
@@ -43,6 +43,8 @@ export class AppCore {
   private state: Persisted;
   /** Open files with unsaved edits, as the page last reported. */
   private unsavedFiles = 0;
+  /** Terminals running a process other than the shell, as of the last process poll. */
+  private busyTabs = 0;
   private saving: Promise<void> = Promise.resolve();
   private processTimer: NodeJS.Timeout | null = null;
   private pollingProcesses = false;
@@ -111,6 +113,22 @@ export class AppCore {
     this.saving = this.saving.then(() => saveState(this.stateFile, snapshot)).catch(() => undefined);
   }
 
+  /**
+   * Writes the state to disk before returning, for an exit that can't wait. A write still queued would
+   * carry an older state: once the queue is done, the current one is written again.
+   */
+  saveNow(): void {
+    if (this.layoutTimer) clearTimeout(this.layoutTimer);
+    this.layoutTimer = null;
+    const snapshot = this.state;
+    try {
+      saveStateSync(this.stateFile, snapshot);
+    } catch {
+      // Nothing to be done about it while the app exits.
+    }
+    this.saving = this.saving.then(() => saveStateSync(this.stateFile, snapshot)).catch(() => undefined);
+  }
+
   flush(): Promise<void> {
     if (this.layoutTimer) {
       clearTimeout(this.layoutTimer);
@@ -150,13 +168,24 @@ export class AppCore {
     return tabStates(ptys, ps, new Set(pids)).filter((tab) => tab.busy).length;
   }
 
+  /** The repos running an operation the user started: a busy label (the automatic fetch shows none). */
+  private gitRepos(): string[] {
+    return this.workspace.view().repos.filter((repo) => repo.busy !== null).map((repo) => repo.name);
+  }
+
   /** Asks the user if a process or a git operation is running. True if none is, or if the user confirms. */
   async confirmBusy(kind: BusyKind): Promise<boolean> {
     const busy = await this.busyTerminals().catch(() => 0);
-    // A busy label means an operation the user started (the automatic fetch shows none).
-    const gitRepos = this.workspace.view().repos.filter((repo) => repo.busy !== null).map((repo) => repo.name);
-    const question = busyQuestion(kind, busy, this.unsavedFiles, gitRepos);
+    const question = busyQuestion(kind, busy, this.unsavedFiles, this.gitRepos());
     return question === null || (await this.ask(question));
+  }
+
+  /**
+   * Whether quitting would ask anything, answered at once: the terminals as of the last process poll
+   * (at most a few seconds old) instead of a fresh read.
+   */
+  wouldAskToQuit(): boolean {
+    return busyQuestion('quit', this.busyTabs, this.unsavedFiles, this.gitRepos()) !== null;
   }
 
   /** A native context menu at the mouse; resolves with the picked item's id, or null when it closes without one. */
@@ -366,6 +395,7 @@ export class AppCore {
 
       const ptys = this.ptyInfos();
       const tabs = tabStates(ptys, ps, new Set(pids));
+      this.busyTabs = tabs.filter((tab) => tab.busy).length;
       // Sent only on change, so the page isn't needlessly redrawn every three seconds.
       const serialized = JSON.stringify(tabs);
       if (serialized !== this.tabsSent) {
