@@ -8,12 +8,13 @@ import { StashPane } from './StashPane';
 import { useView } from './useView';
 
 /**
- * The stash view bound to app state. A stash doesn't change, but it can leave the list (popped or
- * dropped from a terminal): it is read again whenever the repo's stash count moves.
+ * The stash view bound to app state. A stash's changes don't change, but it can leave the list (popped
+ * or dropped from a terminal) or get a new message: it is read again whenever the repo's stash count
+ * moves and when an operation in the repo starts or ends.
  */
 export function StashView({ repo, oid }: { repo: RepoView; oid: string }) {
   const count = repo.status?.stashes ?? 0;
-  const { data } = useView(`${repo.path}\n${oid}`, () => edi.stash(repo.path, oid), count);
+  const { data } = useView(`${repo.path}\n${oid}`, () => edi.stash(repo.path, oid), `${count}\n${repo.busy ?? ''}`);
   const stash = data?.ok ? data.stash : null;
   const tokens = useCommitTokens(stash);
   const now = useNow(30_000);
@@ -35,6 +36,9 @@ export function StashView({ repo, oid }: { repo: RepoView; oid: string }) {
       canApply={!(repo.status?.files.some((file) => file.kind === 'conflicted') ?? false)}
       onAction={(action) => {
         if (stash) void useApp.getState().stashAction(repo.path, stash.entry, action);
+      }}
+      onRename={(message) => {
+        if (stash) void useApp.getState().renameStash(repo.path, stash.entry, message);
       }}
       onCopy={() => {
         if (stash) void navigator.clipboard.writeText(stash.entry.oid).catch(() => undefined);

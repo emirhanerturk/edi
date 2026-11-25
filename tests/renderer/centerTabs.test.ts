@@ -10,6 +10,7 @@ import {
   openUntitled,
   replaceCenterTab,
   pinCenterTab,
+  relabelCenterTab,
   setPanelOpen,
   syncCenter,
   tabId,
@@ -122,6 +123,21 @@ describe('panel', () => {
   it('pinCenterTab pins the preview', () => {
     const s = pinCenterTab(openTarget(EMPTY_CENTER, diff('a.ts'), false), tabId(diff('a.ts')));
     expect(brief(s)).toEqual(['diff:a.ts*<']);
+  });
+});
+
+describe('relabelCenterTab', () => {
+  it("renames a stash tab in place; its id, place and pin stay; an unknown tab or the same name changes nothing", () => {
+    const stash: CenterTarget = { kind: 'stash', repoPath: '/w/a', path: 'c'.repeat(40), label: 'WIP on main' };
+    const s = openTarget(openTarget(EMPTY_CENTER, stash, true), diff('a.ts'), false);
+    const next = relabelCenterTab(s, tabId(stash), 'login form');
+    expect(next.tabs.map((t) => [t.id, t.label, t.pinned])).toEqual([
+      [tabId(stash), 'login form', true],
+      [tabId(diff('a.ts')), undefined, false],
+    ]);
+    expect(next.active).toBe(s.active);
+    expect(relabelCenterTab(next, tabId(stash), 'login form')).toBe(next);
+    expect(relabelCenterTab(next, 'missing', 'x')).toBe(next);
   });
 });
 

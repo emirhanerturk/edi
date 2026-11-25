@@ -14,6 +14,7 @@ import {
   openUntitled,
   replaceCenterTab,
   pinCenterTab,
+  relabelCenterTab,
   setPanelOpen,
   syncCenter,
   tabId,
@@ -209,6 +210,8 @@ interface AppStore {
   gitOp(repoPath: string, op: GitOp): Promise<void>;
   /** Pops, applies or (after asking) drops a stash. */
   stashAction(repoPath: string, stash: StashEntry, action: StashMenuAction): Promise<void>;
+  /** Gives a stash a new message; its tab takes the new name. */
+  renameStash(repoPath: string, stash: StashEntry, message: string): Promise<void>;
   fetchAll(): Promise<void>;
 }
 
@@ -425,6 +428,13 @@ export const useApp = create<AppStore>((set, get) => ({
     if (action === 'drop' && !(await edi.confirmDropStash(stashTitle(stash)))) return;
     const op: GitOp = action === 'pop' ? { op: 'stashPop', oid: stash.oid } : action === 'apply' ? { op: 'stashApply', oid: stash.oid } : { op: 'stashDrop', oid: stash.oid };
     await get().gitOp(repoPath, op);
+  },
+  async renameStash(repoPath, stash, message) {
+    await get().gitOp(repoPath, { op: 'stashRename', oid: stash.oid, message });
+    if (get().errors[repoPath] !== undefined) return;
+    const id = tabId({ kind: 'stash', repoPath, path: stash.oid });
+    const label = message.replace(/\s+/g, ' ').trim();
+    set((state) => ({ center: relabelCenterTab(state.center, id, label) }));
   },
   async fetchAll() {
     const results = await edi.fetchAll();

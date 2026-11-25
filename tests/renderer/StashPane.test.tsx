@@ -23,7 +23,6 @@ const detail = (over: Partial<StashDetail['entry']> = {}): StashDetail => ({
     ...over,
   },
   short: 'ccccccc',
-  base: { oid: '1a2b3c4'.padEnd(40, '0'), short: '1a2b3c4', subject: 'feat: add login form' },
   files: [
     file('src/login.tsx', '@@ -1,1 +1,2 @@\n line\n+added\n'),
     file('notes.txt', '@@ -0,0 +1,1 @@\n+todo\n', { letter: 'A', untracked: true }),
@@ -34,20 +33,20 @@ const detail = (over: Partial<StashDetail['entry']> = {}): StashDetail => ({
 });
 
 function renderPane(result: StashResult | null, over: Partial<StashPaneProps> = {}) {
-  const props: StashPaneProps = { repoName: 'quizei-app', result, now, tokens: new Map(), busy: null, canApply: true, onAction: vi.fn(), onCopy: vi.fn(), ...over };
+  const props: StashPaneProps = { repoName: 'quizei-app', result, now, tokens: new Map(), busy: null, canApply: true, onAction: vi.fn(), onRename: vi.fn(), onCopy: vi.fn(), ...over };
   render(<StashPane {...props} />);
   return props;
 }
 
 describe('StashPane', () => {
-  it('shows the title, where and when it was stashed, what it sits on, and every file; new files carry ?', () => {
+  it('shows the title, where and when it was stashed, and every file; new files carry ?', () => {
     renderPane({ ok: true, stash: detail() });
     expect(screen.getByTestId('stash-title').textContent).toBe('WIP on feat/login');
     const meta = screen.getByTestId('stash-meta');
     expect(meta.textContent).toContain('feat/login');
     expect(meta.textContent).toContain('quizei-app');
     expect(meta.textContent).toContain('2 hours ago');
-    expect(meta.textContent).toContain('on top of 1a2b3c4 feat: add login form');
+    expect(meta.textContent).not.toContain('on top of');
     expect(meta.textContent).toContain('+2');
     const files = screen.getAllByTestId('commit-file');
     expect(files.map((el) => el.querySelector('.commit-file-letter')?.textContent)).toEqual(['M', '?']);
@@ -59,6 +58,33 @@ describe('StashPane', () => {
     expect(screen.getByTestId('stash-title').textContent).toBe('fix spacing on mobile');
   });
 
+  it('Rename turns the title into a field: Enter renames, Escape or clicking away keeps the name', () => {
+    const props = renderPane({ ok: true, stash: detail() });
+    fireEvent.click(screen.getByTestId('stash-view-rename'));
+    const input = screen.getByTestId('stash-name-input') as HTMLInputElement;
+    expect(input.value).toBe('WIP on feat/login');
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByTestId('stash-title')).toBeNull();
+    fireEvent.change(input, { target: { value: '  login form  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(props.onRename).toHaveBeenCalledWith('login form');
+    expect(screen.getByTestId('stash-title')).toBeTruthy();
+
+    (props.onRename as ReturnType<typeof vi.fn>).mockClear();
+    fireEvent.click(screen.getByTestId('stash-view-rename'));
+    fireEvent.change(screen.getByTestId('stash-name-input'), { target: { value: 'other' } });
+    fireEvent.keyDown(screen.getByTestId('stash-name-input'), { key: 'Escape' });
+    fireEvent.click(screen.getByTestId('stash-view-rename'));
+    fireEvent.blur(screen.getByTestId('stash-name-input'));
+    // An empty name or the same name changes nothing.
+    fireEvent.click(screen.getByTestId('stash-view-rename'));
+    fireEvent.change(screen.getByTestId('stash-name-input'), { target: { value: '   ' } });
+    fireEvent.keyDown(screen.getByTestId('stash-name-input'), { key: 'Enter' });
+    fireEvent.change(screen.getByTestId('stash-name-input'), { target: { value: 'WIP on feat/login' } });
+    fireEvent.keyDown(screen.getByTestId('stash-name-input'), { key: 'Enter' });
+    expect(props.onRename).not.toHaveBeenCalled();
+  });
+
   it('Pop, Apply and Drop run their action; all wait while an operation runs', () => {
     const props = renderPane({ ok: true, stash: detail() });
     fireEvent.click(screen.getByTestId('stash-view-pop'));
@@ -67,7 +93,7 @@ describe('StashPane', () => {
     expect((props.onAction as ReturnType<typeof vi.fn>).mock.calls).toEqual([['pop'], ['apply'], ['drop']]);
     cleanup();
     renderPane({ ok: true, stash: detail() }, { busy: 'Popping stash…' });
-    for (const id of ['stash-view-pop', 'stash-view-apply', 'stash-view-drop']) expect((screen.getByTestId(id) as HTMLButtonElement).disabled).toBe(true);
+    for (const id of ['stash-view-pop', 'stash-view-apply', 'stash-view-rename', 'stash-view-drop']) expect((screen.getByTestId(id) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('Popping stash…')).toBeTruthy();
   });
 

@@ -164,9 +164,7 @@ export interface StashDetail {
   entry: StashEntry;
   /** The stash commit's short id. */
   short: string;
-  /** The commit it was made on top of. */
-  base: { oid: string; short: string; subject: string };
-  /** The tracked changes against `base` (staged and unstaged together), then the new files (`untracked`). */
+  /** The tracked changes against the commit it was made on (staged and unstaged together), then the new files (`untracked`). */
   files: CommitFile[];
   added: number;
   removed: number;

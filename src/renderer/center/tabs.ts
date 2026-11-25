@@ -116,6 +116,12 @@ export function replaceCenterTab(s: CenterState, id: string, target: CenterTarge
   return { ...s, tabs, active: wasActive ? nextId : s.active };
 }
 
+/** Gives tab `id` a new name (a renamed stash); its id stays. */
+export function relabelCenterTab(s: CenterState, id: string, label: string): CenterState {
+  if (!s.tabs.some((tab) => tab.id === id && tab.label !== label)) return s;
+  return { ...s, tabs: s.tabs.map((tab) => (tab.id === id ? { ...tab, label } : tab)) };
+}
+
 export function activateCenterTab(s: CenterState, id: string): CenterState {
   return s.tabs.some((tab) => tab.id === id) ? { ...s, active: id } : s;
 }

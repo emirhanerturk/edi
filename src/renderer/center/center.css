@@ -590,12 +590,21 @@
   color: var(--muted);
 }
 
-/* Stash view: the commit view's header and files, with "on top of" and the Pop / Apply / Drop buttons. */
-.stash-on {
-  flex: 0 4 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Stash view: the commit view's header and files, with the Pop / Apply / Rename / Drop buttons. */
+
+/* The title while it is renamed: the same size and place, so nothing jumps. */
+.stash-name-input {
+  margin: -3px -7px;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  outline: none;
 }
 
 .stash-actions {

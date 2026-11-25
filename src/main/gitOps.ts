@@ -1,6 +1,6 @@
 import { commit, createBranch, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
 import { type UnpushedResult, readUnpushed, undoLastCommit } from '../git/unpushed.js';
-import { applyStash, dropStash, listStashes, pushStash, readStash } from '../git/stash.js';
+import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash } from '../git/stash.js';
 import { getStatus } from '../git/status.js';
 import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
 import type { Workspace } from './workspace.js';
@@ -28,6 +28,8 @@ export function busyLabel(op: GitOp): string {
       return 'Applying stash…';
     case 'stashDrop':
       return 'Dropping stash…';
+    case 'stashRename':
+      return 'Renaming stash…';
     default:
       return 'Working…';
   }
@@ -67,6 +69,8 @@ function isValidOp(op: unknown): op is GitOp {
     case 'stashApply':
     case 'stashDrop':
       return typeof o.oid === 'string';
+    case 'stashRename':
+      return typeof o.oid === 'string' && typeof o.message === 'string';
     case 'stash':
       // A switch or pull is retried only after stashing everything.
       return typeof o.message === 'string' && typeof o.staged === 'boolean' && (o.then === undefined || (isRetry(o.then) && o.staged === false));
@@ -182,6 +186,8 @@ export class GitOps {
         return applyStash(repo, op.oid, { drop: op.op === 'stashPop' });
       case 'stashDrop':
         return dropStash(repo, op.oid);
+      case 'stashRename':
+        return renameStash(repo, op.oid, op.message);
     }
   }
 
