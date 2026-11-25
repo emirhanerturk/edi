@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, readFile, readlink, symlink, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, readdir, readlink, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
@@ -92,6 +92,35 @@ describe('install', () => {
     );
     expect(await exists(appPath)).toBe(false);
     expect(await readFile(join(dir, 'bin2', 'edi'), 'utf8')).toBe('other command');
+  });
+
+  it('keeps the installed app when copying the new one stops halfway', async () => {
+    const dir = await makeTmpDir();
+    const built = await fakeApp(join(dir, 'new', 'edi.app'), BUNDLE_ID, 'new');
+    const appPath = await fakeApp(join(dir, 'Applications', 'edi.app'), BUNDLE_ID, 'old');
+    const halfway = async (_from: string, to: string) => {
+      await mkdir(join(to, 'Contents'), { recursive: true });
+      throw new Error('disk full');
+    };
+    await expect(install({ built, appPath, linkPath: join(dir, 'bin', 'edi'), isRunning: notRunning, copy: halfway })).rejects.toThrow('disk full');
+    expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('old');
+    expect(await readdir(join(dir, 'Applications'))).toEqual(['edi.app']);
+
+    // The next install goes through as usual.
+    await install({ built, appPath, linkPath: join(dir, 'bin', 'edi'), isRunning: notRunning });
+    expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('new');
+    expect(await readdir(join(dir, 'Applications'))).toEqual(['edi.app']);
+  });
+
+  it('clears what an interrupted install left beside the app', async () => {
+    const dir = await makeTmpDir();
+    const built = await fakeApp(join(dir, 'new', 'edi.app'), BUNDLE_ID, 'new');
+    const appPath = join(dir, 'Applications', 'edi.app');
+    await mkdir(join(dir, 'Applications', '.edi.app.installing', 'Contents'), { recursive: true });
+    await cp(built, join(dir, 'Applications', '.edi.app.previous'), { recursive: true });
+    await install({ built, appPath, linkPath: join(dir, 'bin', 'edi'), isRunning: notRunning });
+    expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('new');
+    expect(await readdir(join(dir, 'Applications'))).toEqual(['edi.app']);
   });
 
   it('does not install while edi is running', async () => {

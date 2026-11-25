@@ -8,6 +8,8 @@ export declare function install(opts: {
   appPath: string;
   linkPath: string;
   isRunning?: (appPath: string) => Promise<boolean>;
+  /** Copies the built app (`ditto` by default); tests pass one that fails. */
+  copy?: (from: string, to: string) => Promise<unknown>;
 }): Promise<string[]>;
 export declare function preflight(opts: {
   appPath: string;
