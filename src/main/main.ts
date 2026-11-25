@@ -150,6 +150,14 @@ app.whenReady().then(async () => {
       {
         label: 'View',
         submenu: [
+          {
+            label: 'Layout',
+            submenu: [
+              { label: 'Terminals on the Left', type: 'radio', checked: core.persisted.layout.terminals === 'left', click: () => core.setTerminalSide('left') },
+              { label: 'Terminals on the Right', type: 'radio', checked: core.persisted.layout.terminals === 'right', click: () => core.setTerminalSide('right') },
+            ],
+          },
+          { type: 'separator' },
           { label: 'Fetch Automatically', type: 'checkbox', checked: core.persisted.autoFetch, click: (item) => core.setAutoFetch(item.checked) },
           { type: 'separator' },
           { role: 'toggleDevTools' },

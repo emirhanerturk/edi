@@ -93,6 +93,21 @@ textarea {
   display: flex;
 }
 
+/* View > Layout > Terminals on the Right: the same panels in the reverse order, Git / History / Files first. */
+.app-body.terminals-right {
+  flex-direction: row-reverse;
+}
+
+.app-body.terminals-right > .git {
+  border-left: none;
+  border-right: 1px solid var(--line);
+}
+
+.app-body.terminals-right.with-center > .terminals {
+  border-right: none;
+  border-left: 1px solid var(--line);
+}
+
 /* Title bar: the window is dragged from here; the space on the left is for the traffic lights. */
 .titlebar {
   height: 38px;
