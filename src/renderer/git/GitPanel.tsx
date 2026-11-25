@@ -3,8 +3,9 @@ import { useApp } from '../store';
 import { GitPanelView } from './GitPanelView';
 import { stashTitle } from './model';
 
-/** Stable, so the Unpushed section reads only when HEAD or the count moves. */
+/** Stable, so the Unpushed and Incoming sections read only when HEAD or the count moves. */
 const loadUnpushed = (repoPath: string) => edi.unpushed(repoPath);
+const loadIncoming = (repoPath: string) => edi.incoming(repoPath);
 /** Stable, so the Stashes section reads only when the count moves. */
 const loadStashes = (repoPath: string) => edi.stashes(repoPath);
 const stashMenu = (canApply: boolean) => edi.stashMenu(canApply);
@@ -44,6 +45,7 @@ export function GitPanel() {
       onOpenFile={(repoPath, file, pin) => openInCenter({ kind: file.kind === 'untracked' ? 'file' : 'diff', repoPath, path: file.path }, pin)}
       selected={active && { repoPath: active.repoPath, path: active.path, kind: active.kind }}
       loadUnpushed={loadUnpushed}
+      loadIncoming={loadIncoming}
       onOpenCommit={(repoPath, oid, pin) => openInCenter({ kind: 'commit', repoPath, path: oid }, pin)}
       onUndoCommit={(repoPath, commit) => {
         void edi.confirmUndo(commit.subject).then((yes) => {

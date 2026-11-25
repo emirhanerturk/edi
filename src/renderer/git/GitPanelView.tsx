@@ -1,7 +1,7 @@
 import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
-import type { BranchList, GitOp, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
+import type { BranchList, GitOp, IncomingResult, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
 import { shortAgo } from '../history/time';
 import {
   ArrowDown,
@@ -61,7 +61,9 @@ export interface GitPanelProps {
   selected?: { repoPath: string; path: string; kind?: string } | null;
   /** The branch's commits its upstream doesn't have; read when the repo is ahead. */
   loadUnpushed?(repoPath: string): Promise<UnpushedResult>;
-  /** An unpushed commit was clicked: a single click previews, a double click opens a permanent tab. */
+  /** The upstream's commits not pulled yet; read when the repo is behind. */
+  loadIncoming?(repoPath: string): Promise<IncomingResult>;
+  /** An unpushed or incoming commit was clicked: a single click previews, a double click opens a permanent tab. */
   onOpenCommit?(repoPath: string, oid: string, pin: boolean): void;
   /** "Undo commit" on the newest unpushed commit (the caller asks first). */
   onUndoCommit?(repoPath: string, commit: CommitSummary): void;
@@ -100,6 +102,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const error = props.errors?.[repo.path];
   const run = (op: GitOp) => props.onOp?.(repo.path, op);
   const busy = repo.busy !== null;
+  const selectedCommit = props.selected?.repoPath === repo.path && props.selected.kind === 'commit' ? props.selected.path : null;
   const retry = props.retries?.[repo.path];
   const errorBox = error !== undefined && (
     <ErrorBox
@@ -253,6 +256,17 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
           <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
           <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
           {count === 0 && <p className="repo-clean">No changes</p>}
+          {repo.status && repo.status.upstream !== null && (repo.status.behind ?? 0) > 0 && (
+            <IncomingGroup
+              repoPath={repo.path}
+              upstream={repo.status.upstream}
+              headOid={repo.status.headOid}
+              behind={repo.status.behind ?? 0}
+              load={props.loadIncoming}
+              selectedOid={selectedCommit}
+              onOpen={(oid, pin) => props.onOpenCommit?.(repo.path, oid, pin)}
+            />
+          )}
           {repo.status && repo.status.upstream !== null && (repo.status.ahead ?? 0) > 0 && (
             <UnpushedGroup
               repoPath={repo.path}
@@ -260,6 +274,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               ahead={repo.status.ahead ?? 0}
               busy={busy}
               load={props.loadUnpushed}
+              selectedOid={selectedCommit}
               onOpen={(oid, pin) => props.onOpenCommit?.(repo.path, oid, pin)}
               onUndo={(commit) => props.onUndoCommit?.(repo.path, commit)}
             />
@@ -430,55 +445,76 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, s
   );
 }
 
+/** A commit in the UNPUSHED or INCOMING list: a click previews it in the commit view, a double click keeps the tab. */
+function CommitRow(props: { testId: string; commit: CommitSummary; meta: string; metaTitle?: string; selected: boolean; onOpen(oid: string, pin: boolean): void; children?: ReactNode }) {
+  const { commit, onOpen } = props;
+  return (
+    <div
+      className="file-row commit-row"
+      data-testid={props.testId}
+      title={`${commit.short} ${commit.subject}`}
+      role="button"
+      tabIndex={0}
+      aria-current={props.selected ? 'true' : undefined}
+      onClick={() => onOpen(commit.oid, false)}
+      onDoubleClick={() => onOpen(commit.oid, true)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        onOpen(commit.oid, false);
+      }}
+    >
+      <span className="file-name">{commit.subject}</span>
+      <span className="commit-row-meta mono" title={props.metaTitle}>
+        {props.meta}
+      </span>
+      <span className="unpushed-time">{shortAgo(commit.date, Date.now())}</span>
+      {props.children}
+    </div>
+  );
+}
+
+/** Reads a commit list again whenever one of `deps` moves; null until it arrives (or if it fails). */
+function useCommitList<T>(load: ((repoPath: string) => Promise<T>) | undefined, repoPath: string, deps: unknown[]): T | null {
+  const [list, setList] = useState<T | null>(null);
+  useEffect(() => {
+    if (!load) return;
+    let current = true;
+    load(repoPath).then(
+      (result) => current && setList(result),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, repoPath, ...deps]);
+  return list;
+}
+
 interface UnpushedGroupProps {
   repoPath: string;
   headOid: string | null;
   ahead: number;
   busy: boolean;
   load?(repoPath: string): Promise<UnpushedResult>;
+  /** The commit open in the center panel. */
+  selectedOid: string | null;
   onOpen(oid: string, pin: boolean): void;
   onUndo(commit: CommitSummary): void;
 }
 
 /** Commits made but not pushed yet, newest first; read again whenever HEAD or the count moves. */
-function UnpushedGroup({ repoPath, headOid, ahead, busy, load, onOpen, onUndo }: UnpushedGroupProps) {
+function UnpushedGroup({ repoPath, headOid, ahead, busy, load, selectedOid, onOpen, onUndo }: UnpushedGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\nunpushed`);
-  const [list, setList] = useState<{ commits: CommitSummary[]; canUndo: boolean } | null>(null);
-  useEffect(() => {
-    if (!load) return;
-    let current = true;
-    load(repoPath).then(
-      (result) => current && setList(result.ok ? { commits: result.commits, canUndo: result.canUndo } : null),
-      () => undefined,
-    );
-    return () => {
-      current = false;
-    };
-  }, [load, repoPath, headOid, ahead]);
-  const now = Date.now();
+  const result = useCommitList(load, repoPath, [headOid, ahead]);
+  const list = result?.ok ? result : null;
   return (
-    <div className="file-group">
+    <div className="file-group" data-testid="unpushed-group">
       <GroupHead title="UNPUSHED" count={ahead} collapsed={collapsed} onToggle={toggle} />
       {!collapsed &&
         list?.commits.map((commit, index) => (
-          <div
-            key={commit.oid}
-            className="file-row unpushed-row"
-            data-testid="unpushed-row"
-            title={`${commit.short} ${commit.subject}`}
-            role="button"
-            tabIndex={0}
-            onClick={() => onOpen(commit.oid, false)}
-            onDoubleClick={() => onOpen(commit.oid, true)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return;
-              event.preventDefault();
-              onOpen(commit.oid, false);
-            }}
-          >
-            <span className="file-name">{commit.subject}</span>
-            <span className="file-dir mono">{commit.short}</span>
-            <span className="unpushed-time">{shortAgo(commit.date, now)}</span>
+          <CommitRow key={commit.oid} testId="unpushed-row" commit={commit} meta={commit.short} selected={commit.oid === selectedOid} onOpen={onOpen}>
             {index === 0 && list.canUndo && (
               <button
                 className="icon-button tiny"
@@ -496,7 +532,50 @@ function UnpushedGroup({ repoPath, headOid, ahead, busy, load, onOpen, onUndo }:
                 <Undo2 size={12} strokeWidth={1.8} />
               </button>
             )}
-          </div>
+          </CommitRow>
+        ))}
+    </div>
+  );
+}
+
+interface IncomingGroupProps {
+  repoPath: string;
+  /** Like `origin/main`. */
+  upstream: string;
+  headOid: string | null;
+  behind: number;
+  load?(repoPath: string): Promise<IncomingResult>;
+  /** The commit open in the center panel. */
+  selectedOid: string | null;
+  onOpen(oid: string, pin: boolean): void;
+}
+
+/**
+ * The upstream's commits not pulled yet (a teammate's push, once fetched), newest first, with who made
+ * each: what Pull would bring. Read again whenever HEAD or the count moves.
+ */
+function IncomingGroup({ repoPath, upstream, headOid, behind, load, selectedOid, onOpen }: IncomingGroupProps) {
+  const [collapsed, toggle] = useCollapsed(`${repoPath}\nincoming`);
+  const result = useCommitList(load, repoPath, [headOid, behind]);
+  const commits = result?.ok ? result.commits : null;
+  return (
+    <div className="file-group" data-testid="incoming-group">
+      <GroupHead title="INCOMING" count={behind} collapsed={collapsed} onToggle={toggle}>
+        <span className="group-hint mono" title={`Fetched from ${upstream}, not pulled yet`}>
+          {upstream}
+        </span>
+      </GroupHead>
+      {!collapsed &&
+        commits?.map((commit) => (
+          <CommitRow
+            key={commit.oid}
+            testId="incoming-row"
+            commit={commit}
+            meta={commit.authorName || commit.authorEmail}
+            metaTitle={`${commit.authorName} <${commit.authorEmail}>`}
+            selected={commit.oid === selectedOid}
+            onOpen={onOpen}
+          />
         ))}
     </div>
   );

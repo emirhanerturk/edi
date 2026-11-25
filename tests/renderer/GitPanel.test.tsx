@@ -305,6 +305,74 @@ describe('Unpushed commits', () => {
   });
 });
 
+describe('Incoming commits', () => {
+  afterEach(cleanup);
+  const commit = (n: number, subject: string, authorName: string) => ({
+    oid: String(n).repeat(40),
+    short: String(n).repeat(7),
+    subject,
+    authorName,
+    authorEmail: `${authorName.toLowerCase()}@x.dev`,
+    date: Date.now() - 3 * 60_000,
+    parents: 1,
+    tags: [],
+  });
+  const behind = repo('api', { status: status({ behind: 2, ahead: 1 }) });
+  const list = { ok: true as const, commits: [commit(4, 'fix(ads): consent mode', 'Berkay'), commit(3, 'feat: sync', 'Berkay')] };
+
+  function renderIncoming(target: RepoView = behind, selected: { repoPath: string; path: string; kind: string } | null = null) {
+    const loadIncoming = vi.fn(async () => list);
+    const loadUnpushed = vi.fn(async () => ({ ok: true as const, commits: [commit(5, 'feat: mine', 'Me')], canUndo: true }));
+    const onOpenCommit = vi.fn();
+    render(
+      <GitPanelView
+        repos={[target]}
+        expanded={{ [target.path]: true }}
+        onToggle={() => undefined}
+        loadIncoming={loadIncoming}
+        loadUnpushed={loadUnpushed}
+        onOpenCommit={onOpenCommit}
+        selected={selected}
+      />,
+    );
+    return { loadIncoming, onOpenCommit };
+  }
+
+  it('a repo behind its upstream lists what Pull would bring, with who made each, above UNPUSHED', async () => {
+    const { loadIncoming } = renderIncoming();
+    expect(loadIncoming).toHaveBeenCalledWith('/w/api');
+    const rows = await screen.findAllByTestId('incoming-row');
+    expect(rows.map((el) => el.textContent)).toEqual([expect.stringContaining('fix(ads): consent mode'), expect.stringContaining('feat: sync')]);
+    expect(rows[0]!.textContent).toContain('Berkay');
+    expect(rows[0]!.textContent).toContain('3m');
+    expect(within(rows[0]!).getByTitle('Berkay <berkay@x.dev>')).toBeTruthy();
+    const head = screen.getAllByTestId('file-group-head').find((el) => el.textContent?.includes('INCOMING'))!;
+    expect(head.textContent).toContain('2');
+    expect(head.textContent).toContain('origin/main');
+    const groups = screen.getAllByTestId(/^(incoming|unpushed)-group$/).map((el) => el.dataset.testid);
+    expect(groups).toEqual(['incoming-group', 'unpushed-group']);
+  });
+
+  it('clicking one opens it in the commit view (double click pins); the open one is marked', async () => {
+    const { onOpenCommit } = renderIncoming(behind, { repoPath: '/w/api', path: '3'.repeat(40), kind: 'commit' });
+    const rows = await screen.findAllByTestId('incoming-row');
+    expect(rows.map((el) => el.getAttribute('aria-current'))).toEqual([null, 'true']);
+    fireEvent.click(rows[0]!);
+    expect(onOpenCommit).toHaveBeenLastCalledWith('/w/api', '4'.repeat(40), false);
+    fireEvent.doubleClick(rows[1]!);
+    expect(onOpenCommit).toHaveBeenLastCalledWith('/w/api', '3'.repeat(40), true);
+  });
+
+  it('no section, and nothing loaded, when nothing is behind or there is no upstream', () => {
+    const { loadIncoming } = renderIncoming(repo('even', { status: status({ behind: 0 }) }));
+    cleanup();
+    const second = renderIncoming(repo('lone', { status: status({ behind: null, upstream: null }) }));
+    expect(loadIncoming).not.toHaveBeenCalled();
+    expect(second.loadIncoming).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('incoming-group')).toBeNull();
+  });
+});
+
 describe('Stashes', () => {
   afterEach(cleanup);
   const entry = (n: number, over: Partial<StashEntry> = {}): StashEntry => ({

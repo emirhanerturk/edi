@@ -3,11 +3,11 @@
  * and takes no runtime code from this file.
  */
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult } from '../git/types.js';
+import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
 
-export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, UnpushedResult };
+export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 export type { StashDetail, StashEntry, StashList, StashResult };
 
@@ -176,6 +176,8 @@ export interface EdiApi {
   branches(repoPath: string): Promise<BranchList>;
   /** The branch's commits its upstream doesn't have (none without an upstream). */
   unpushed(repoPath: string): Promise<UnpushedResult>;
+  /** The upstream's commits the branch doesn't have yet, as of the last fetch (none without an upstream). */
+  incoming(repoPath: string): Promise<IncomingResult>;
   /** Asks (native dialog) before undoing the commit with this subject; true to go ahead. */
   confirmUndo(subject: string): Promise<boolean>;
   /** The repo's stashes, newest first (at most 100). */

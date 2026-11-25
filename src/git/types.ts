@@ -124,6 +124,9 @@ export type BlameResult = { ok: true; lines: (string | null)[]; commits: Record<
 /** Commits on the branch that its upstream doesn't have, newest first. `canUndo`: the newest can be undone. */
 export type UnpushedResult = { ok: true; commits: CommitSummary[]; canUndo: boolean } | { ok: false; error: string };
 
+/** The upstream's commits not pulled yet, newest first. */
+export type IncomingResult = { ok: true; commits: CommitSummary[] } | { ok: false; error: string };
+
 /** A local branch in the branch menu. */
 export interface BranchInfo {
   name: string;
