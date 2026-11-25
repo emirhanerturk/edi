@@ -28,6 +28,7 @@ describe('persistent state', () => {
         recent: [{ dir: '/a/b', repoCount: 3 }, { dir: 7 }, 'x'],
         window: { x: 1, y: 2, width: 'lots' },
         autoFetch: 'no',
+        keepAwake: 1,
       }),
     );
     expect(await loadState(file)).toEqual({
@@ -36,6 +37,7 @@ describe('persistent state', () => {
       layout: { left: 492, right: 420, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
       window: null,
       autoFetch: true,
+      keepAwake: false,
     });
   });
 
@@ -61,6 +63,7 @@ describe('persistent state', () => {
       layout: { left: 500, right: 400, diffMode: 'inline' as const, historyLayout: 'byRepo' as const, terminals: 'right' as const },
       window: { x: 10, y: 20, width: 1200, height: 800 },
       autoFetch: false,
+      keepAwake: true,
     };
     await saveState(file, state);
     expect(await loadState(file)).toEqual(state);
