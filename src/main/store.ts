@@ -1,3 +1,4 @@
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Layout, RecentFolder } from '../shared/api.js';
@@ -83,6 +84,17 @@ export async function saveState(file: string, state: Persisted): Promise<void> {
   const tmp = `${file}.${process.pid}.tmp`;
   await writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`);
   await rename(tmp, file);
+}
+
+/**
+ * The same write, done before returning: for when the app is about to exit and a pending write may
+ * never finish. Its own temporary file, so it can't collide with an asynchronous write in progress.
+ */
+export function saveStateSync(file: string, state: Persisted): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.sync.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+  renameSync(tmp, file);
 }
 
 export function addRecent(state: Persisted, dir: string, repoCount: number): Persisted {

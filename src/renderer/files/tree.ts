@@ -14,6 +14,8 @@ export interface TreeNode {
   dirty: boolean;
   /** Matched by `.gitignore`: shown dimmed. An ignored folder's contents aren't listed. */
   ignored: boolean;
+  /** A nested repo or a submodule: a folder that stays closed, its files belonging to the other repo. */
+  nested: boolean;
 }
 
 /** A file gone from the working tree: not shown in the list. */
@@ -39,8 +41,10 @@ export function buildTree(
   loaded: Record<string, DirEntry[]> = {},
   /** Empty folders (git doesn't list them). */
   emptyDirs: string[] = [],
+  /** Nested repos and submodules. */
+  nested: string[] = [],
 ): TreeNode[] {
-  const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
+  const root: TreeNode = { name: '', path: '', kind: 'dir', children: [], letter: null, dirty: false, ignored: false, nested: false };
   const dirs = new Map<string, TreeNode>([['', root]]);
 
   const dirOf = (path: string): TreeNode => {
@@ -48,7 +52,7 @@ export function buildTree(
     if (found) return found;
     const slash = path.lastIndexOf('/');
     const parent = dirOf(slash === -1 ? '' : path.slice(0, slash));
-    const node: TreeNode = { name: path.slice(slash + 1), path, kind: 'dir', children: [], letter: null, dirty: false, ignored: false };
+    const node: TreeNode = { name: path.slice(slash + 1), path, kind: 'dir', children: [], letter: null, dirty: false, ignored: false, nested: false };
     parent.children.push(node);
     dirs.set(path, node);
     return node;
@@ -58,7 +62,10 @@ export function buildTree(
     return slash === -1 ? '' : path.slice(0, slash);
   };
 
-  const letters = new Map(changes.filter((f) => !isGone(f)).map((f) => [f.path, fileLetter(f)]));
+  for (const path of nested) dirOf(path).nested = true;
+  // git status names an untracked nested repo `dir/`; a changed submodule by its path. Neither is a file.
+  const isNested = (path: string) => path.endsWith('/') || dirs.get(path)?.nested === true;
+  const letters = new Map(changes.filter((f) => !isGone(f) && !isNested(f.path)).map((f) => [f.path, fileLetter(f)]));
   const seen = new Set<string>();
   for (const path of [...files, ...letters.keys()]) {
     if (seen.has(path)) continue;
@@ -72,6 +79,7 @@ export function buildTree(
       letter: letters.get(path) ?? null,
       dirty: false,
       ignored: false,
+      nested: false,
     });
   }
 
@@ -84,7 +92,7 @@ export function buildTree(
     } else if (!seen.has(entry)) {
       seen.add(entry);
       const slash = entry.lastIndexOf('/');
-      dirOf(parentPath(entry)).children.push({ name: entry.slice(slash + 1), path: entry, kind: 'file', children: [], letter: null, dirty: false, ignored: true });
+      dirOf(parentPath(entry)).children.push({ name: entry.slice(slash + 1), path: entry, kind: 'file', children: [], letter: null, dirty: false, ignored: true, nested: false });
     }
   }
 
@@ -96,14 +104,16 @@ export function buildTree(
         dirOf(path).ignored = true;
       } else if (!seen.has(path)) {
         seen.add(path);
-        dirOf(dir).children.push({ name: entry.name, path, kind: 'file', children: [], letter: null, dirty: false, ignored: true });
+        dirOf(dir).children.push({ name: entry.name, path, kind: 'file', children: [], letter: null, dirty: false, ignored: true, nested: false });
       }
     }
   }
 
   // Every folder containing a change (including a deleted file's) is marked; folders not in the tree are skipped.
   for (const change of changes) {
-    let dir = parentPath(change.path);
+    const own = dirs.get(change.path.replace(/\/$/, ''));
+    if (own?.nested) own.dirty = true;
+    let dir = parentPath(change.path.replace(/\/$/, ''));
     while (dir !== '') {
       const node = dirs.get(dir);
       if (node) node.dirty = true;
@@ -117,6 +127,48 @@ export function buildTree(
   };
   sort(root);
   return root.children;
+}
+
+interface TreeInputs {
+  changes: string;
+  ignored: string[];
+  loaded: Record<string, DirEntry[]>;
+  emptyDirs: string[];
+  nested: string[];
+  tree: TreeNode[];
+}
+
+/** The default for a list left out: one array, so that leaving it out twice counts as the same. */
+const NONE: string[] = [];
+
+/** The last tree built for each file list (the list is replaced, not changed, when it is read again). */
+const trees = new WeakMap<string[], TreeInputs>();
+
+const sameLoaded = (a: Record<string, DirEntry[]>, b: Record<string, DirEntry[]>) => {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+};
+
+/**
+ * `buildTree`, built again only when its inputs change. The Files tab is drawn again on every status
+ * poll, and the change list arrives as a new array each time even when nothing changed: it is
+ * compared by content, the rest (kept as they are in the store) by identity.
+ */
+export function cachedTree(
+  files: string[],
+  changes: FileChange[],
+  ignored: string[] = NONE,
+  loaded: Record<string, DirEntry[]> = {},
+  emptyDirs: string[] = NONE,
+  nested: string[] = NONE,
+): TreeNode[] {
+  const key = JSON.stringify(changes);
+  const last = trees.get(files);
+  const same = last && last.changes === key && last.ignored === ignored && last.emptyDirs === emptyDirs && last.nested === nested;
+  if (same && sameLoaded(last.loaded, loaded)) return last.tree;
+  const tree = buildTree(files, changes, ignored, loaded, emptyDirs, nested);
+  trees.set(files, { changes: key, ignored, loaded, emptyDirs, nested, tree });
+  return tree;
 }
 
 /** Whether the path is an ignored folder itself or inside one (`ignored`: the list from `listFiles`). */
@@ -134,7 +186,7 @@ export interface TreeRow {
 export function flattenTree(nodes: TreeNode[], isOpen: (path: string) => boolean, depth = 0): TreeRow[] {
   const rows: TreeRow[] = [];
   for (const node of nodes) {
-    const open = node.kind === 'dir' && isOpen(node.path);
+    const open = node.kind === 'dir' && !node.nested && isOpen(node.path);
     rows.push({ node, depth, open });
     if (open) rows.push(...flattenTree(node.children, isOpen, depth + 1));
   }

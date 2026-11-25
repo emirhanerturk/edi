@@ -15,7 +15,7 @@ const diff = parseDiff(
 const loaded: DiffView = { ok: true, diff, file };
 
 function renderPane(view: DiffView | null, mode: 'split' | 'inline' = 'split') {
-  const handlers = { onMode: vi.fn(), onOpenInZed: vi.fn(), onOpenFile: vi.fn() };
+  const handlers = { onMode: vi.fn(), onOpenIn: vi.fn(), onOpenFile: vi.fn() };
   render(<DiffPane repoName="quizei-app" path="app/game/play.tsx" view={view} mode={mode} tokens={null} {...handlers} />);
   return handlers;
 }
@@ -88,15 +88,16 @@ describe('DiffPane', () => {
     expect(onMode).toHaveBeenCalledWith('inline');
   });
 
-  it('the Open in Zed button works', () => {
-    const { onOpenInZed } = renderPane(loaded);
-    fireEvent.click(screen.getByRole('button', { name: 'Open in Zed' }));
-    expect(onOpenInZed).toHaveBeenCalledTimes(1);
+  it('Open in… opens the file in the editor picked', () => {
+    const { onOpenIn } = renderPane(loaded);
+    fireEvent.click(screen.getByRole('button', { name: 'Open in…' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Antigravity' }));
+    expect(onOpenIn).toHaveBeenCalledWith('antigravity');
   });
 
   it('once colors arrive, the line text is made of colored spans', () => {
     const tokens = { old: new Map(), new: new Map([[2, [{ text: 'İK', color: '#c678dd' }, { text: 'İ', color: '#98c379' }]]]) };
-    render(<DiffPane repoName="r" path="a.ts" view={loaded} mode="split" tokens={tokens} onMode={() => undefined} onOpenInZed={() => undefined} onOpenFile={() => undefined} />);
+    render(<DiffPane repoName="r" path="a.ts" view={loaded} mode="split" tokens={tokens} onMode={() => undefined} onOpenIn={() => undefined} onOpenFile={() => undefined} />);
     const code = cell(screen.getAllByTestId('diff-row')[1]!, 'new').querySelector('.code')!;
     expect([...code.querySelectorAll('span')].map((span) => [span.textContent, span.style.color])).toEqual([
       ['İK', 'rgb(198, 120, 221)'],
@@ -108,7 +109,7 @@ describe('DiffPane', () => {
     renderPane({ ok: true, diff: { hunks: [], added: 0, removed: 0, binary: true }, file });
     expect(screen.getByText('Binary file — no diff to show')).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Diff view' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Open in Zed' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open in…' })).toBeTruthy();
   });
 
   it('says so when the file has no changes left', () => {

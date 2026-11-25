@@ -9,9 +9,23 @@ import { tabId } from './tabs';
 import { useView } from './useView';
 
 /**
- * Highlights the commit's (or stash's) files in order. Files that start expanded (up to 400 lines) are
- * highlighted up to `MAX_HIGHLIGHT_CHARS` characters in total; the rest, and large files expanded later, stay plain.
+ * The files to color, in order: those that start expanded (up to 400 lines), up to `MAX_HIGHLIGHT_CHARS`
+ * characters in total. A file that doesn't fit what is left is skipped; smaller ones after it still fit.
  */
+export function filesToHighlight(files: CommitFile[], budget = MAX_HIGHLIGHT_CHARS): CommitFile[] {
+  const picked: CommitFile[] = [];
+  for (const file of files) {
+    const lines = file.diff.hunks.flatMap((hunk) => hunk.lines);
+    if (file.diff.binary || lines.length === 0 || lines.length > COLLAPSE_LINES) continue;
+    const size = lines.reduce((sum, line) => sum + line.text.length + 1, 0);
+    if (size > budget) continue;
+    budget -= size;
+    picked.push(file);
+  }
+  return picked;
+}
+
+/** Highlights the commit's (or stash's) files picked by `filesToHighlight`; the rest, and large files expanded later, stay plain. */
 export function useCommitTokens(commit: { files: CommitFile[] } | null): Map<string, DiffTokens> {
   const [tokens, setTokens] = useState<Map<string, DiffTokens>>(() => new Map());
   useEffect(() => {
@@ -19,12 +33,7 @@ export function useCommitTokens(commit: { files: CommitFile[] } | null): Map<str
     let current = true;
     void (async () => {
       const next = new Map<string, DiffTokens>();
-      let budget = MAX_HIGHLIGHT_CHARS;
-      for (const file of commit.files) {
-        const lines = file.diff.hunks.flatMap((hunk) => hunk.lines);
-        if (file.diff.binary || lines.length === 0 || lines.length > COLLAPSE_LINES) continue;
-        budget -= lines.reduce((sum, line) => sum + line.text.length + 1, 0);
-        if (budget < 0) break;
+      for (const file of filesToHighlight(commit.files)) {
         const result = await highlightDiff(file.diff, file.path);
         if (!current) return;
         if (result) {
@@ -72,7 +81,7 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
       onCopy={() => {
         if (data?.ok) void navigator.clipboard.writeText(data.commit.oid).catch(() => undefined);
       }}
-      onOpenUrl={(url) => void edi.openUrl(url)}
+      onOpenUrl={(url) => void useApp.getState().openUrl(url)}
       onOpenFile={openFile}
     />
   );

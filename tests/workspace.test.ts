@@ -1,9 +1,9 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Workspace } from '../src/main/workspace.js';
 import type { WorkspaceView } from '../src/shared/api.js';
-import { addBareRemote, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const open: Workspace[] = [];
 afterEach(() => {
@@ -67,6 +67,62 @@ describe('Workspace', () => {
     await writeFile(join(b, 'new.txt'), 'x\n');
     await until(() => ws.view().repos[1]?.status?.files.length === 1);
     expect(ws.view().repos[1]?.error).toBeNull();
+  });
+
+  it("reports a fast repo's change while a slow repo's status is still being read", async () => {
+    const dir = await makeTmpDir();
+    const slow = await initRepo(dir, 'a', { commit: true });
+    const fast = await initRepo(dir, 'b', { commit: true });
+    const { ws, views } = makeWorkspace();
+    await ws.open(dir);
+
+    // git status in the slow repo runs this fsmonitor hook, which waits until the test releases it.
+    const hooks = await makeTmpDir();
+    const hook = join(hooks, 'wait.sh');
+    await writeFile(hook, `#!/bin/sh\ntouch "${hooks}/started"\nwhile [ ! -f "${hooks}/release" ]; do sleep 0.05; done\nexit 1\n`);
+    await chmod(hook, 0o755);
+    await git(slow, 'config', 'core.fsmonitor', hook);
+    const exists = (file: string) => access(file).then(() => true, () => false);
+    try {
+      let started = false;
+      await until(() => {
+        void exists(join(hooks, 'started')).then((yes) => (started = yes));
+        return started;
+      });
+
+      await writeFile(join(fast, 'new.txt'), 'x\n');
+      await until(() => views.at(-1)?.repos[1]?.status?.files.length === 1, 2000);
+    } finally {
+      await writeFile(join(hooks, 'release'), '');
+    }
+  });
+
+  it('of two folders opened at once, one wins with its own repos and the other gives way', async () => {
+    const first = await makeTmpDir();
+    for (const name of ['a', 'b', 'c', 'd']) await initRepo(first, name, { commit: true });
+    const second = await makeTmpDir();
+    await initRepo(second, 'z', { commit: true });
+    const { ws } = makeWorkspace();
+
+    // Which one wins depends on which folder check ends last; the app itself opens one at a time.
+    const results = await Promise.all([ws.open(first), ws.open(second)]);
+    const won = results.findIndex((result) => result.ok);
+    expect(results[1 - won]).toEqual({ ok: false, error: 'Another folder was opened' });
+    expect(ws.view().dir).toBe(won === 0 ? first : second);
+    expect(ws.view().repos.map((repo) => repo.name)).toEqual(won === 0 ? ['a', 'b', 'c', 'd'] : ['z']);
+  });
+
+  it('notices a new tag, which changes no status', async () => {
+    const dir = await makeTmpDir();
+    const repo = await initRepo(dir, 'a', { commit: true });
+    const { ws } = makeWorkspace();
+    await ws.open(dir);
+    await until(() => (ws.view().repos[0]?.refs ?? 0) > 0);
+    const before = ws.view().repos[0]!.refs!;
+    // A tag in a folder of its own: the new folder and its parent both change.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await git(repo, 'tag', 'release/v1');
+    await until(() => ws.view().repos[0]!.refs! > before);
   });
 
   it('treats only discovered paths as repos', async () => {

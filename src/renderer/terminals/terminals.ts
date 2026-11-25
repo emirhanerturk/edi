@@ -87,7 +87,7 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
   const fit = new FitAddon();
   term.loadAddon(fit);
   // http(s) links are shown underlined; Option+click opens them in the default browser.
-  term.loadAddon(new WebLinksAddon(linkActivator((url) => void edi.openUrl(url))));
+  term.loadAddon(new WebLinksAddon(linkActivator((url) => openLink(url))));
   term.open(host);
   try {
     const webgl = new WebglAddon();
@@ -150,6 +150,12 @@ export function disposeAllTerminals(): void {
 }
 
 /** Called when the terminal title changes (Claude Code writes its state into the title). */
+/** What a link clicked in a terminal does; the store sets it (to say when the browser can't open it). */
+let openLink = (url: string): void => void edi.openUrl(url);
+export function onTerminalLink(open: (url: string) => void): void {
+  openLink = open;
+}
+
 export function onTerminalTitle(id: number, listener: (title: string) => void): void {
   entries.get(id)?.term.onTitleChange(listener);
 }

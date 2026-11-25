@@ -2,12 +2,13 @@
  * The contract between the main process and the page. It holds only types: the page can't reach Node
  * and takes no runtime code from this file.
  */
+import type { EditorId } from './editors.js';
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, UnpushedResult } from '../git/types.js';
+import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
 
-export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, UnpushedResult };
+export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 export type { StashDetail, StashEntry, StashList, StashResult };
 
@@ -23,6 +24,10 @@ export interface RepoView {
   claude: number;
   /** The repo has at least one remote; without one there is nowhere to push, pull or publish to. */
   hasRemote: boolean;
+  /** When its tags or remote branches last changed (see `refsStamp`); absent until first read. */
+  refs?: number;
+  /** The merge, rebase, cherry-pick or revert it is in the middle of; null or absent if none. */
+  operation?: RepoOperation | null;
 }
 
 export interface WorkspaceView {
@@ -226,8 +231,8 @@ export interface EdiApi {
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
   /** The last known Claude usage limits; null if the bridge isn't set up or the data has expired. */
   claudeUsage(): Promise<ClaudeUsage | null>;
-  /** Opens the file in Zed, or the repo folder if `filePath` is null. */
-  openInZed(repoPath: string, filePath: string | null): Promise<OpResult>;
+  /** Opens the file in an editor, or the repo folder if `filePath` is null. */
+  openIn(editor: EditorId, repoPath: string, filePath: string | null): Promise<OpResult>;
   /** Opens a web link from the terminal in the default browser (http/https only). */
   openUrl(url: string): Promise<OpResult>;
   log(repoPath: string, count: number): Promise<LogResult>;

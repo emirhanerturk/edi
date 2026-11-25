@@ -222,7 +222,7 @@ export function FileView({ repo, path }: { repo: RepoView; path: string }) {
       content={data}
       isNew={isNew}
       tokens={tokens}
-      onOpenInZed={() => void useApp.getState().openInZed(repo.path, path)}
+      onOpenIn={(editor) => void useApp.getState().openIn(editor, repo.path, path)}
       editor={
         entry && monaco ? (
           <EditorHost

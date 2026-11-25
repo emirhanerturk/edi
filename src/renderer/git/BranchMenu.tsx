@@ -1,3 +1,4 @@
+import { menuKeys } from '../components/keys';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BranchInfo, BranchList } from '../../shared/api';
 import { BranchIcon, CheckIcon, PlusIcon } from '../components/icons';
@@ -6,7 +7,10 @@ import { type Placement, placeMenu } from '../components/placeMenu';
 import { usePopover } from '../components/usePopover';
 
 export interface BranchMenuProps {
+  /** The branch's name; on a detached HEAD, the commit's short id. */
   current: string;
+  /** The button's tooltip; defaults to `current`. */
+  title?: string;
   disabled?: boolean;
   load(): Promise<BranchList>;
   onSwitch(branch: string): void;
@@ -28,7 +32,7 @@ function branchTitle(branch: BranchInfo, now: number): string {
 }
 
 /** Branch button and its menu: local branches and "New branch…". */
-export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
+export function BranchMenu({ current, title, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
   const menu = usePopover<HTMLDivElement>();
   const [list, setList] = useState<BranchList | null>(null);
   // The time the list was read: the ages are relative to it.
@@ -48,9 +52,16 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
       const anchor = button.current?.getBoundingClientRect();
       if (anchor) setPlace(placeMenu(anchor, { width: window.innerWidth, height: window.innerHeight }, MENU_SIZE));
     };
-    // If the repo list scrolls, the button moves; the menu closes so it isn't left floating.
+    // Only a scroll that moves the button matters (not the terminal's or a file's): the menu follows the
+    // button, and closes once the button scrolls out of sight so it isn't left floating.
     const onScroll = (event: Event) => {
-      if (!(event.target instanceof Node) || !menu.ref.current?.contains(event.target)) menu.setOpen(false);
+      const scrolled = event.target === document ? document.documentElement : event.target;
+      const anchor = button.current;
+      if (!(scrolled instanceof Element) || !anchor || !scrolled.contains(anchor) || menu.ref.current?.contains(scrolled)) return;
+      const view = scrolled.getBoundingClientRect();
+      const rect = anchor.getBoundingClientRect();
+      if (rect.bottom <= view.top || rect.top >= view.bottom) menu.setOpen(false);
+      else update();
     };
     update();
     window.addEventListener('resize', update);
@@ -86,12 +97,12 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
   };
 
   return (
-    <div className="branch" ref={menu.ref}>
+    <div className="branch" ref={menu.ref} onKeyDown={menuKeys}>
       <button
         ref={button}
         className="branch-chip mono"
         data-testid="branch-button"
-        title={current}
+        title={title ?? current}
         aria-haspopup="menu"
         aria-expanded={menu.open}
         disabled={disabled}

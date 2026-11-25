@@ -1,8 +1,9 @@
+import { openKey } from '../components/keys';
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import type { CommitSummary } from '../../git/types';
 import { ArrowUp, BranchIcon, ChevronDown, ChevronRight, TagIcon, WarningIcon } from '../components/icons';
 import { useNow } from '../components/useNow';
-import { useApp } from '../store';
+import { canLoadMore, useApp } from '../store';
 import { type HistoryRow, type RepoGroup, type RepoLog, byRepo, historyKey, isRelease, timeline } from './model';
 import { RepoFilter } from './RepoFilter';
 import { longAgo, shortAgo, splitSubject } from './time';
@@ -35,7 +36,7 @@ export interface HistoryPanelViewProps {
   onLoadMore(): void;
 }
 
-/** Click previews, double click opens a permanent tab, Enter previews. */
+/** Click previews, double click opens a permanent tab; Enter or Space previews, ⌘Enter opens a permanent tab. */
 function openHandlers(open: (pin: boolean) => void) {
   return {
     role: 'button',
@@ -43,7 +44,7 @@ function openHandlers(open: (pin: boolean) => void) {
     onClick: () => open(false),
     onDoubleClick: () => open(true),
     onKeyDown: (event: KeyboardEvent) => {
-      if (event.key === 'Enter') open(false);
+      openKey(event, open);
     },
   } as const;
 }
@@ -274,7 +275,8 @@ export function HistoryPanel() {
       filter={filter}
       loading={shown.some((repo) => !history[repo.path]?.log)}
       errors={errors}
-      canLoadMore={logs.some((log) => log.log.hasMore)}
+      // By repo shows each repo's latest commits only: nothing to load there.
+      canLoadMore={layout === 'timeline' && shown.some((repo) => canLoadMore(history[repo.path]))}
       selected={active?.kind === 'commit' ? { repoPath: active.repoPath, oid: active.path } : null}
       onOpenCommit={(repoPath, oid, pin) => openInCenter({ kind: 'commit', repoPath, path: oid }, pin)}
       onFilter={setHistoryFilter}

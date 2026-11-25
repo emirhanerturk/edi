@@ -1,12 +1,16 @@
 import { realpath, stat } from 'node:fs/promises';
 import { type Repo, discoverRepos } from '../git/discover.js';
 import { runGit } from '../git/exec.js';
+import { operationIn } from '../git/operation.js';
+import { type GitDirs, gitDirs, refsStamp } from '../git/refsStamp.js';
 import { getStatus } from '../git/status.js';
 import { assignSessions } from '../sessions.js';
-import type { RepoView, WorkspaceView } from '../shared/api.js';
+import type { RepoOperation, RepoView, WorkspaceView } from '../shared/api.js';
 
 /** How many status polls between rereads of the remote list. */
 const REMOTES_EVERY = 15;
+/** Statuses that arrive within this long of each other reach the page in one update. */
+const EMIT_BATCH_MS = 30;
 
 export type OpenWorkspaceResult = { ok: true; repoCount: number } | { ok: false; error: string };
 
@@ -23,11 +27,14 @@ export class Workspace {
   private timer: NodeJS.Timeout | null = null;
   /** Repos whose status is being read right now: a slow repo doesn't pile up overlapping polls. */
   private readonly inFlight = new Map<string, Promise<boolean>>();
+  /** Each repo's git folders, looked up once (a promise, so polls in a row share the lookup). */
+  private readonly gitDirs = new Map<string, Promise<GitDirs | null>>();
   /** Incremented when the folder changes; late results from the old folder are ignored. */
   private generation = 0;
   private readonly onChange: (view: WorkspaceView) => void;
   private readonly statusMs: number;
   private rounds = 0;
+  private emitTimer: NodeJS.Timeout | null = null;
 
   constructor(opts: { onChange: (view: WorkspaceView) => void; statusMs?: number }) {
     this.onChange = opts.onChange;
@@ -44,11 +51,15 @@ export class Workspace {
     }
 
     this.stop();
-    this.generation++;
+    const generation = ++this.generation;
     this.dir = real;
-    this.repos = (await discoverRepos(real)).map(emptyView);
+    const found = await discoverRepos(real);
+    // Another folder was opened, or the workspace closed, meanwhile: this one is no longer wanted.
+    if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
+    this.repos = found.map(emptyView);
     this.applySessions();
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
+    if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
     this.timer = setInterval(() => void this.refreshAll(), this.statusMs);
     return { ok: true, repoCount: this.repos.length };
   }
@@ -104,11 +115,20 @@ export class Workspace {
   private stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.emitTimer) clearTimeout(this.emitTimer);
+    this.emitTimer = null;
     this.inFlight.clear();
   }
 
   private emit(): void {
+    if (this.emitTimer) clearTimeout(this.emitTimer);
+    this.emitTimer = null;
     this.onChange(this.view());
+  }
+
+  /** An update shortly: the statuses of other repos arriving meanwhile go along with it. */
+  private emitSoon(): void {
+    this.emitTimer ??= setTimeout(() => this.emit(), EMIT_BATCH_MS);
   }
 
   private patch(path: string, change: Partial<RepoView>): void {
@@ -144,10 +164,31 @@ export class Workspace {
     const generation = this.generation;
     // A remote added from the terminal is noticed within about half a minute.
     if (++this.rounds % REMOTES_EVERY === 0) void this.refreshRemotes();
-    await Promise.all(this.repos.map((repo) => this.refreshOne(repo.path)));
+    // Each repo's status reaches the page as it arrives: a slow repo doesn't hold up the others.
+    await Promise.all(this.repos.map((repo) => this.refreshOne(repo.path).then((read) => read && this.emitSoon())));
     if (generation !== this.generation) return;
     this.refreshedAt = Date.now();
     this.emit();
+  }
+
+  /**
+   * Read from the repo's git folder: when its tags and remote branches last changed, and the operation
+   * it is in the middle of. 0 and null if the folder can't be found.
+   */
+  private async gitDirState(path: string): Promise<{ refs: number; operation: RepoOperation | null }> {
+    let lookup = this.gitDirs.get(path);
+    if (!lookup) {
+      lookup = gitDirs(path);
+      this.gitDirs.set(path, lookup);
+    }
+    const dirs = await lookup;
+    // Not found (the repo is broken right now): looked up again next time.
+    if (dirs === null) {
+      if (this.gitDirs.get(path) === lookup) this.gitDirs.delete(path);
+      return { refs: 0, operation: null };
+    }
+    const [refs, operation] = await Promise.all([refsStamp(dirs.common), operationIn(dirs.git)]);
+    return { refs, operation };
   }
 
   /** True if the status was read; false if the folder changed in the meantime. A read in progress shares its result. */
@@ -155,10 +196,10 @@ export class Workspace {
     const running = this.inFlight.get(path);
     if (running) return running;
     const generation = this.generation;
-    const reading: Promise<boolean> = getStatus(path)
-      .then((result) => {
+    const reading: Promise<boolean> = Promise.all([getStatus(path), this.gitDirState(path)])
+      .then(([result, dirState]) => {
         if (generation !== this.generation) return false;
-        this.patch(path, result.ok ? { status: result.status, error: null } : { status: null, error: result.error });
+        this.patch(path, result.ok ? { status: result.status, error: null, ...dirState } : { status: null, error: result.error, ...dirState });
         return true;
       })
       .finally(() => {

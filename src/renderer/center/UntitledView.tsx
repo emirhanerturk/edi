@@ -83,7 +83,7 @@ export function UntitledView({ tab }: { tab: CenterTab }) {
         </span>
         <div className="spacer" />
         {hasText && <span className="unsaved-mark">Unsaved</span>}
-        <button className="zed-button save-button" title="Save (⌘S)" disabled={saving || !loaded} onClick={() => void save()}>
+        <button className="view-button save-button" title="Save (⌘S)" disabled={saving || !loaded} onClick={() => void save()}>
           Save…
         </button>
       </div>

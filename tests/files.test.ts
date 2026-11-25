@@ -1,9 +1,9 @@
-import { chmod, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, open, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { MAX_FILE_BYTES, MAX_WRITE_BYTES, OUTSIDE, listDir, listFiles, readRepoFile, resolveInRepo, writeRepoFile } from '../src/git/files.js';
+import { MAX_FILE_BYTES, MAX_WRITE_BYTES, OUTSIDE, listDir, listFiles, readAtMost, readRepoFile, resolveInRepo, sameAsInRepo, writeRepoFile } from '../src/git/files.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const run = promisify(execFile);
@@ -43,6 +43,23 @@ describe('listFiles', () => {
     });
   });
 
+  it('lists a nested repo and a submodule as folders of their own, not as files', async () => {
+    const parent = await makeTmpDir();
+    const lib = await initRepo(parent, 'lib', { commit: true });
+    const repo = await initRepo(parent, 'app', { commit: true });
+    await git(repo, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', lib, 'vendor/lib');
+    await git(repo, 'commit', '-q', '-m', 'feat: lib');
+    await initRepo(repo, 'tools/nested', { commit: true });
+
+    expect(await listFiles(repo)).toEqual({
+      ok: true,
+      files: ['.gitmodules', 'README.md'],
+      ignored: [],
+      dirs: [],
+      nested: ['tools/nested', 'vendor/lib'],
+    });
+  });
+
   it('lists empty folders, nested ones too: git leaves them out, but a new folder must show', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await mkdir(join(repo, 'empty'));
@@ -70,6 +87,34 @@ describe('listFiles', () => {
 
   it('returns an error in a folder that is not a repo', async () => {
     expect((await listFiles(await makeTmpDir())).ok).toBe(false);
+  });
+});
+
+describe('reading safely', () => {
+  it('the opened file must be the one the path finds inside the repo', async () => {
+    const dir = await makeTmpDir();
+    const repo = await initRepo(dir, 'a');
+    await mkdir(join(repo, 'src'));
+    await writeFile(join(repo, 'src', 'a.ts'), 'a\n');
+    await writeFile(join(dir, 'secret'), 's\n');
+    expect(await sameAsInRepo(await stat(join(repo, 'src', 'a.ts')), repo, 'src/a.ts')).toBe(true);
+    // As if `src` became a link to the outside between finding the file and opening it.
+    expect(await sameAsInRepo(await stat(join(dir, 'secret')), repo, 'src/a.ts')).toBe(false);
+    await rm(join(repo, 'src'), { recursive: true });
+    await symlink(dir, join(repo, 'src'));
+    expect(await sameAsInRepo(await stat(join(dir, 'secret')), repo, 'src/secret')).toBe(false);
+  });
+
+  it('reads no more than the limit, whatever the file has grown to', async () => {
+    const dir = await makeTmpDir();
+    await writeFile(join(dir, 'big'), 'x'.repeat(100));
+    const handle = await open(join(dir, 'big'), 'r');
+    try {
+      expect((await readAtMost(handle, 10)).length).toBe(10);
+      expect((await readAtMost(handle, 1000)).toString()).toBe('x'.repeat(100));
+    } finally {
+      await handle.close();
+    }
   });
 });
 

@@ -1,3 +1,4 @@
+import { tabKeys } from '../components/keys';
 import { Archive } from 'lucide-react';
 import { CloseIcon, CommitIcon, PlusIcon } from '../components/icons';
 import { letterColor } from '../git/model';
@@ -37,7 +38,18 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
         if (!(event.target as HTMLElement).closest('.center-tab, button')) onNew?.();
       }}
     >
-      <div className="tabbar-tabs" role="tablist" aria-label="Open files">
+      <div
+        className="tabbar-tabs"
+        role="tablist"
+        aria-label="Open files"
+        onKeyDown={(event) =>
+          tabKeys(
+            event,
+            tabs.map((tab) => tab.id),
+            onActivate,
+          )
+        }
+      >
         {tabs.map((tab) => {
           const isActive = tab.id === active;
           // Folder on the active tab; "diff" on a background diff tab, to tell it apart from the same file's content tab.
@@ -51,7 +63,8 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               data-unsaved={tab.unsaved ? 'true' : undefined}
               role="tab"
               aria-selected={isActive}
-              tabIndex={-1}
+              // The active tab is the one Tab reaches; the arrow keys move between tabs.
+              tabIndex={isActive ? 0 : -1}
               title={(tab.dir ? `${tab.dir}/${tab.name}` : tab.name) + (tab.unsaved ? ' · unsaved changes' : '')}
               onMouseDown={(event) => {
                 // Middle click closes the tab.
@@ -61,6 +74,12 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
                 } else if (event.button === 0) onActivate(tab.id);
               }}
               onDoubleClick={() => onPin(tab.id)}
+              onKeyDown={(event) => {
+                // Enter keeps the tab, as a double click does.
+                if (event.key !== 'Enter' || event.target !== event.currentTarget) return;
+                event.preventDefault();
+                onPin(tab.id);
+              }}
             >
               {tab.kind === 'commit' && <CommitIcon size={13} className="tab-commit-icon" data-testid="commit-icon" />}
               {tab.kind === 'stash' && <Archive size={13} strokeWidth={1.7} className="tab-commit-icon" data-testid="stash-icon" aria-hidden="true" />}

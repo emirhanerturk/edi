@@ -3,7 +3,8 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseDiff } from '../../src/git/diffParse';
 import type { CommitDetail, CommitFile, CommitResult } from '../../src/git/types';
-import { CommitPane, type CommitPaneProps, initiallyCollapsed } from '../../src/renderer/center/CommitPane';
+import { CommitPane, type CommitPaneProps, bodyParagraphs, initiallyCollapsed } from '../../src/renderer/center/CommitPane';
+import { filesToHighlight } from '../../src/renderer/center/CommitView';
 
 afterEach(cleanup);
 
@@ -41,6 +42,25 @@ function renderPane(result: CommitResult | null, over: Partial<CommitPaneProps> 
 const sections = () => screen.getAllByTestId('commit-file');
 
 describe('CommitPane', () => {
+  it('body paragraphs keep their indentation; blank lines between and around them go', () => {
+    expect(bodyParagraphs('Steps:\n  1. open\n  2. close\n\n    npm run dev\n    npm test\n  \n\n- last\n')).toEqual([
+      'Steps:\n  1. open\n  2. close',
+      '    npm run dev\n    npm test',
+      '- last',
+    ]);
+    expect(bodyParagraphs('')).toEqual([]);
+    expect(bodyParagraphs('\n  \n')).toEqual([]);
+  });
+
+  it('coloring skips a file over what is left of the budget and goes on with smaller ones', () => {
+    const small = file('a.ts', lines(2));
+    const middle = file('b.ts', lines(50));
+    const tail = file('c.ts', lines(3));
+    const size = (f: CommitFile) => f.diff.hunks.flatMap((h) => h.lines).reduce((sum, l) => sum + l.text.length + 1, 0);
+    const budget = size(small) + size(tail) + 5;
+    expect(filesToHighlight([small, middle, tail, big], budget).map((f) => f.path)).toEqual(['a.ts', 'c.ts']);
+  });
+
   it('header: dimmed prefix, body paragraphs, repo, branch, long age, totals, hash', () => {
     const { onCopy } = renderPane({ ok: true, commit: detail() });
     const title = screen.getByRole('heading', { level: 1 });

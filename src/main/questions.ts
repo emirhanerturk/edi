@@ -1,8 +1,13 @@
 // The native questions asked before something would throw away work.
 
 const QUESTIONS = {
-  quit: { message: 'Quit edi?', suffix: '', confirm: 'Quit' },
-  switch: { message: 'Switch folders?', suffix: 'Switching closes every terminal.', confirm: 'Switch' },
+  quit: { message: 'Quit edi?', suffix: '', git: ['Quitting may cut it off halfway.', 'Quitting may cut them off halfway.'], confirm: 'Quit' },
+  switch: {
+    message: 'Switch folders?',
+    suffix: 'Switching closes every terminal.',
+    git: ['Its result will not be shown.', 'Their results will not be shown.'],
+    confirm: 'Switch',
+  },
 } as const;
 
 export type BusyKind = keyof typeof QUESTIONS;
@@ -18,11 +23,21 @@ export interface Question {
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-/** Before quitting or switching folders: null if no terminal is busy and no file has unsaved changes. */
-export function busyQuestion(kind: BusyKind, busyTerminals: number, unsavedFiles: number): Question | null {
-  if (busyTerminals === 0 && unsavedFiles === 0) return null;
-  const { message, suffix, confirm } = QUESTIONS[kind];
+/** "a", "a and b", "a, b and c". */
+const names = (list: string[]) => (list.length <= 1 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`);
+
+/**
+ * Before quitting or switching folders: null if no terminal is busy, no git operation of the user's is
+ * running (`gitRepos`: the names of the repos running one) and no file has unsaved changes.
+ */
+export function busyQuestion(kind: BusyKind, busyTerminals: number, unsavedFiles: number, gitRepos: string[] = []): Question | null {
+  if (busyTerminals === 0 && unsavedFiles === 0 && gitRepos.length === 0) return null;
+  const { message, suffix, git, confirm } = QUESTIONS[kind];
   const lines: string[] = [];
+  if (gitRepos.length > 0) {
+    const one = gitRepos.length === 1;
+    lines.push(`${one ? 'A git operation is' : 'Git operations are'} still running in ${names(gitRepos)}. ${git[one ? 0 : 1]}`);
+  }
   if (busyTerminals > 0) lines.push(`${plural(busyTerminals, 'terminal still has', 'terminals still have')} a running process.`);
   if (unsavedFiles > 0) lines.push(`${plural(unsavedFiles, 'file has', 'files have')} unsaved changes. They will be lost.`);
   if (busyTerminals > 0 && suffix !== '') lines.push(suffix);

@@ -1,3 +1,5 @@
+import { chmod, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PtyManager, shellEnv } from '../src/main/pty.js';
 import { makeTmpDir } from './helpers/tmpRepo.js';
@@ -12,6 +14,8 @@ function makeManager() {
   const exited: number[] = [];
   const manager = new PtyManager({
     shell: '/bin/sh',
+    // The profile of whoever runs the tests stays out of them.
+    login: false,
     onData: (id, data) => output.set(id, (output.get(id) ?? '') + data),
     onExit: (id) => exited.push(id),
   });
@@ -53,6 +57,24 @@ describe('shellEnv', () => {
 });
 
 describe('PtyManager', () => {
+  it('opens a login shell unless told not to', async () => {
+    // A stand-in shell that prints the arguments it was given.
+    const shell = join(await makeTmpDir(), 'shell');
+    await writeFile(shell, '#!/bin/sh\necho "args=[$*]"\n');
+    await chmod(shell, 0o755);
+    const args = async (login?: boolean) => {
+      let out = '';
+      let done = false;
+      const manager = new PtyManager({ shell, login, onData: (_id, data) => (out += data), onExit: () => (done = true) });
+      managers.push(manager);
+      manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir() });
+      await until(() => done);
+      return /args=\[(.*)\]/.exec(out)?.[1];
+    };
+    expect(await args()).toBe('-l');
+    expect(await args(false)).toBe('');
+  });
+
   it('emits command output and reports the exit', async () => {
     const { manager, output, exited } = makeManager();
     const id = manager.create({ cols: 80, rows: 24, cwd: await makeTmpDir() });

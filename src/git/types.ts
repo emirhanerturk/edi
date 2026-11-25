@@ -12,6 +12,9 @@ export interface FileChange {
   kind: 'changed' | 'untracked' | 'conflicted';
 }
 
+/** An operation git is in the middle of, waiting for conflicts to be resolved or for `--continue`. */
+export type RepoOperation = 'merge' | 'rebase' | 'cherry-pick' | 'revert';
+
 export interface RepoStatus {
   /** Branch name; the short commit hash on a detached HEAD. */
   head: string;
@@ -33,7 +36,16 @@ export interface RepoStatus {
  * `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents).
  * `dirs`: folders with nothing git lists inside them (git leaves empty folders out).
  */
-export type FileList = { ok: true; files: string[]; ignored: string[]; dirs: string[] } | { ok: false; error: string };
+export type FileList =
+  | {
+      ok: true;
+      files: string[];
+      ignored: string[];
+      dirs: string[];
+      /** Nested repos and submodules: folders whose files belong to another repo. Absent when there are none. */
+      nested?: string[];
+    }
+  | { ok: false; error: string };
 
 /** One entry of a folder listing. */
 export interface DirEntry {

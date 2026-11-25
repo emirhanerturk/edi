@@ -1,9 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
-import { BrowserWindow, Menu, app, protocol, screen } from 'electron';
+import { BrowserWindow, Menu, app, powerMonitor, protocol, screen } from 'electron';
 import { folderArg } from './args.js';
 import { AppCore } from './ipc.js';
-import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
+import { setLoginEnv } from '../childEnv.js';
+import { readLoginEnv } from './loginEnv.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 
 // Tests and development can pass a separate folder so they don't touch the user's real settings folder.
@@ -30,6 +31,8 @@ const hidden = process.env.EDI_HIDDEN === '1';
 
 let win: BrowserWindow | null = null;
 let core: AppCore;
+/** A folder handed over by `edi <folder>` before the app was ready: the latest one. */
+let handedOver: string | undefined;
 
 /** The saved position is used only if it is still within a display (the display may have been disconnected). */
 function savedBounds(): { x: number; y: number; width: number; height: number } | undefined {
@@ -44,6 +47,17 @@ function savedBounds(): { x: number; y: number; width: number; height: number } 
 }
 
 let quitting: 'no' | 'asking' | 'yes' = 'no';
+/** macOS is logging out, restarting or shutting down. */
+let sessionEnding = false;
+
+/** Keeps the window's position, and closes the terminals and timers. */
+function saveWindowAndDispose(): void {
+  if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
+    const bounds = win.getBounds();
+    core.update((state) => ({ ...state, window: bounds }));
+  }
+  core.dispose();
+}
 
 /** The only way out: asks if a terminal is running, writes the final state to disk, then quits. */
 async function requestQuit(): Promise<void> {
@@ -54,17 +68,27 @@ async function requestQuit(): Promise<void> {
       quitting = 'no';
       return;
     }
-    if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
-      const bounds = win.getBounds();
-      core.update((state) => ({ ...state, window: bounds }));
-    }
-    core.dispose();
+    saveWindowAndDispose();
     await core.flush();
   } catch {
     // The user must be able to quit even if the prompt or the save fails.
   }
   quitting = 'yes';
   app.quit();
+}
+
+/**
+ * The session is ending and nothing needs asking: quit without deferring. macOS takes a deferred quit
+ * as the app cancelling the logout, so the state is written before returning instead of awaited.
+ */
+function quitForSessionEnd(): void {
+  try {
+    saveWindowAndDispose();
+    core.saveNow();
+  } catch {
+    // The session ends either way.
+  }
+  quitting = 'yes';
 }
 
 function createWindow(): void {
@@ -113,17 +137,11 @@ function createWindow(): void {
 
 // The packaged app launched from the Dock doesn't get the shell settings (PATH): the login shell's
 // environment is read once. It doesn't delay startup; it is ready long before the first commit that runs hooks.
-// Terminals opened after the environment arrives inherit it too; each tab still runs its own login
-// shell. A second instance that will hand over the folder and quit doesn't run the shell.
+// git and the terminals started after it arrives get it (each tab still runs its own login shell); the
+// app's own environment is left alone. A second instance that will hand over the folder and quit doesn't run the shell.
 if (app.isPackaged && primary) {
   const shell = process.env.SHELL || os.userInfo().shell || '/bin/zsh';
-  void readLoginEnv(shell).then((login) => {
-    if (!login) return;
-    // process.env itself is updated (it isn't replaced with a plain object).
-    for (const [name, value] of Object.entries(mergeLoginEnv(process.env, login))) {
-      if (value !== undefined) process.env[name] = value;
-    }
-  });
+  void readLoginEnv(shell).then(setLoginEnv);
 }
 
 app.on('second-instance', (_event, argv) => {
@@ -136,7 +154,10 @@ app.on('second-instance', (_event, argv) => {
     win.focus();
   }
   const dir = folderArg(argv);
-  if (dir !== undefined && core) void core.openFolder(dir);
+  if (dir === undefined) return;
+  // Before the app is ready the folder is kept, and opened at startup in place of the usual one.
+  if (core) void core.openFolder(dir);
+  else handedOver = dir;
 });
 
 app.whenReady().then(async () => {
@@ -165,9 +186,13 @@ app.whenReady().then(async () => {
       },
     ]),
   );
+  // Sent before macOS asks the apps to quit for a logout, restart or shutdown.
+  powerMonitor.on('shutdown', () => {
+    sessionEnding = true;
+  });
   core.register();
   // The folder is opened before the window: the repos are ready when the page asks for the initial state.
-  await core.openInitial(folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
+  await core.openInitial(handedOver ?? folderArg(process.argv) ?? process.env.EDI_OPEN_DIR);
   createWindow();
 });
 
@@ -175,6 +200,12 @@ app.on('window-all-closed', () => app.quit());
 
 app.on('before-quit', (event) => {
   if (quitting === 'yes') return;
+  // Ending the session with nothing to ask about: let it go through. With a busy terminal, unsaved
+  // files or a git operation running, edi asks as on any quit, and macOS stops the logout meanwhile.
+  if (sessionEnding && quitting === 'no' && core && !core.wouldAskToQuit()) {
+    quitForSessionEnd();
+    return;
+  }
   event.preventDefault();
   void requestQuit();
 });

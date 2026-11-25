@@ -1,6 +1,6 @@
 // Lists and reads files in the working tree. Read-only; doesn't depend on Electron.
 import { type Dirent, constants } from 'node:fs';
-import { chmod, open, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { type FileHandle, chmod, open, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { mediaOf } from '../shared/media.js';
 import { runGit } from './exec.js';
@@ -26,10 +26,24 @@ export async function listFiles(repo: string): Promise<FileList> {
   if (!deleted.ok) return { ok: false, error: deleted.error };
   if (!ignored.ok) return { ok: false, error: ignored.error };
   const gone = new Set(split(deleted.stdout));
-  const files = [...new Set(split(present.stdout))].filter((path) => !gone.has(path));
+  const listed = [...new Set(split(present.stdout))].filter((path) => !gone.has(path));
+  // A nested repo is listed as `dir/`, a submodule as a file: both are folders whose files belong to another repo.
+  const submodules = await submodulePaths(repo);
+  const nested = listed.filter((path) => path.endsWith('/') || submodules.has(path)).map((path) => path.replace(/\/$/, ''));
+  const files = listed.filter((path) => !path.endsWith('/') && !submodules.has(path));
   const ignoredList = split(ignored.stdout).sort();
-  const dirs = untrackedDirs.ok ? await emptyDirs(repo, split(untrackedDirs.stdout), files, ignoredList) : [];
-  return { ok: true, files: files.sort(), ignored: ignoredList, dirs };
+  const dirs = untrackedDirs.ok ? await emptyDirs(repo, split(untrackedDirs.stdout), [...files, ...ignoredList, ...nested], nested) : [];
+  return { ok: true, files: files.sort(), ignored: ignoredList, dirs, ...(nested.length > 0 ? { nested: nested.sort() } : {}) };
+}
+
+/** The submodules' paths, from `.gitmodules`; empty without one. */
+async function submodulePaths(repo: string): Promise<Set<string>> {
+  const exists = await stat(join(repo, '.gitmodules')).then((info) => info.isFile(), () => false);
+  if (!exists) return new Set();
+  // Exits with 1 when nothing matches. Each entry is "key\nvalue".
+  const result = await runGit(repo, ['config', '-z', '--file', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$'], { okCodes: [0, 1] });
+  if (!result.ok) return new Set();
+  return new Set(split(result.stdout).map((entry) => entry.slice(entry.indexOf('\n') + 1)));
 }
 
 /** At most this many empty folders are looked for: they are only there to show a just-made folder. */
@@ -39,11 +53,12 @@ const MAX_EMPTY_DIRS = 200;
  * Untracked folders (`dir/` from `ls-files --directory`) with no listed file inside them, and the
  * folders below them: git collapses `a/b/` into `a/`.
  */
-async function emptyDirs(repo: string, untracked: string[], files: string[], ignored: string[]): Promise<string[]> {
+async function emptyDirs(repo: string, untracked: string[], listed: string[], nested: string[]): Promise<string[]> {
   const result: string[] = [];
-  const holdsFiles = (dir: string) => [...files, ...ignored].some((path) => path.startsWith(`${dir}/`));
+  const holdsFiles = (dir: string) => listed.some((path) => path.startsWith(`${dir}/`));
   const walk = async (dir: string): Promise<void> => {
-    if (result.length >= MAX_EMPTY_DIRS) return;
+    // A nested repo's folders are its own.
+    if (result.length >= MAX_EMPTY_DIRS || nested.includes(dir)) return;
     result.push(dir);
     let entries: Dirent[];
     try {
@@ -172,6 +187,30 @@ export async function listDir(repo: string, relPath: unknown, max = MAX_DIR_ENTR
   }
 }
 
+/**
+ * Whether the opened file (`opened`: its fstat) is the one `relPath` finds inside the repo right now. A
+ * folder on the way swapped for a link between finding the file and opening it would have opened
+ * something else, perhaps outside the repo.
+ */
+export async function sameAsInRepo(opened: { dev: number; ino: number }, repo: string, relPath: unknown): Promise<boolean> {
+  const again = await locateInRepo(repo, relPath);
+  if (!again.ok) return false;
+  const info = await stat(again.target).catch(() => null);
+  return info !== null && info.dev === opened.dev && info.ino === opened.ino;
+}
+
+/** Reads at most `limit` bytes from the start; a file that grows while being read stops there. */
+export async function readAtMost(handle: FileHandle, limit: number): Promise<Buffer> {
+  const buffer = Buffer.alloc(limit);
+  let length = 0;
+  while (length < limit) {
+    const { bytesRead } = await handle.read(buffer, length, limit - length, length);
+    if (bytesRead === 0) break;
+    length += bytesRead;
+  }
+  return buffer.subarray(0, length);
+}
+
 /** Opens the file read-only. The contents of large and binary files aren't returned. */
 export async function readRepoFile(repo: string, relPath: unknown): Promise<FileContent> {
   const located = await locateInRepo(repo, relPath);
@@ -188,8 +227,11 @@ export async function readRepoFile(repo: string, relPath: unknown): Promise<File
     handle = await open(target, constants.O_RDONLY | constants.O_NONBLOCK);
     const info = await handle.stat();
     if (!info.isFile()) return { ok: false, error: 'Not a file' };
+    if (!(await sameAsInRepo(info, repo, relPath))) return { ok: false, error: OUTSIDE };
     if (info.size > MAX_FILE_BYTES) return { ok: true, kind: 'tooLarge', size: info.size };
-    const buffer = await handle.readFile();
+    // One byte past the limit tells a file that grew past it since the stat.
+    const buffer = await readAtMost(handle, MAX_FILE_BYTES + 1);
+    if (buffer.length > MAX_FILE_BYTES) return { ok: true, kind: 'tooLarge', size: buffer.length };
     if (buffer.subarray(0, SNIFF_BYTES).includes(0)) return { ok: true, kind: 'binary', size: buffer.length };
     return { ok: true, kind: 'text', text: buffer.toString('utf8'), size: buffer.length };
   } catch (error) {

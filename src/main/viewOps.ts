@@ -7,7 +7,8 @@ import type { WriteResult } from '../git/types.js';
 import { type BlameResult, type HeadText, blameText, readHeadText } from '../git/lineInfo.js';
 import { getStatus } from '../git/status.js';
 import type { DiffView, OpResult } from '../shared/api.js';
-import { openInZed } from './openInZed.js';
+import { openIn } from './openIn.js';
+import { type EditorId, isEditorId } from '../shared/editors.js';
 import type { Workspace } from './workspace.js';
 
 const UNKNOWN_REPO = { ok: false, error: 'Unknown repository' } as const;
@@ -28,7 +29,7 @@ export const DIFF_TOO_LARGE = 'This diff is too large to show';
 export class ViewOps {
   constructor(
     private readonly ws: Workspace,
-    private readonly open: (target: string) => Promise<OpResult> = openInZed,
+    private readonly open: (editor: EditorId, target: string) => Promise<OpResult> = openIn,
   ) {}
 
   private repo(repoPath: unknown) {
@@ -98,15 +99,16 @@ export class ViewOps {
     return listDir(repo.path, dirPath);
   }
 
-  /** Opens the file in Zed; the repo folder if no path is given or the file was deleted. */
-  async openInZed(repoPath: unknown, filePath: unknown): Promise<OpResult> {
+  /** Opens the file in an editor; the repo folder if no path is given or the file was deleted. */
+  async openIn(editor: unknown, repoPath: unknown, filePath: unknown): Promise<OpResult> {
+    if (!isEditorId(editor)) return { ok: false, error: 'Unknown editor' };
     const repo = this.repo(repoPath);
     if (!repo) return UNKNOWN_REPO;
-    if (filePath === null) return this.open(repo.path);
+    if (filePath === null) return this.open(editor, repo.path);
     if (typeof filePath !== 'string') return INVALID_PATH;
     const located = await locateInRepo(repo.path, filePath);
-    if (!located.ok) return located.reason === 'outside' ? { ok: false, error: OUTSIDE } : this.open(repo.path);
+    if (!located.ok) return located.reason === 'outside' ? { ok: false, error: OUTSIDE } : this.open(editor, repo.path);
     // Opens the path the user sees, not the one with links resolved.
-    return this.open(join(repo.path, filePath));
+    return this.open(editor, join(repo.path, filePath));
   }
 }

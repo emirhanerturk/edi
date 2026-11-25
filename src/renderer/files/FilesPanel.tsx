@@ -1,3 +1,4 @@
+import { openKey, treeKeys } from '../components/keys';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { DirEntry, DirList, FileList } from '../../git/types';
 import type { FilesMenuKind, RepoView } from '../../shared/api';
@@ -8,7 +9,7 @@ import { FileTypeIcon } from './fileIcons';
 import { type FilesEdit, unsavedUnder } from './filesEdit';
 import { letterColor } from '../git/model';
 import { useApp } from '../store';
-import { type TreeRow, buildTree, flattenTree, insideIgnored } from './tree';
+import { type TreeRow, cachedTree, flattenTree, insideIgnored } from './tree';
 import './files.css';
 
 /** Key for open folders: the repo path and the folder's path relative to the repo (empty for the repo root). */
@@ -73,7 +74,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
     for (const [key, dir] of Object.entries(dirs)) {
       if (key.startsWith(prefix) && dir.ok) loaded[key.slice(prefix.length)] = dir.entries;
     }
-    const tree = buildTree(list.files, repo.status?.files ?? [], list.ignored, loaded, list.dirs);
+    const tree = cachedTree(list.files, repo.status?.files ?? [], list.ignored, loaded, list.dirs, list.nested);
     const lines: Line[] = [];
     const newHere = (parent: string, at: number) => {
       if (edit?.mode === 'new' && edit.repoPath === repo.path && edit.parent === parent) {
@@ -168,6 +169,26 @@ export function FilesPanelView(props: FilesPanelViewProps) {
     }
     const { repo, row } = line;
     const { node } = row;
+    if (node.kind === 'dir' && node.nested) {
+      // Its files belong to the other repo: it doesn't open, and nothing is made inside it from here.
+      return (
+        <TreeItem
+          key={`${repo.path}\n${node.path}`}
+          name={node.name}
+          title={`${node.path} (a repository of its own)`}
+          depth={row.depth}
+          kind="dir"
+          nested
+          badge={node.dirty ? '●' : ''}
+          onClick={() => undefined}
+          // A file's menu: rename, Trash and Finder, without New File / New Folder.
+          onMenu={props.onRowMenu && (() => props.onRowMenu!(repo.path, node.path, 'file'))}
+          onTrash={props.onTrash && (() => props.onTrash!(repo.path, node.path))}
+          onRename={props.onRename && (() => props.onRename!(repo.path, node.path))}
+          nameEditor={renaming(repo, node.path) ? renameInput(node.name) : undefined}
+        />
+      );
+    }
     if (node.kind === 'dir') {
       return (
         <TreeItem
@@ -209,7 +230,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
 
   if (single) {
     return (
-      <div className="git-list files-tree single" role="tree" aria-label="Files">
+      <div className="git-list files-tree single" role="tree" aria-label="Files" onKeyDown={treeKeys}>
         {notice}
         {treeLines(repos[0]!, 0).map(renderLine)}
       </div>
@@ -218,7 +239,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
 
   // Multi-repo view: each repo is its own section, as in the Git tab; the open one is highlighted.
   return (
-    <div className="git-list files-tree" role="tree" aria-label="Files">
+    <div className="git-list files-tree" role="tree" aria-label="Files" onKeyDown={treeKeys}>
       {notice}
       {repos.map((repo) => {
         const isOpen = open[dirKey(repo.path, '')] === true;
@@ -243,6 +264,8 @@ interface TreeItemProps {
   open?: boolean;
   /** Matched by `.gitignore`: dimmed. */
   ignored?: boolean;
+  /** A nested repo or a submodule: a folder without a chevron, never open. */
+  nested?: boolean;
   /** Status letter on a file, "●" on a folder; empty if none. */
   badge: string;
   selected?: boolean;
@@ -263,7 +286,7 @@ function TreeItem(props: TreeItemProps) {
   const color = isFile && badge !== '' ? letterColor(badge) : undefined;
   return (
     <div
-      className={`tree-row ${kind}${selected ? ' selected' : ''}${ignored ? ' ignored' : ''}`}
+      className={`tree-row ${kind}${selected ? ' selected' : ''}${ignored ? ' ignored' : ''}${props.nested ? ' nested' : ''}`}
       data-testid="tree-row"
       data-depth={depth}
       data-name={name}
@@ -271,7 +294,7 @@ function TreeItem(props: TreeItemProps) {
       data-ignored={ignored ? 'true' : undefined}
       role="treeitem"
       tabIndex={0}
-      aria-expanded={isFile ? undefined : open}
+      aria-expanded={isFile || props.nested ? undefined : open}
       aria-current={selected ? 'true' : undefined}
       aria-selected={isFile ? selected === true : undefined}
       title={ignored ? `${title ?? name} (ignored by git)` : (title ?? name)}
@@ -287,10 +310,9 @@ function TreeItem(props: TreeItemProps) {
       }
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          onClick();
-        } else if (event.key === 'Backspace' && event.metaKey && props.onTrash) {
+        // Enter or Space opens (a folder opens or closes); ⌘Enter opens a file in a tab of its own.
+        if (openKey(event, (pin) => (pin && onDoubleClick ? onDoubleClick() : onClick()))) return;
+        if (event.key === 'Backspace' && event.metaKey && props.onTrash) {
           event.preventDefault();
           props.onTrash();
         } else if (event.key === 'F2' && props.onRename) {
@@ -305,6 +327,8 @@ function TreeItem(props: TreeItemProps) {
           <span className="tree-spacer" />
           <FileTypeIcon name={name} className="tree-icon" />
         </>
+      ) : props.nested ? (
+        <span className="tree-spacer" />
       ) : open ? (
         <ChevronDown size={11} strokeWidth={1.9} className="tree-icon" />
       ) : (
@@ -485,9 +509,15 @@ export function FilesPanel() {
   // While a name is being saved, clicking away (or a question dialog taking focus) doesn't cancel it.
   const submitting = useRef(false);
   useEffect(() => setEditError(null), [edit]);
-  /** An empty new folder or a renamed one may not change the status: the list is read again by hand. */
+  /**
+   * An empty new folder or a renamed one may not change the status: the list is read again by hand, and so
+   * are the repo's open ignored folders (a change inside one changes no list). Their old contents stay
+   * shown until the new ones arrive.
+   */
   const reload = (repoPath: string) => {
     loaded.current.delete(repoPath);
+    const prefix = dirKey(repoPath, '');
+    for (const key of [...dirsRead.current]) if (key.startsWith(prefix)) dirsRead.current.delete(key);
     setReloads((count) => count + 1);
   };
   const unsaved = (repoPath: string, path: string) => {
@@ -547,7 +577,8 @@ export function FilesPanel() {
       lists={lists}
       dirs={dirs}
       open={open}
-      selected={active && { repoPath: active.repoPath, path: active.path }}
+      // Only the file view: the same file's diff open from the Git tab doesn't select its row here.
+      selected={active?.kind === 'file' ? { repoPath: active.repoPath, path: active.path } : null}
       onToggle={toggleFilesDir}
       onOpenFile={(repoPath, path, pin) => openInCenter({ kind: 'file', repoPath, path }, pin)}
       edit={edit}

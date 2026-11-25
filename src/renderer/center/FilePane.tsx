@@ -1,3 +1,4 @@
+import type { EditorId } from '../../shared/editors';
 import { type ReactNode, memo, useMemo, useState } from 'react';
 import type { FileContent } from '../../shared/api';
 import { mediaUrl } from '../../shared/media';
@@ -42,7 +43,7 @@ export interface FilePaneProps {
   isNew: boolean;
   /** Colored tokens per line; null if they haven't arrived yet or the language is unknown. */
   tokens: Token[][] | null;
-  onOpenInZed(): void;
+  onOpenIn(editor: EditorId): void;
   /** The code editor, once Monaco has loaded for this file; until then the read-only lines show. */
   editor?: ReactNode;
   edit?: EditState | null;
@@ -55,20 +56,20 @@ export interface FilePaneProps {
 
 /** The file view: an editor for text files, a preview for images and videos, a note otherwise. */
 export function FilePane(props: FilePaneProps) {
-  const { repoName, repoPath, path, content, isNew, tokens, onOpenInZed, editor, edit } = props;
+  const { repoName, repoPath, path, content, isNew, tokens, onOpenIn, editor, edit } = props;
   const isText = content?.ok === true && content.kind === 'text';
   // A file deleted under unsaved edits keeps its editor: the edits are still there.
   const editing = editor != null && edit != null && (isText || edit.dirty);
   const readOnly = content?.ok === true && content.kind !== 'text';
   return (
     <div className="center-view" data-testid="center-view" data-kind="file">
-      <ViewHeader repoName={repoName} path={path} onOpenInZed={onOpenInZed}>
+      <ViewHeader repoName={repoName} path={path} onOpenIn={onOpenIn}>
         {isNew && <span className="chip chip-new">new file</span>}
         <div className="spacer" />
         {editing && edit.dirty && (
           <>
             <span className="unsaved-mark">Unsaved</span>
-            <button className="zed-button save-button" title="Save (⌘S)" disabled={edit.saving} onClick={props.onSave}>
+            <button className="view-button save-button" title="Save (⌘S)" disabled={edit.saving} onClick={props.onSave}>
               Save
             </button>
           </>

@@ -1,12 +1,14 @@
+import { openKey } from '../components/keys';
+import { OpenInMenu } from '../components/OpenInMenu';
+import type { EditorId } from '../../shared/editors';
 import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
-import type { BranchList, GitOp, IncomingResult, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
+import type { BranchList, GitOp, IncomingResult, RepoOperation, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
 import { shortAgo } from '../history/time';
 import {
   ArrowDown,
   ArrowUp,
-  BranchIcon,
   CheckIcon,
   ChevronDown,
   ChevronRight,
@@ -53,7 +55,7 @@ export interface GitPanelProps {
   onOp?(repoPath: string, op: GitOp): void;
   onDismissError?(repoPath: string): void;
   /** Opens the file in Zed (for conflicted files). */
-  onOpenInZed?(repoPath: string, path: string): void;
+  onOpenIn?(repoPath: string, path: string, editor: EditorId): void;
   loadBranches?(repoPath: string): Promise<BranchList>;
   /** A file row was clicked: a single click previews (`pin` false), a double click opens a permanent tab. */
   onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
@@ -116,7 +118,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const fileProps = {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
-    openInZed: (file: FileChange) => props.onOpenInZed?.(repo.path, file.path),
+    selectedKind: props.selected?.kind ?? null,
+    openIn: (file: FileChange, editor: EditorId) => props.onOpenIn?.(repo.path, file.path, editor),
     repoPath: repo.path,
   };
 
@@ -154,25 +157,20 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
           <span className="repo-name">{repo.name}</span>
         </button>
         {repo.claude > 0 && <ClaudeMark size={12} label="Claude Code session open" />}
-        {groups.conflicts.length > 0 && <span className="chip chip-warn">merging</span>}
+        <OperationChip operation={repo.operation ?? null} conflicts={groups.conflicts.length} />
         <div className="spacer" />
 
         {open ? (
           <>
-            {status.detached ? (
-              <span className="branch-chip mono" title={`Detached HEAD at ${status.head}`}>
-                <BranchIcon size={11} />
-                <span className="branch-name">{status.head}</span>
-              </span>
-            ) : (
-              <BranchMenu
-                current={status.head}
-                disabled={busy}
-                load={() => props.loadBranches?.(repo.path) ?? Promise.resolve(NO_BRANCHES)}
-                onSwitch={(branch) => run({ op: 'switch', branch })}
-                onCreate={(branch) => run({ op: 'createBranch', branch })}
-              />
-            )}
+            {/* On a detached HEAD too: the way back to a branch, or to a new one at this commit. */}
+            <BranchMenu
+              current={status.head}
+              title={status.detached ? `Detached HEAD at ${status.head}: pick a branch to switch back` : undefined}
+              disabled={busy}
+              load={() => props.loadBranches?.(repo.path) ?? Promise.resolve(NO_BRANCHES)}
+              onSwitch={(branch) => run({ op: 'switch', branch })}
+              onCreate={(branch) => run({ op: 'createBranch', branch })}
+            />
             {repo.busy ? (
               <Busy label={repo.busy} />
             ) : (
@@ -356,9 +354,11 @@ interface FileGroupProps {
   busy: boolean;
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
-  openInZed(file: FileChange): void;
+  openIn(file: FileChange, editor: EditorId): void;
   /** Path of the file open in the center panel, in this repo. */
   selectedPath: string | null;
+  /** What it is open in (`diff`, `file`): a row is selected only while what it opens is the one showing. */
+  selectedKind: string | null;
   /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
   blocked?: boolean;
   repoPath: string;
@@ -407,7 +407,10 @@ function GroupHead(props: { title: string; count: number; collapsed: boolean; on
   );
 }
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath, repoPath }: FileGroupProps) {
+/** What clicking a changed file's row opens: a new file has no old version, so it opens in the file view. */
+export const opensIn = (file: FileChange) => (file.kind === 'untracked' ? 'file' : 'diff');
+
+function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath }: FileGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
   return (
@@ -439,7 +442,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, s
         )}
       </GroupHead>
       {!collapsed && files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openInZed={openInZed} selected={file.path === selectedPath} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openIn={openIn} selected={file.path === selectedPath && selectedKind === opensIn(file)} />
       ))}
     </div>
   );
@@ -459,9 +462,7 @@ function CommitRow(props: { testId: string; commit: CommitSummary; meta: string;
       onClick={() => onOpen(commit.oid, false)}
       onDoubleClick={() => onOpen(commit.oid, true)}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        onOpen(commit.oid, false);
+        if (event.target === event.currentTarget) openKey(event, (pin) => onOpen(commit.oid, pin));
       }}
     >
       <span className="file-name">{commit.subject}</span>
@@ -644,9 +645,7 @@ function StashGroup({ repoPath, count, current, busy, canApply, limit, load, sel
                 onClick={() => onOpen(stash, false)}
                 onDoubleClick={() => onOpen(stash, true)}
                 onKeyDown={(event) => {
-                  if (event.key !== 'Enter') return;
-                  event.preventDefault();
-                  onOpen(stash, false);
+                  if (event.target === event.currentTarget) openKey(event, (pin) => onOpen(stash, pin));
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -707,11 +706,11 @@ interface FileRowProps {
   selected: boolean;
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
-  openInZed(file: FileChange): void;
+  openIn(file: FileChange, editor: EditorId): void;
 }
 
 /** Clicking a row opens the file in the center panel; the button on the right only stages or reverts. */
-function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowProps) {
+function FileRow({ file, group, busy, selected, run, open, openIn }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
   const button = (testId: string, label: string, title: string, action: GitOp | (() => void), icon: ReactNode, disabled = busy) => (
@@ -745,9 +744,7 @@ function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowP
       onClick={() => open(file, false)}
       onDoubleClick={() => open(file, true)}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        open(file, false);
+        if (event.target === event.currentTarget) openKey(event, (pin) => open(file, pin));
       }}
     >
       <span className="file-letter mono" style={{ color: letterColor(mark) }}>
@@ -757,8 +754,49 @@ function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowP
       <span className="file-dir">{dir}</span>
       {group === 'staged' && isPartlyStaged(file) && <span className="chip">partly staged</span>}
       {group === 'staged' && button('unstage-file', `Unstage ${name}`, 'Unstage', { op: 'unstage', file }, <MinusIcon size={12} />)}
-      {group === 'conflicts' && button('open-in-zed', `Open ${name} in Zed`, 'Open in Zed', () => openInZed(file), <ExternalIcon size={12} />, false)}
+      {group === 'conflicts' && (
+        <OpenInMenu
+          className="open-in-row"
+          onOpen={(editor) => openIn(file, editor)}
+          button={({ open: shown, toggle }) => (
+            <button
+              className="icon-button tiny"
+              data-testid="open-in"
+              aria-label={`Open ${name} in…`}
+              aria-haspopup="menu"
+              aria-expanded={shown}
+              onClick={toggle}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <ExternalIcon size={12} />
+            </button>
+          )}
+        />
+      )}
       {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
+  );
+}
+
+const OPERATION_LABELS: Record<RepoOperation, string> = {
+  merge: 'merging',
+  rebase: 'rebasing',
+  'cherry-pick': 'cherry-picking',
+  revert: 'reverting',
+};
+
+/**
+ * In the repo header: the operation git is in the middle of, or "conflicts" for conflicts outside one
+ * (a stash applied with conflicts). Nothing if neither.
+ */
+function OperationChip({ operation, conflicts }: { operation: RepoOperation | null; conflicts: number }) {
+  if (operation === null && conflicts === 0) return null;
+  const label = operation === null ? 'conflicts' : OPERATION_LABELS[operation];
+  const files = conflicts === 0 ? '' : ` ${conflicts} ${conflicts === 1 ? 'file has' : 'files have'} conflicts.`;
+  const title = operation === null ? `${files.trim()} Resolve them and stage the files.` : `A ${operation} is waiting to be finished.${files}`;
+  return (
+    <span className="chip chip-warn" data-testid="operation-chip" title={title}>
+      {label}
+    </span>
   );
 }

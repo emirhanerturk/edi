@@ -1,3 +1,4 @@
+import type { EditorId } from '../../shared/editors';
 import { memo, useMemo } from 'react';
 import type { ParsedDiff } from '../../git/diffParse';
 import type { DiffView } from '../../shared/api';
@@ -15,7 +16,7 @@ export interface DiffPaneProps {
   /** Syntax colors; null if they haven't arrived yet or the language is unknown. */
   tokens: DiffTokens | null;
   onMode(mode: 'split' | 'inline'): void;
-  onOpenInZed(): void;
+  onOpenIn(editor: EditorId): void;
   /** Opens the whole file (its working tree version) in the file view. */
   onOpenFile(): void;
 }
@@ -24,7 +25,7 @@ const NOT_CHANGED = 'File is not in the list of changes';
 const TOO_LARGE = 'This diff is too large to show';
 
 /** A file's changes against HEAD: side by side or in a single column. */
-export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZed, onOpenFile }: DiffPaneProps) {
+export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn, onOpenFile }: DiffPaneProps) {
   const diff = view?.ok ? view.diff : null;
   // A file deleted from the working tree has no version to open.
   const onDisk = view?.ok === true && view.file.y !== 'D' && !(view.file.y === '.' && view.file.x === 'D');
@@ -32,7 +33,7 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZ
 
   return (
     <div className="center-view" data-testid="center-view" data-kind="diff">
-      <ViewHeader repoName={repoName} path={path} onOpenInZed={onOpenInZed}>
+      <ViewHeader repoName={repoName} path={path} onOpenIn={onOpenIn}>
         {showsLines && (
           <span className="mono view-counts">
             <span className="add">+{diff.added}</span> <span className="del">−{diff.removed}</span>
@@ -50,7 +51,7 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenInZ
           </div>
         )}
         {onDisk && (
-          <button className="zed-button" title="Show the whole file" onClick={onOpenFile}>
+          <button className="view-button" title="Show the whole file" onClick={onOpenFile}>
             <FileIcon size={12} />
             <span>Open file</span>
           </button>

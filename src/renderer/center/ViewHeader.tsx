@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { ExternalIcon } from '../components/icons';
+import { OpenInMenu } from '../components/OpenInMenu';
+import type { EditorId } from '../../shared/editors';
 
-/** Shared header for the diff and file views: repo, path, extras in between and "Open in Zed". */
-export function ViewHeader({ repoName, path, children, onOpenInZed }: { repoName: string; path: string; children?: ReactNode; onOpenInZed(): void }) {
+/** Shared header for the diff and file views: repo, path, extras in between and "Open in…". */
+export function ViewHeader({ repoName, path, children, onOpenIn }: { repoName: string; path: string; children?: ReactNode; onOpenIn(editor: EditorId): void }) {
   const slash = path.lastIndexOf('/');
   return (
     <div className="view-header" data-testid="view-header">
@@ -13,10 +14,7 @@ export function ViewHeader({ repoName, path, children, onOpenInZed }: { repoName
         <span className="view-name">{path.slice(slash + 1)}</span>
       </span>
       {children}
-      <button className="zed-button" onClick={onOpenInZed}>
-        <span>Open in Zed</span>
-        <ExternalIcon size={12} />
-      </button>
+      <OpenInMenu onOpen={onOpenIn} />
     </div>
   );
 }

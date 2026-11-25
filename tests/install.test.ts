@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, readFile, readlink, symlink, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, readdir, readlink, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { BUNDLE_ID, checkLink, checkTarget, install, preflight } from '../scripts/install.mjs';
+import { BUNDLE_ID, checkLink, checkTarget, install, pathNote, preflight, runningPattern } from '../scripts/install.mjs';
 import { makeTmpDir } from './helpers/tmpRepo.js';
 
 const run = promisify(execFile);
@@ -67,10 +67,30 @@ describe('install', () => {
 
     const v2 = await fakeApp(join(dir, 'v2', 'edi.app'), BUNDLE_ID, 'v2');
     await writeFile(join(appPath, 'Contents', 'Resources', 'old'), 'x');
-    const lines = await install({ built: v2, appPath, linkPath, isRunning: notRunning });
+    const lines = await install({ built: v2, appPath, linkPath, isRunning: notRunning, path: `/usr/bin:${join(dir, 'bin')}/` });
     expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('v2');
     expect(await exists(join(appPath, 'Contents', 'Resources', 'old'))).toBe(false);
     expect(lines).toEqual([`Updated ${appPath}`, `${linkPath} already points to edi`]);
+  });
+
+  it("says when the command's folder is not on PATH", () => {
+    expect(pathNote('/Users/x/.local/bin/edi', '/usr/bin:/bin')).toBe(
+      '/Users/x/.local/bin is not on your PATH: add it (in ~/.zshrc: export PATH="/Users/x/.local/bin:$PATH") to run edi from a terminal',
+    );
+    expect(pathNote('/Users/x/.local/bin/edi', '/usr/bin:/Users/x/.local/bin')).toBeNull();
+    expect(pathNote('/Users/x/.local/bin/edi', '/Users/x/.local/bin/:/bin')).toBeNull();
+  });
+
+  it("finds edi's own processes only: anchored, with the path's dots taken literally", async () => {
+    const pattern = new RegExp(runningPattern('/Applications/edi.app'));
+    expect(pattern.test('/Applications/edi.app/Contents/MacOS/edi --open=/w')).toBe(true);
+    expect(pattern.test('/Applications/edi.app/Contents/Frameworks/edi Helper (Renderer).app/Contents/MacOS/edi Helper (Renderer) --type=renderer')).toBe(true);
+    expect(pattern.test('vim /Applications/edi.app/Contents/MacOS/notes')).toBe(false);
+    expect(pattern.test('/Applications/ediXapp/Contents/MacOS/edi')).toBe(false);
+    expect(pattern.test('/Applications/edi.app.old/Contents/MacOS/edi')).toBe(false);
+    // pgrep reads it as an extended regular expression, as JavaScript does here.
+    const { stdout } = await run('sh', ['-c', `echo '/Applications/edi.app/Contents/MacOS/edi' | grep -cE '${runningPattern('/Applications/edi.app')}'`]);
+    expect(stdout.trim()).toBe('1');
   });
 
   it('touches nothing when a foreign app or command is in the way', async () => {
@@ -92,6 +112,35 @@ describe('install', () => {
     );
     expect(await exists(appPath)).toBe(false);
     expect(await readFile(join(dir, 'bin2', 'edi'), 'utf8')).toBe('other command');
+  });
+
+  it('keeps the installed app when copying the new one stops halfway', async () => {
+    const dir = await makeTmpDir();
+    const built = await fakeApp(join(dir, 'new', 'edi.app'), BUNDLE_ID, 'new');
+    const appPath = await fakeApp(join(dir, 'Applications', 'edi.app'), BUNDLE_ID, 'old');
+    const halfway = async (_from: string, to: string) => {
+      await mkdir(join(to, 'Contents'), { recursive: true });
+      throw new Error('disk full');
+    };
+    await expect(install({ built, appPath, linkPath: join(dir, 'bin', 'edi'), isRunning: notRunning, copy: halfway })).rejects.toThrow('disk full');
+    expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('old');
+    expect(await readdir(join(dir, 'Applications'))).toEqual(['edi.app']);
+
+    // The next install goes through as usual.
+    await install({ built, appPath, linkPath: join(dir, 'bin', 'edi'), isRunning: notRunning });
+    expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('new');
+    expect(await readdir(join(dir, 'Applications'))).toEqual(['edi.app']);
+  });
+
+  it('clears what an interrupted install left beside the app', async () => {
+    const dir = await makeTmpDir();
+    const built = await fakeApp(join(dir, 'new', 'edi.app'), BUNDLE_ID, 'new');
+    const appPath = join(dir, 'Applications', 'edi.app');
+    await mkdir(join(dir, 'Applications', '.edi.app.installing', 'Contents'), { recursive: true });
+    await cp(built, join(dir, 'Applications', '.edi.app.previous'), { recursive: true });
+    await install({ built, appPath, linkPath: join(dir, 'bin', 'edi'), isRunning: notRunning });
+    expect(await readFile(join(appPath, 'Contents', 'Resources', 'marker'), 'utf8')).toBe('new');
+    expect(await readdir(join(dir, 'Applications'))).toEqual(['edi.app']);
   });
 
   it('does not install while edi is running', async () => {

@@ -52,12 +52,14 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Commit view.** Clicking a commit opens it in the center panel: message, author,
   repository, branch, time, totals, a copy button for the hash, a GitHub link once the commit
   is pushed, and every changed file's diff one under another. Files with more than 400 changed
-  lines start collapsed; one button expands or collapses them all.
+  lines start collapsed, and so do the rest once the open ones reach 3,000 lines together; one
+  button expands or collapses them all.
 - **Running servers.** A dev server started in a terminal (`npm run dev` and the like) shows
   in the status bar with its localhost port, repository and terminal, found from the
   terminal's processes rather than its output; clicking it opens the address in the browser.
   The terminal tab shows the port. Links in terminal output open with Option-click.
-- **Open in Zed** from the file and diff views, and for conflicted files in the Git tab.
+- **Open in…** Antigravity or Zed from the file and diff views, and for conflicted files in
+  the Git tab.
 - **Layout.** View > Layout puts the terminals on the right and the Git, History and Files
   panel on the left.
 - **Remembers** the last folder, recent folders, the window position, the panel widths and

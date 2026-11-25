@@ -1,5 +1,5 @@
 // Making, renaming and finding files and folders for the Files tab. Every path stays inside the repo and out of .git.
-import { lstat, mkdir, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, realpath, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { OUTSIDE, isGitDir, locateInRepo, staysInside } from './files.js';
 
@@ -70,6 +70,54 @@ export async function entryPath(repo: string, relPath: unknown): Promise<EntryPa
 }
 
 /** Renames a file or folder in place (same folder, new name); the new name must be free. */
+/** True for the errors a link gets on a disk without hard links (exFAT, some network shares). */
+const noLinks = (error: unknown) => ['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EXDEV', 'EMLINK'].includes((error as NodeJS.ErrnoException).code ?? '');
+
+/**
+ * Moves `from` to `to` without replacing anything at `to`, even if something appears there after the
+ * check (Node has no exclusive rename on macOS). A file is linked at the new name, which fails if the name
+ * is taken, then unlinked at the old one; a folder gets an empty folder made at the new name, which also
+ * fails if it is taken, and is renamed over it (a rename replaces only an empty folder). A symbolic link,
+ * or a disk without hard links, falls back to a plain rename after the check.
+ * `'taken'` if the name is in use.
+ */
+export async function renameNoReplace(from: string, to: string): Promise<'ok' | 'taken'> {
+  const info = await lstat(from);
+  const plain = async () => {
+    if (await exists(to)) return 'taken' as const;
+    await rename(from, to);
+    return 'ok' as const;
+  };
+  if (info.isSymbolicLink()) return plain();
+  const code = (error: unknown) => (error as NodeJS.ErrnoException).code;
+  if (info.isDirectory()) {
+    try {
+      await mkdir(to);
+    } catch (error) {
+      if (code(error) === 'EEXIST') return 'taken';
+      throw error;
+    }
+    try {
+      await rename(from, to);
+    } catch (error) {
+      await rmdir(to).catch(() => undefined);
+      // Something was put in the new folder meanwhile: the name is in use.
+      if (code(error) === 'ENOTEMPTY' || code(error) === 'EEXIST') return 'taken';
+      throw error;
+    }
+    return 'ok';
+  }
+  try {
+    await link(from, to);
+  } catch (error) {
+    if (code(error) === 'EEXIST') return 'taken';
+    if (noLinks(error)) return plain();
+    throw error;
+  }
+  await unlink(from);
+  return 'ok';
+}
+
 export async function renameEntry(repo: string, relPath: unknown, newName: unknown): Promise<EntryResult> {
   if (!staysInside(relPath)) return { ok: false, error: OUTSIDE };
   if (!validName(newName)) return INVALID_NAME;
@@ -77,10 +125,10 @@ export async function renameEntry(repo: string, relPath: unknown, newName: unkno
   if (!entry.ok) return entry;
   const { parent, name } = splitPath(relPath);
   const target = join(entry.target, '..', newName);
-  // On a case-insensitive disk, A.ts "exists" when renaming a.ts to A.ts.
-  if (newName.toLowerCase() !== name.toLowerCase() && (await exists(target))) return taken(newName);
   try {
-    await rename(entry.target, target);
+    // On a case-insensitive disk, A.ts "exists" when renaming a.ts to A.ts: the same entry, renamed in place.
+    if (newName.toLowerCase() === name.toLowerCase()) await rename(entry.target, target);
+    else if ((await renameNoReplace(entry.target, target)) === 'taken') return taken(newName);
   } catch {
     return { ok: false, error: 'Could not rename' };
   }

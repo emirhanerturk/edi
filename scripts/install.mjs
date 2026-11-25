@@ -2,8 +2,8 @@
 // into ~/.local/bin. It never overwrites an app or a command that is not edi's, and does not
 // install while edi is open. Every check runs before anything changes.
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, readlink, rm, symlink } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { lstat, mkdir, readlink, rename, rm, symlink } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -35,9 +35,18 @@ export async function checkLink(linkPath, target) {
 }
 
 /** Whether the installed edi is running. */
+/**
+ * The `pgrep -f` pattern for edi's own processes: a command line that starts with a program inside the
+ * app. Anchored and escaped, so a process that only mentions the path (an editor with a file in it) or
+ * one in a look-alike folder (`edi.app.old`, `ediXapp`) doesn't count.
+ */
+export function runningPattern(appPath) {
+  return `^${`${appPath}/Contents/`.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}(MacOS|Frameworks)/`;
+}
+
 export async function isRunning(appPath) {
   try {
-    await run('pgrep', ['-f', `${appPath}/Contents/MacOS/`]);
+    await run('pgrep', ['-f', runningPattern(appPath)]);
     return true;
   } catch {
     return false; // pgrep exits with 1 when nothing matches.
@@ -54,8 +63,48 @@ export async function preflight({ appPath, linkPath, isRunning: running = isRunn
   return undefined;
 }
 
+const ditto = (from, to) => run('ditto', [from, to]);
+
+/** Hidden folders beside the app (same volume, so renames are atomic): the new copy and the old app. */
+const besideApp = (appPath) => ({
+  staging: join(dirname(appPath), `.${basename(appPath)}.installing`),
+  previous: join(dirname(appPath), `.${basename(appPath)}.previous`),
+});
+
+/**
+ * Puts the built app in place without a moment where a half-copied app sits there: it is copied
+ * beside the installed one first, then swapped in by renaming. If the copy stops, the installed app
+ * is untouched; what an interrupted install left beside it is cleared the next time.
+ */
+async function replaceApp(built, appPath, hadApp, copy) {
+  const { staging, previous } = besideApp(appPath);
+  await rm(staging, { recursive: true, force: true });
+  await rm(previous, { recursive: true, force: true });
+  try {
+    await copy(built, staging);
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
+  }
+  if (hadApp) await rename(appPath, previous);
+  try {
+    await rename(staging, appPath);
+  } catch (error) {
+    if (hadApp) await rename(previous, appPath);
+    throw error;
+  }
+  await rm(previous, { recursive: true, force: true });
+}
+
+/** A line to add when the command's folder isn't on `path` (a PATH value): `edi` wouldn't be found as typed. */
+export function pathNote(linkPath, path) {
+  const folder = dirname(linkPath);
+  const on = path.split(':').some((entry) => entry.replace(/\/+$/, '') === folder);
+  return on ? null : `${folder} is not on your PATH: add it (in ~/.zshrc: export PATH="${folder}:$PATH") to run edi from a terminal`;
+}
+
 /** Installs; returns what was done, one line per step. If a check fails, throws without touching anything. */
-export async function install({ built, appPath, linkPath, isRunning: running = isRunning }) {
+export async function install({ built, appPath, linkPath, isRunning: running = isRunning, copy = ditto, path = process.env.PATH ?? '' }) {
   // Things may have changed while packaging: the checks run again right before installing.
   await preflight({ appPath, linkPath, isRunning: running });
   const target = await checkTarget(appPath);
@@ -63,8 +112,7 @@ export async function install({ built, appPath, linkPath, isRunning: running = i
   const link = await checkLink(linkPath, command);
 
   const lines = [];
-  if (target === 'ours') await rm(appPath, { recursive: true, force: true });
-  await run('ditto', [built, appPath]);
+  await replaceApp(built, appPath, target === 'ours', copy);
   lines.push(`${target === 'ours' ? 'Updated' : 'Installed'} ${appPath}`);
   if (link === 'missing') {
     await mkdir(dirname(linkPath), { recursive: true });
@@ -73,5 +121,7 @@ export async function install({ built, appPath, linkPath, isRunning: running = i
   } else {
     lines.push(`${linkPath} already points to edi`);
   }
+  const note = pathNote(linkPath, path);
+  if (note) lines.push(note);
   return lines;
 }

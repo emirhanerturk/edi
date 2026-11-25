@@ -75,9 +75,11 @@ export async function launch(opts: { openDir?: string; userData?: string; usageF
 type Asked = { message: string; detail: string; buttons: string[] };
 
 /**
- * From now on, answers the app's "running process" dialogs with the given button and records
- * them. The page's `window.confirm` boxes go through the same function in Electron; they are
- * left alone (they are answered through Playwright's `dialog` event).
+ * From now on, answers the app's "Quit edi?" and "Switch folders?" dialogs with the given button and
+ * records them, whatever they ask about (a running process, unsaved files, a git operation): one left
+ * unanswered in the hidden window would hang the test's closing. Other dialogs, and the page's
+ * `window.confirm` boxes that go through the same function in Electron, are left alone (they are
+ * answered through Playwright's `dialog` event).
  */
 export async function answerDialogs(app: ElectronApplication, response: number): Promise<void> {
   await app.evaluate(({ dialog }, answer) => {
@@ -87,8 +89,8 @@ export async function answerDialogs(app: ElectronApplication, response: number):
     const real = store.__ediRealDialog;
     const fake = async (...args: unknown[]) => {
       const options = (args.length > 1 ? args[1] : args[0]) as Partial<Asked>;
-      if (!options.detail?.includes('running process')) return (real as (...a: unknown[]) => unknown)(...args);
-      store.__ediDialogs?.push({ message: options.message ?? '', detail: options.detail, buttons: options.buttons ?? [] });
+      if (options.message !== 'Quit edi?' && options.message !== 'Switch folders?') return (real as (...a: unknown[]) => unknown)(...args);
+      store.__ediDialogs?.push({ message: options.message ?? '', detail: options.detail ?? '', buttons: options.buttons ?? [] });
       return { response: answer, checkboxChecked: false };
     };
     dialog.showMessageBox = fake as unknown as typeof dialog.showMessageBox;

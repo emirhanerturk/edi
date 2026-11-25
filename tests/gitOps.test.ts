@@ -29,6 +29,21 @@ const fileOf = (ws: Workspace, repo: string, path: string) => {
   return found;
 };
 
+describe('GitOps lock', () => {
+  it('lets the repo go and returns the result even if the refresh afterwards fails', async () => {
+    const { repos, ws, ops } = await setup();
+    const refresh = ws.refresh.bind(ws);
+    ws.refresh = async () => {
+      throw new Error('status failed');
+    };
+    const result = await ops.run(repos[0]!, { op: 'createBranch', branch: 'feat/x' });
+    expect(result.ok).toBe(true);
+    expect(ws.view().repos[0]!.busy).toBeNull();
+    ws.refresh = refresh;
+    expect((await ops.run(repos[0]!, { op: 'switch', branch: 'main' })).ok).toBe(true);
+  });
+});
+
 describe('busyLabel', () => {
   it('returns a label for each operation', () => {
     expect(busyLabel({ op: 'push' })).toBe('Pushing…');

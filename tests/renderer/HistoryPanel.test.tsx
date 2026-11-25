@@ -165,6 +165,17 @@ describe('HistoryPanelView: Timeline', () => {
   });
 });
 
+describe('HistoryPanelView: keyboard', () => {
+  it('Enter or Space previews a commit, ⌘Enter opens it in a tab of its own', () => {
+    const { onOpenCommit } = renderView();
+    const first = commitRows()[0]!;
+    fireEvent.keyDown(first, { key: ' ' });
+    expect(onOpenCommit).toHaveBeenLastCalledWith(expect.any(String), fix.oid, false);
+    fireEvent.keyDown(first, { key: 'Enter', metaKey: true });
+    expect(onOpenCommit).toHaveBeenLastCalledWith(expect.any(String), fix.oid, true);
+  });
+});
+
 describe('HistoryPanelView: toolbar', () => {
   it('layout buttons show the selected one and report a change', () => {
     const { onLayout } = renderView();

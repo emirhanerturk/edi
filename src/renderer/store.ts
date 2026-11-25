@@ -1,3 +1,4 @@
+import type { EditorId } from '../shared/editors';
 import { create } from 'zustand';
 import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, StashEntry, StashMenuAction, StashRetry, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
@@ -22,7 +23,7 @@ import {
 import { clampWidths } from './components/Splitter';
 import { isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
-import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
+import { disposeAllTerminals, disposeTerminal, onTerminalLink, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
 export interface Tab {
   id: number;
@@ -101,7 +102,13 @@ export interface HistoryEntry {
   key: string;
   /** Null until it arrives; the old one stays while rereading. */
   log: LogResult | null;
+  /** The count `log` was read with: below `limit` while a longer log is on its way. */
+  logLimit: number;
 }
+
+/** Whether "Load 50 more" has anything to add for this repo: more commits, below the largest count. */
+export const canLoadMore = (entry: HistoryEntry | undefined): boolean =>
+  entry !== undefined && entry.log?.ok === true && entry.log.hasMore && entry.limit < HISTORY_MAX;
 
 /** Latest request per repo: a stale reply that arrives late doesn't overwrite the newer one. */
 const historyRequests = new Map<string, number>();
@@ -177,11 +184,13 @@ interface AppStore {
   /** After a rename (`to`) or a move to the Trash (`to` null): file tabs follow or close. */
   moveFileTabs(repoPath: string, from: string, to: string | null): void;
 
-  /** Last error in the center panel (such as "Couldn't open Zed"); null if none. */
+  /** Last error in the center panel (such as "Could not open Zed"); null if none. */
   centerError: string | null;
   dismissCenterError(): void;
-  /** Opens the file (or the repo folder if the path is null) in Zed; on failure, shows the error in the center panel. */
-  openInZed(repoPath: string, path: string | null): Promise<void>;
+  /** Opens the file (or the repo folder if the path is null) in an editor; on failure, shows the error in the center panel. */
+  openIn(editor: EditorId, repoPath: string, path: string | null): Promise<void>;
+  /** Opens a web link in the browser; if that fails, says so in the error bar. */
+  openUrl(url: string): Promise<void>;
 
   tabs: Tab[];
   /** Localhost ports listening in the terminals. */
@@ -294,7 +303,12 @@ export const useApp = create<AppStore>((set, get) => ({
     const repo = get().workspace.repos.find((r) => r.path === repoPath);
     if (!repo) return;
     const previous = get().history[repoPath];
-    const entry: HistoryEntry = { limit: limit ?? previous?.limit ?? HISTORY_PAGE, key: historyKey(repo), log: previous?.log ?? null };
+    const entry: HistoryEntry = {
+      limit: limit ?? previous?.limit ?? HISTORY_PAGE,
+      key: historyKey(repo),
+      log: previous?.log ?? null,
+      logLimit: previous?.logLimit ?? 0,
+    };
     const request = ++historySerial;
     historyRequests.set(repoPath, request);
     set((state) => ({ history: { ...state.history, [repoPath]: entry } }));
@@ -305,13 +319,14 @@ export const useApp = create<AppStore>((set, get) => ({
       log = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
     if (historyRequests.get(repoPath) !== request || !get().history[repoPath]) return;
-    set((state) => ({ history: { ...state.history, [repoPath]: { ...entry, log } } }));
+    set((state) => ({ history: { ...state.history, [repoPath]: { ...entry, log, logLimit: entry.limit } } }));
   },
   loadMoreHistory() {
     const { history, historyFilter, loadHistory } = get();
     for (const [path, entry] of Object.entries(history)) {
       if (historyFilter !== null && path !== historyFilter) continue;
-      if (entry.log?.ok && entry.log.hasMore) void loadHistory(path, Math.min(entry.limit + HISTORY_PAGE, HISTORY_MAX));
+      // A page still on its way: asking again would add a second one.
+      if (canLoadMore(entry) && entry.logLimit === entry.limit) void loadHistory(path, Math.min(entry.limit + HISTORY_PAGE, HISTORY_MAX));
     }
   },
   refreshHistory() {
@@ -338,9 +353,13 @@ export const useApp = create<AppStore>((set, get) => ({
 
   centerError: null,
   dismissCenterError: () => set({ centerError: null }),
-  async openInZed(repoPath, path) {
-    const result = await edi.openInZed(repoPath, path);
+  async openIn(editor, repoPath, path) {
+    const result = await edi.openIn(editor, repoPath, path);
     set({ centerError: result.ok ? null : result.error });
+  },
+  async openUrl(url) {
+    const result = await edi.openUrl(url);
+    if (!result.ok) set({ centerError: `${result.error}: ${url}` });
   },
   dismissOpenError: () => set({ openError: null }),
 
@@ -420,7 +439,11 @@ export const useApp = create<AppStore>((set, get) => ({
       errors: result.ok ? without(state.errors, repoPath) : { ...state.errors, [repoPath]: result.error },
       retries: retry ? { ...state.retries, [repoPath]: retry } : without(state.retries, repoPath),
       // If the commit went through, the message is cleared (the commit stays even if its push failed).
-      drafts: op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) ? without(state.drafts, repoPath) : state.drafts,
+      // Only if the box still holds what was committed: text typed while a hook ran is kept.
+      drafts:
+        op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) && state.drafts[repoPath] === op.message
+          ? without(state.drafts, repoPath)
+          : state.drafts,
       center: gone ? closeCenterTab(state.center, gone) : state.center,
     }));
   },
@@ -475,6 +498,7 @@ useApp.subscribe((state, prev) => {
 
 /** Gets the initial state from the main process and subscribes to changes. The returned function unsubscribes. */
 export function connect(): () => void {
+  onTerminalLink((url) => void useApp.getState().openUrl(url));
   const off = [
     edi.on('workspace', (workspace) =>
       useApp.setState((state) => ({

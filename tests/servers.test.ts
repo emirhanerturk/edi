@@ -19,6 +19,11 @@ describe('parseListening', () => {
     ]);
   });
 
+  it('leaves out a last line cut short', () => {
+    expect([...parseListening('p100\nf20\nn*:3000\nf21\nn*:51')]).toEqual([[100, [3000]]]);
+    expect([...parseListening('p100\nf20\nn*:3000\n')]).toEqual([[100, [3000]]]);
+  });
+
   it('does not count OS-assigned ephemeral ports (49152 and up) as servers', () => {
     // vite + the Cloudflare plugin: 5173 is the real address; the others are internal ports from listen(0).
     const out = ['p100', 'n*:5173', 'n127.0.0.1:54487', 'p101', 'n127.0.0.1:54488', 'n127.0.0.1:49152', 'n127.0.0.1:49151', ''].join('\n');

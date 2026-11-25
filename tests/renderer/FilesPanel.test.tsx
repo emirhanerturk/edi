@@ -63,6 +63,54 @@ describe('FilesPanelView', () => {
     expect(brief()).toEqual(['quizei-app ●', '-app ●', '--play.tsx M', '--result.tsx', '-node_modules', '-.env', '-package.json', 'quizei-api']);
   });
 
+  it('a nested repo or a submodule is a folder that does not open, and its menu offers nothing to make inside', () => {
+    const nestedRepo = repo('app', [{ path: 'vendor/lib', origPath: null, x: '.', y: 'M', kind: 'changed' }]);
+    const onToggle = vi.fn();
+    const onRowMenu = vi.fn();
+    renderView({
+      repos: [nestedRepo],
+      single: true,
+      lists: { '/w/app': { ok: true, files: ['a.ts'], ignored: [], dirs: [], nested: ['vendor/lib'] } },
+      open: { '/w/app\nvendor': true, '/w/app\nvendor/lib': true },
+      onToggle,
+      onRowMenu,
+    });
+    expect(brief()).toEqual(['vendor ●', '-lib ●', 'a.ts']);
+    const lib = rows()[1]!;
+    expect(lib.getAttribute('aria-expanded')).toBeNull();
+    expect(lib.title).toBe('vendor/lib (a repository of its own)');
+    fireEvent.click(lib);
+    expect(onToggle).not.toHaveBeenCalled();
+    fireEvent.contextMenu(lib);
+    expect(onRowMenu).toHaveBeenCalledWith('/w/app', 'vendor/lib', 'file');
+  });
+
+  it('from the keyboard: the arrows move through the tree and open or close folders; Space previews, ⌘Enter keeps', () => {
+    const open: Record<string, boolean> = { '/w/quizei-app\n': true };
+    const props = renderView({
+      onToggle: vi.fn((key: string, value: boolean) => (open[key] = value)),
+      onOpenFile: vi.fn(),
+      open,
+    });
+    const byName = (name: string) => rows().find((row) => row.dataset.name === name)!;
+    byName('quizei-app').focus();
+    fireEvent.keyDown(byName('quizei-app'), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(byName('app'));
+    // Right on a closed folder opens it.
+    fireEvent.keyDown(byName('app'), { key: 'ArrowRight' });
+    expect(props.onToggle).toHaveBeenCalledWith('/w/quizei-app\napp', true);
+    // Left on a row in a folder goes up to the folder.
+    fireEvent.keyDown(byName('package.json'), { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(byName('quizei-app'));
+    // Left on an open folder closes it.
+    fireEvent.keyDown(byName('quizei-app'), { key: 'ArrowLeft' });
+    expect(props.onToggle).toHaveBeenCalledWith('/w/quizei-app\n', false);
+    fireEvent.keyDown(byName('package.json'), { key: ' ' });
+    expect(props.onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', 'package.json', false);
+    fireEvent.keyDown(byName('package.json'), { key: 'Enter', metaKey: true });
+    expect(props.onOpenFile).toHaveBeenLastCalledWith('/w/quizei-app', 'package.json', true);
+  });
+
   it('says when the file list is loading, and shows the error when it cannot be read', () => {
     renderView({ open: { '/w/quizei-api\n': true } });
     expect(screen.getByText('Loading…')).toBeTruthy();

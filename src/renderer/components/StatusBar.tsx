@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { edi } from '../bridge';
 import { ago, plural, summary } from '../format';
 import { serverRows } from '../servers/model';
 import { ServersMenu } from '../servers/ServersMenu';
@@ -30,7 +29,7 @@ export function StatusBar() {
         </span>
       )}
       <div className="spacer" />
-      <ServersMenu rows={rows} onOpen={(url) => void edi.openUrl(url)} />
+      <ServersMenu rows={rows} onOpen={(url) => void useApp.getState().openUrl(url)} />
       {info !== null ? (
         <span data-testid="center-info">{info}</span>
       ) : (

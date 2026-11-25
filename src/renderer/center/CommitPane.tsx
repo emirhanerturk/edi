@@ -15,6 +15,17 @@ export const OPEN_BUDGET = 3000;
 
 const lineCount = (file: CommitFile) => file.diff.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0);
 
+/**
+ * The body's paragraphs, split at blank lines. Indentation is kept (an indented code sample or a
+ * nested list reads as written); only the blank space around a paragraph goes.
+ */
+export function bodyParagraphs(body: string): string[] {
+  return body
+    .split(/\n[ \t]*\n/)
+    .map((paragraph) => paragraph.replace(/^(?:[ \t]*\n)+/, '').trimEnd())
+    .filter((paragraph) => paragraph !== '');
+}
+
 /** Paths of the files that start collapsed. */
 export function initiallyCollapsed(files: CommitFile[]): Set<string> {
   const collapsed = new Set<string>();
@@ -76,7 +87,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
   }
   const { commit } = result;
   const { prefix, rest } = splitSubject(commit.subject);
-  const paragraphs = commit.body === '' ? [] : commit.body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const paragraphs = bodyParagraphs(commit.body);
   return (
     <div className="center-view commit-view" data-testid="center-view" data-kind="commit">
       <header className="commit-header">

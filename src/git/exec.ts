@@ -1,3 +1,4 @@
+import { childEnv } from '../childEnv.js';
 import { type ChildProcessByStdio, spawn } from 'node:child_process';
 import type { Writable } from 'node:stream';
 import { stat } from 'node:fs/promises';
@@ -39,11 +40,12 @@ const REDIRECTING_VARS = [
 
 function gitEnv(cwd: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   // Fixed locale: picking the error line and the UI text rely on git's English output.
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extra, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };
+  const base = childEnv();
+  const env: NodeJS.ProcessEnv = { ...base, ...extra, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };
   for (const name of REDIRECTING_VARS) delete env[name];
   // If `cwd` isn't a repo, git searches the parent folders for one. The ceiling keeps a row's
   // command from accidentally running in another repo further up.
-  env.GIT_CEILING_DIRECTORIES = [dirname(cwd), process.env.GIT_CEILING_DIRECTORIES].filter(Boolean).join(':');
+  env.GIT_CEILING_DIRECTORIES = [dirname(cwd), base.GIT_CEILING_DIRECTORIES].filter(Boolean).join(':');
   return env;
 }
 
