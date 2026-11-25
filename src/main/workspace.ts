@@ -1,10 +1,11 @@
 import { realpath, stat } from 'node:fs/promises';
 import { type Repo, discoverRepos } from '../git/discover.js';
 import { runGit } from '../git/exec.js';
-import { commonDir, refsStamp } from '../git/refsStamp.js';
+import { operationIn } from '../git/operation.js';
+import { type GitDirs, gitDirs, refsStamp } from '../git/refsStamp.js';
 import { getStatus } from '../git/status.js';
 import { assignSessions } from '../sessions.js';
-import type { RepoView, WorkspaceView } from '../shared/api.js';
+import type { RepoOperation, RepoView, WorkspaceView } from '../shared/api.js';
 
 /** How many status polls between rereads of the remote list. */
 const REMOTES_EVERY = 15;
@@ -26,8 +27,8 @@ export class Workspace {
   private timer: NodeJS.Timeout | null = null;
   /** Repos whose status is being read right now: a slow repo doesn't pile up overlapping polls. */
   private readonly inFlight = new Map<string, Promise<boolean>>();
-  /** Each repo's refs folder, looked up once (a promise, so polls in a row share the lookup). */
-  private readonly commonDirs = new Map<string, Promise<string | null>>();
+  /** Each repo's git folders, looked up once (a promise, so polls in a row share the lookup). */
+  private readonly gitDirs = new Map<string, Promise<GitDirs | null>>();
   /** Incremented when the folder changes; late results from the old folder are ignored. */
   private generation = 0;
   private readonly onChange: (view: WorkspaceView) => void;
@@ -170,20 +171,24 @@ export class Workspace {
     this.emit();
   }
 
-  /** When the repo's tags and remote branches last changed; 0 if its refs folder can't be found. */
-  private async refsOf(path: string): Promise<number> {
-    let common = this.commonDirs.get(path);
-    if (!common) {
-      common = commonDir(path);
-      this.commonDirs.set(path, common);
+  /**
+   * Read from the repo's git folder: when its tags and remote branches last changed, and the operation
+   * it is in the middle of. 0 and null if the folder can't be found.
+   */
+  private async gitDirState(path: string): Promise<{ refs: number; operation: RepoOperation | null }> {
+    let lookup = this.gitDirs.get(path);
+    if (!lookup) {
+      lookup = gitDirs(path);
+      this.gitDirs.set(path, lookup);
     }
-    const dir = await common;
+    const dirs = await lookup;
     // Not found (the repo is broken right now): looked up again next time.
-    if (dir === null) {
-      if (this.commonDirs.get(path) === common) this.commonDirs.delete(path);
-      return 0;
+    if (dirs === null) {
+      if (this.gitDirs.get(path) === lookup) this.gitDirs.delete(path);
+      return { refs: 0, operation: null };
     }
-    return refsStamp(dir);
+    const [refs, operation] = await Promise.all([refsStamp(dirs.common), operationIn(dirs.git)]);
+    return { refs, operation };
   }
 
   /** True if the status was read; false if the folder changed in the meantime. A read in progress shares its result. */
@@ -191,10 +196,10 @@ export class Workspace {
     const running = this.inFlight.get(path);
     if (running) return running;
     const generation = this.generation;
-    const reading: Promise<boolean> = Promise.all([getStatus(path), this.refsOf(path)])
-      .then(([result, refs]) => {
+    const reading: Promise<boolean> = Promise.all([getStatus(path), this.gitDirState(path)])
+      .then(([result, dirState]) => {
         if (generation !== this.generation) return false;
-        this.patch(path, result.ok ? { status: result.status, error: null, refs } : { status: null, error: result.error, refs });
+        this.patch(path, result.ok ? { status: result.status, error: null, ...dirState } : { status: null, error: result.error, ...dirState });
         return true;
       })
       .finally(() => {

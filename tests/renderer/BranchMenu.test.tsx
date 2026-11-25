@@ -38,4 +38,32 @@ describe('BranchMenu', () => {
     fireEvent.click(items[2]!);
     expect(onSwitch).toHaveBeenCalledWith('main');
   });
+
+  it('stays open when something else scrolls; follows the button, and closes once it scrolls out of sight', async () => {
+    render(
+      <>
+        <div data-testid="terminal" />
+        <div data-testid="list">
+          <BranchMenu current="main" load={async () => list} onSwitch={vi.fn()} onCreate={vi.fn()} />
+        </div>
+      </>,
+    );
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 200, width: 200, height, x: 0, y: top, toJSON: () => ({}) });
+    const button = screen.getByTestId('branch-button');
+    const scroller = screen.getByTestId('list');
+    let buttonTop = 100;
+    button.getBoundingClientRect = () => rect(buttonTop, 22);
+    scroller.getBoundingClientRect = () => rect(50, 400);
+    fireEvent.click(button);
+    await screen.findByRole('menuitem', { name: /main/ });
+
+    fireEvent.scroll(screen.getByTestId('terminal'));
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    buttonTop = 200;
+    fireEvent.scroll(scroller);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    buttonTop = 20;
+    fireEvent.scroll(scroller);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
 });

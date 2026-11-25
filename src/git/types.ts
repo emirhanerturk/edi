@@ -12,6 +12,9 @@ export interface FileChange {
   kind: 'changed' | 'untracked' | 'conflicted';
 }
 
+/** An operation git is in the middle of, waiting for conflicts to be resolved or for `--continue`. */
+export type RepoOperation = 'merge' | 'rebase' | 'cherry-pick' | 'revert';
+
 export interface RepoStatus {
   /** Branch name; the short commit hash on a detached HEAD. */
   head: string;

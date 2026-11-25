@@ -577,7 +577,8 @@ export function FilesPanel() {
       lists={lists}
       dirs={dirs}
       open={open}
-      selected={active && { repoPath: active.repoPath, path: active.path }}
+      // Only the file view: the same file's diff open from the Git tab doesn't select its row here.
+      selected={active?.kind === 'file' ? { repoPath: active.repoPath, path: active.path } : null}
       onToggle={toggleFilesDir}
       onOpenFile={(repoPath, path, pin) => openInCenter({ kind: 'file', repoPath, path }, pin)}
       edit={edit}

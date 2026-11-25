@@ -52,9 +52,16 @@ export function BranchMenu({ current, title, disabled, load, onSwitch, onCreate 
       const anchor = button.current?.getBoundingClientRect();
       if (anchor) setPlace(placeMenu(anchor, { width: window.innerWidth, height: window.innerHeight }, MENU_SIZE));
     };
-    // If the repo list scrolls, the button moves; the menu closes so it isn't left floating.
+    // Only a scroll that moves the button matters (not the terminal's or a file's): the menu follows the
+    // button, and closes once the button scrolls out of sight so it isn't left floating.
     const onScroll = (event: Event) => {
-      if (!(event.target instanceof Node) || !menu.ref.current?.contains(event.target)) menu.setOpen(false);
+      const scrolled = event.target === document ? document.documentElement : event.target;
+      const anchor = button.current;
+      if (!(scrolled instanceof Element) || !anchor || !scrolled.contains(anchor) || menu.ref.current?.contains(scrolled)) return;
+      const view = scrolled.getBoundingClientRect();
+      const rect = anchor.getBoundingClientRect();
+      if (rect.bottom <= view.top || rect.top >= view.bottom) menu.setOpen(false);
+      else update();
     };
     update();
     window.addEventListener('resize', update);

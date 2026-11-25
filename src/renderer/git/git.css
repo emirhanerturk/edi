@@ -669,7 +669,8 @@ button.branch-chip:hover {
 /* Branch menu */
 .branch {
   position: relative;
-  flex: 0 1 auto;
+  /* With little room, the branch name gives way before the repo's name (which shrinks only at its least). */
+  flex: 0 1000 auto;
   min-width: 48px;
   display: flex;
 }

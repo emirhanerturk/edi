@@ -4,11 +4,11 @@
  */
 import type { EditorId } from './editors.js';
 import type { ParsedDiff } from '../git/diffParse.js';
-import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, UnpushedResult } from '../git/types.js';
+import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
 
-export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, UnpushedResult };
+export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
 export type { StashDetail, StashEntry, StashList, StashResult };
 
@@ -26,6 +26,8 @@ export interface RepoView {
   hasRemote: boolean;
   /** When its tags or remote branches last changed (see `refsStamp`); absent until first read. */
   refs?: number;
+  /** The merge, rebase, cherry-pick or revert it is in the middle of; null or absent if none. */
+  operation?: RepoOperation | null;
 }
 
 export interface WorkspaceView {

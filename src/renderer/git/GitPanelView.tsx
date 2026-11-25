@@ -4,7 +4,7 @@ import type { EditorId } from '../../shared/editors';
 import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
-import type { BranchList, GitOp, IncomingResult, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
+import type { BranchList, GitOp, IncomingResult, RepoOperation, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
 import { shortAgo } from '../history/time';
 import {
   ArrowDown,
@@ -118,6 +118,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const fileProps = {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
+    selectedKind: props.selected?.kind ?? null,
     openIn: (file: FileChange, editor: EditorId) => props.onOpenIn?.(repo.path, file.path, editor),
     repoPath: repo.path,
   };
@@ -156,7 +157,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
           <span className="repo-name">{repo.name}</span>
         </button>
         {repo.claude > 0 && <ClaudeMark size={12} label="Claude Code session open" />}
-        {groups.conflicts.length > 0 && <span className="chip chip-warn">merging</span>}
+        <OperationChip operation={repo.operation ?? null} conflicts={groups.conflicts.length} />
         <div className="spacer" />
 
         {open ? (
@@ -356,6 +357,8 @@ interface FileGroupProps {
   openIn(file: FileChange, editor: EditorId): void;
   /** Path of the file open in the center panel, in this repo. */
   selectedPath: string | null;
+  /** What it is open in (`diff`, `file`): a row is selected only while what it opens is the one showing. */
+  selectedKind: string | null;
   /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
   blocked?: boolean;
   repoPath: string;
@@ -404,7 +407,10 @@ function GroupHead(props: { title: string; count: number; collapsed: boolean; on
   );
 }
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, repoPath }: FileGroupProps) {
+/** What clicking a changed file's row opens: a new file has no old version, so it opens in the file view. */
+export const opensIn = (file: FileChange) => (file.kind === 'untracked' ? 'file' : 'diff');
+
+function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath }: FileGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
   return (
@@ -436,7 +442,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openIn, sele
         )}
       </GroupHead>
       {!collapsed && files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openIn={openIn} selected={file.path === selectedPath} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openIn={openIn} selected={file.path === selectedPath && selectedKind === opensIn(file)} />
       ))}
     </div>
   );
@@ -769,5 +775,28 @@ function FileRow({ file, group, busy, selected, run, open, openIn }: FileRowProp
       )}
       {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
+  );
+}
+
+const OPERATION_LABELS: Record<RepoOperation, string> = {
+  merge: 'merging',
+  rebase: 'rebasing',
+  'cherry-pick': 'cherry-picking',
+  revert: 'reverting',
+};
+
+/**
+ * In the repo header: the operation git is in the middle of, or "conflicts" for conflicts outside one
+ * (a stash applied with conflicts). Nothing if neither.
+ */
+function OperationChip({ operation, conflicts }: { operation: RepoOperation | null; conflicts: number }) {
+  if (operation === null && conflicts === 0) return null;
+  const label = operation === null ? 'conflicts' : OPERATION_LABELS[operation];
+  const files = conflicts === 0 ? '' : ` ${conflicts} ${conflicts === 1 ? 'file has' : 'files have'} conflicts.`;
+  const title = operation === null ? `${files.trim()} Resolve them and stage the files.` : `A ${operation} is waiting to be finished.${files}`;
+  return (
+    <span className="chip chip-warn" data-testid="operation-chip" title={title}>
+      {label}
+    </span>
   );
 }

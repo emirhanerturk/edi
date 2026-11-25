@@ -149,6 +149,20 @@ describe('GitPanelView', () => {
     expect(screen.getByText('No git repositories in this folder')).toBeTruthy();
   });
 
+  it('the header chip names the operation, or says "conflicts" when there is none (a stash applied with conflicts)', () => {
+    const conflicted = status({ files: [file('README.md', 'U', 'U', 'conflicted')] });
+    const chip = (over: Partial<RepoView>) => {
+      cleanup();
+      render(<GitPanelView repos={[repo('a', over)]} expanded={{}} onToggle={() => undefined} />);
+      return screen.queryByTestId('operation-chip');
+    };
+    expect(chip({ status: conflicted, operation: 'merge' })?.textContent).toBe('merging');
+    expect(chip({ status: conflicted, operation: 'rebase' })?.title).toBe('A rebase is waiting to be finished. 1 file has conflicts.');
+    expect(chip({ status: conflicted, operation: null })?.textContent).toBe('conflicts');
+    expect(chip({ operation: 'cherry-pick' })?.textContent).toBe('cherry-picking');
+    expect(chip({ operation: null })).toBeNull();
+  });
+
   it('"Unstage all" is disabled during conflicts: resetting the index would also erase the conflict record', () => {
     const merging = repo('merging', {
       status: status({ files: [file('README.md', 'U', 'U', 'conflicted'), file('clean.txt', 'A', '.')] }),
@@ -161,7 +175,7 @@ describe('GitPanelView', () => {
 });
 
 describe('GitPanelView, opening files', () => {
-  function renderOpen(selected: { repoPath: string; path: string } | null = null) {
+  function renderOpen(selected: { repoPath: string; path: string; kind?: string } | null = null) {
     const onOpenFile = vi.fn();
     const onOp = vi.fn();
     render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onOpenFile={onOpenFile} onOp={onOp} selected={selected} />);
@@ -193,11 +207,20 @@ describe('GitPanelView, opening files', () => {
     expect(onOpenFile).not.toHaveBeenCalled();
   });
 
-  it('the row of the file open in the center panel shows as selected', () => {
-    renderOpen({ repoPath: '/w/quizei-app', path: 'app/play.tsx' });
+  it('the row of the file whose diff is open in the center panel shows as selected', () => {
+    renderOpen({ repoPath: '/w/quizei-app', path: 'app/play.tsx', kind: 'diff' });
     const current = screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true');
     // A partly staged file is in both groups.
     expect(current.map((el) => el.getAttribute('data-group'))).toEqual(['staged', 'changes']);
+  });
+
+  it('the same file open in the file view does not select its row; a new file is selected by its file view', () => {
+    renderOpen({ repoPath: '/w/quizei-app', path: 'app/play.tsx', kind: 'file' });
+    expect(screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true')).toHaveLength(0);
+    cleanup();
+    renderOpen({ repoPath: '/w/quizei-app', path: 'new.ts', kind: 'file' });
+    const current = screen.getAllByTestId('file-row').filter((el) => el.getAttribute('aria-current') === 'true');
+    expect(current.map((el) => el.getAttribute('data-path') ?? el.textContent)).toHaveLength(1);
   });
 
   it('the same path in another repo does not count as selected', () => {

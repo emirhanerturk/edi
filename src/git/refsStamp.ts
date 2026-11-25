@@ -3,12 +3,21 @@ import { readdir, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { runGit } from './exec.js';
 
-/** The folder holding the refs: `.git`, or the main repo's for a worktree. Null if git can't say. */
-export async function commonDir(repo: string): Promise<string | null> {
-  const result = await runGit(repo, ['rev-parse', '--git-common-dir']);
+export interface GitDirs {
+  /** The repo's own git folder: `.git`, or `.git/worktrees/<name>` for a worktree. */
+  git: string;
+  /** The folder holding the refs: `.git`, or the main repo's for a worktree. */
+  common: string;
+}
+
+/** The repo's git folders. Null if git can't say. */
+export async function gitDirs(repo: string): Promise<GitDirs | null> {
+  const result = await runGit(repo, ['rev-parse', '--git-dir', '--git-common-dir']);
   if (!result.ok) return null;
-  const dir = result.stdout.trim();
-  return isAbsolute(dir) ? dir : join(repo, dir);
+  const [git, common] = result.stdout.split('\n').map((dir) => dir.trim());
+  if (!git || !common) return null;
+  const absolute = (dir: string) => (isAbsolute(dir) ? dir : join(repo, dir));
+  return { git: absolute(git), common: absolute(common) };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { edi } from '../bridge';
 import { useApp } from '../store';
-import { GitPanelView } from './GitPanelView';
+import { GitPanelView, opensIn } from './GitPanelView';
 import { stashTitle } from './model';
 
 /** Stable, so the Unpushed and Incoming sections read only when HEAD or the count moves. */
@@ -42,7 +42,7 @@ export function GitPanel() {
       onOpenIn={(repoPath, path, editor) => void useApp.getState().openIn(editor, repoPath, path)}
       loadBranches={(repoPath) => edi.branches(repoPath)}
       // A new file has no old version to compare against: its content opens in the file view.
-      onOpenFile={(repoPath, file, pin) => openInCenter({ kind: file.kind === 'untracked' ? 'file' : 'diff', repoPath, path: file.path }, pin)}
+      onOpenFile={(repoPath, file, pin) => openInCenter({ kind: opensIn(file), repoPath, path: file.path }, pin)}
       selected={active && { repoPath: active.repoPath, path: active.path, kind: active.kind }}
       loadUnpushed={loadUnpushed}
       loadIncoming={loadIncoming}
