@@ -9,12 +9,16 @@ export const HISTORY_PAGE = 50;
 export const HISTORY_MAX = 5000;
 
 /**
- * When it changes, the repo's log is reread: branch, HEAD (commit, pull, branch switch), upstream
- * and ahead/behind (changes the push arrows and the fetch upstream line).
+ * When it changes, the repo's log is reread: branch, HEAD (commit, pull, branch switch), upstream,
+ * ahead/behind (changes the push arrows and the fetch upstream line), and the tags and remote
+ * branches (a new tag, a push without `-u`: the labels on the commits).
  */
-export function historyKey(repo: { status: { head: string; headOid: string | null; upstream: string | null; ahead: number | null; behind: number | null } | null }): string {
+export function historyKey(repo: {
+  status: { head: string; headOid: string | null; upstream: string | null; ahead: number | null; behind: number | null } | null;
+  refs?: number;
+}): string {
   const s = repo.status;
-  return s === null ? '' : [s.head, s.headOid, s.upstream, s.ahead, s.behind].join('|');
+  return s === null ? '' : [s.head, s.headOid, s.upstream, s.ahead, s.behind, repo.refs ?? 0].join('|');
 }
 /** In the By repo layout, a repo whose last commit is newer than this starts expanded. */
 export const RECENT_MS = 3 * DAY;

@@ -167,4 +167,10 @@ describe('historyKey', () => {
     expect(historyKey({ status: { ...status } })).toBe(keys[0]);
     expect(historyKey({ status: null })).toBe('');
   });
+
+  it('changes when a tag or a remote branch changes', () => {
+    const status = { head: 'main', headOid: 'a'.repeat(40), upstream: null, ahead: null, behind: null };
+    expect(historyKey({ status, refs: 1 })).not.toBe(historyKey({ status, refs: 2 }));
+    expect(historyKey({ status, refs: 1 })).toBe(historyKey({ status, refs: 1 }));
+  });
 });

@@ -11,7 +11,17 @@ export const PAGE = 50;
  * Output independent of the user's config: signature verification, color and quoted paths are off.
  * The format is always given explicitly (`format.pretty` has no effect).
  */
-export const PINNED = ['-c', 'log.showSignature=false', '-c', 'color.ui=false', '-c', 'core.quotePath=false'];
+export const PINNED = [
+  '-c',
+  'log.showSignature=false',
+  '-c',
+  'color.ui=false',
+  '-c',
+  'core.quotePath=false',
+  // Output is read as UTF-8: a repo set to write logs in another encoding would garble non-ASCII letters.
+  '-c',
+  'i18n.logOutputEncoding=UTF-8',
+];
 
 /**
  * Environment for History reads: in a partial clone (`--filter=blob:none`), git is stopped from going to the

@@ -112,6 +112,19 @@ describe('Workspace', () => {
     expect(ws.view().repos.map((repo) => repo.name)).toEqual(won === 0 ? ['a', 'b', 'c', 'd'] : ['z']);
   });
 
+  it('notices a new tag, which changes no status', async () => {
+    const dir = await makeTmpDir();
+    const repo = await initRepo(dir, 'a', { commit: true });
+    const { ws } = makeWorkspace();
+    await ws.open(dir);
+    await until(() => (ws.view().repos[0]?.refs ?? 0) > 0);
+    const before = ws.view().repos[0]!.refs!;
+    // A tag in a folder of its own: the new folder and its parent both change.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await git(repo, 'tag', 'release/v1');
+    await until(() => ws.view().repos[0]!.refs! > before);
+  });
+
   it('treats only discovered paths as repos', async () => {
     const dir = await makeTmpDir();
     const repo = await initRepo(dir, 'a', { commit: true });

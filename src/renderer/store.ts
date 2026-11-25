@@ -102,7 +102,13 @@ export interface HistoryEntry {
   key: string;
   /** Null until it arrives; the old one stays while rereading. */
   log: LogResult | null;
+  /** The count `log` was read with: below `limit` while a longer log is on its way. */
+  logLimit: number;
 }
+
+/** Whether "Load 50 more" has anything to add for this repo: more commits, below the largest count. */
+export const canLoadMore = (entry: HistoryEntry | undefined): boolean =>
+  entry !== undefined && entry.log?.ok === true && entry.log.hasMore && entry.limit < HISTORY_MAX;
 
 /** Latest request per repo: a stale reply that arrives late doesn't overwrite the newer one. */
 const historyRequests = new Map<string, number>();
@@ -295,7 +301,12 @@ export const useApp = create<AppStore>((set, get) => ({
     const repo = get().workspace.repos.find((r) => r.path === repoPath);
     if (!repo) return;
     const previous = get().history[repoPath];
-    const entry: HistoryEntry = { limit: limit ?? previous?.limit ?? HISTORY_PAGE, key: historyKey(repo), log: previous?.log ?? null };
+    const entry: HistoryEntry = {
+      limit: limit ?? previous?.limit ?? HISTORY_PAGE,
+      key: historyKey(repo),
+      log: previous?.log ?? null,
+      logLimit: previous?.logLimit ?? 0,
+    };
     const request = ++historySerial;
     historyRequests.set(repoPath, request);
     set((state) => ({ history: { ...state.history, [repoPath]: entry } }));
@@ -306,13 +317,14 @@ export const useApp = create<AppStore>((set, get) => ({
       log = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
     if (historyRequests.get(repoPath) !== request || !get().history[repoPath]) return;
-    set((state) => ({ history: { ...state.history, [repoPath]: { ...entry, log } } }));
+    set((state) => ({ history: { ...state.history, [repoPath]: { ...entry, log, logLimit: entry.limit } } }));
   },
   loadMoreHistory() {
     const { history, historyFilter, loadHistory } = get();
     for (const [path, entry] of Object.entries(history)) {
       if (historyFilter !== null && path !== historyFilter) continue;
-      if (entry.log?.ok && entry.log.hasMore) void loadHistory(path, Math.min(entry.limit + HISTORY_PAGE, HISTORY_MAX));
+      // A page still on its way: asking again would add a second one.
+      if (canLoadMore(entry) && entry.logLimit === entry.limit) void loadHistory(path, Math.min(entry.limit + HISTORY_PAGE, HISTORY_MAX));
     }
   },
   refreshHistory() {

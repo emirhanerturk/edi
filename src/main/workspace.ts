@@ -1,6 +1,7 @@
 import { realpath, stat } from 'node:fs/promises';
 import { type Repo, discoverRepos } from '../git/discover.js';
 import { runGit } from '../git/exec.js';
+import { commonDir, refsStamp } from '../git/refsStamp.js';
 import { getStatus } from '../git/status.js';
 import { assignSessions } from '../sessions.js';
 import type { RepoView, WorkspaceView } from '../shared/api.js';
@@ -25,6 +26,8 @@ export class Workspace {
   private timer: NodeJS.Timeout | null = null;
   /** Repos whose status is being read right now: a slow repo doesn't pile up overlapping polls. */
   private readonly inFlight = new Map<string, Promise<boolean>>();
+  /** Each repo's refs folder, looked up once (a promise, so polls in a row share the lookup). */
+  private readonly commonDirs = new Map<string, Promise<string | null>>();
   /** Incremented when the folder changes; late results from the old folder are ignored. */
   private generation = 0;
   private readonly onChange: (view: WorkspaceView) => void;
@@ -167,15 +170,31 @@ export class Workspace {
     this.emit();
   }
 
+  /** When the repo's tags and remote branches last changed; 0 if its refs folder can't be found. */
+  private async refsOf(path: string): Promise<number> {
+    let common = this.commonDirs.get(path);
+    if (!common) {
+      common = commonDir(path);
+      this.commonDirs.set(path, common);
+    }
+    const dir = await common;
+    // Not found (the repo is broken right now): looked up again next time.
+    if (dir === null) {
+      if (this.commonDirs.get(path) === common) this.commonDirs.delete(path);
+      return 0;
+    }
+    return refsStamp(dir);
+  }
+
   /** True if the status was read; false if the folder changed in the meantime. A read in progress shares its result. */
   private refreshOne(path: string): Promise<boolean> {
     const running = this.inFlight.get(path);
     if (running) return running;
     const generation = this.generation;
-    const reading: Promise<boolean> = getStatus(path)
-      .then((result) => {
+    const reading: Promise<boolean> = Promise.all([getStatus(path), this.refsOf(path)])
+      .then(([result, refs]) => {
         if (generation !== this.generation) return false;
-        this.patch(path, result.ok ? { status: result.status, error: null } : { status: null, error: result.error });
+        this.patch(path, result.ok ? { status: result.status, error: null, refs } : { status: null, error: result.error, refs });
         return true;
       })
       .finally(() => {

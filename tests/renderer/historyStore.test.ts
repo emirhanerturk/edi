@@ -22,7 +22,7 @@ const bridge = vi.hoisted(() => {
 });
 vi.mock('../../src/renderer/bridge', () => ({ edi: bridge.edi }));
 
-const { useApp, connect } = await import('../../src/renderer/store');
+const { useApp, connect, canLoadMore } = await import('../../src/renderer/store');
 
 const repo = (path: string, headOid = 'a'.repeat(40)): RepoView => ({
   name: path.split('/').pop()!,
@@ -85,6 +85,29 @@ describe('History store', () => {
     useApp.getState().setHistoryFilter('/w/b');
     useApp.getState().loadMoreHistory();
     expect(bridge.pending).toHaveLength(3);
+  });
+
+  it('"Load 50 more" asked again before the page arrives adds no second page', async () => {
+    const a = useApp.getState().loadHistory('/w/a');
+    bridge.pending[0]!.resolve(log('a', true));
+    await a;
+    useApp.getState().loadMoreHistory();
+    useApp.getState().loadMoreHistory();
+    expect(bridge.pending.slice(1).map((p) => p.count)).toEqual([100]);
+    bridge.pending[1]!.resolve(log('a', true));
+    await Promise.resolve();
+    await Promise.resolve();
+    useApp.getState().loadMoreHistory();
+    expect(bridge.pending.slice(1).map((p) => p.count)).toEqual([100, 150]);
+  });
+
+  it('"Load 50 more" stops at the largest count the main process accepts', async () => {
+    const a = useApp.getState().loadHistory('/w/a', 5000);
+    bridge.pending[0]!.resolve(log('a', true));
+    await a;
+    useApp.getState().loadMoreHistory();
+    expect(bridge.pending).toHaveLength(1);
+    expect(canLoadMore(useApp.getState().history['/w/a'])).toBe(false);
   });
 
   it("another folder resets the logs and the filter; a vanished repo's log is dropped", async () => {

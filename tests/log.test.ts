@@ -45,6 +45,14 @@ describe('parseLog', () => {
 });
 
 describe('readLog', () => {
+  it('reads Turkish letters right whatever log output encoding the repo is set to', async () => {
+    const repo = await initRepo(await makeTmpDir(), 'a');
+    await commitAt(repo, 'feat: şarkı çalınca öğrenci görür', 1_700_000_000);
+    await git(repo, 'config', 'i18n.logOutputEncoding', 'ISO-8859-9');
+    const log = await readLog(repo, 50);
+    expect(log.ok && log.commits[0]!.subject).toBe('feat: şarkı çalınca öğrenci görür');
+  });
+
   it('sorts newest first and says when there are more', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a');
     await commitAt(repo, 'feat: one', 1_700_000_000);

@@ -24,6 +24,8 @@ export interface RepoView {
   claude: number;
   /** The repo has at least one remote; without one there is nowhere to push, pull or publish to. */
   hasRemote: boolean;
+  /** When its tags or remote branches last changed (see `refsStamp`); absent until first read. */
+  refs?: number;
 }
 
 export interface WorkspaceView {
