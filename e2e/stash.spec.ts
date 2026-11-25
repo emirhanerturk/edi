@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type ElectronApplication, expect, test } from '@playwright/test';
+import { type ElectronApplication, type Locator, expect, test } from '@playwright/test';
 import { git, launch, makeRepo, tmpDir } from './helpers.js';
 
 const status = async (repo: string) => (await git(repo, 'status', '--porcelain')).split('\n').filter(Boolean).sort();
@@ -15,6 +15,11 @@ async function nextMenuPicks(app: ElectronApplication, label: string) {
     };
   }, label);
 }
+/** STASHES starts closed: opens it under `scope` (a repo row, or the page). */
+async function openStashes(scope: Locator) {
+  await scope.getByTestId('file-group-head').filter({ hasText: 'STASHES' }).click();
+}
+
 async function questionsAnswer(app: ElectronApplication, response: number) {
   await app.evaluate(({ dialog }, answer) => {
     dialog.showMessageBox = (async () => ({ response: answer, checkboxChecked: false })) as typeof dialog.showMessageBox;
@@ -55,6 +60,7 @@ test('several repos: stash with a message, see it in the stash view, pop it back
     expect(await stashes(alpha)).toEqual(['On main: wip: login form']);
 
     await alphaRow.getByTestId('repo-toggle').click();
+    await openStashes(alphaRow);
     const rows = alphaRow.getByTestId('stash-row');
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('wip: login form');
@@ -76,6 +82,7 @@ test('several repos: stash with a message, see it in the stash view, pop it back
 
     // beta's stash: right-click, Drop…; the question is asked, and No keeps it.
     await betaRow.getByTestId('repo-toggle').click();
+    await openStashes(betaRow);
     await expect(betaRow.getByTestId('stash-row')).toHaveCount(1);
     await nextMenuPicks(app, 'Drop…');
     await questionsAnswer(app, 1);
@@ -112,6 +119,7 @@ test('a single repo: a refused switch offers "Stash and switch"; the stash waits
     // A single repo with stashes stays open, clean, with its stash listed and the branch it came from.
     await expect(row).toHaveAttribute('aria-expanded', 'true');
     await expect(row.getByText('No changes')).toBeVisible();
+    await openStashes(row);
     const stash = row.getByTestId('stash-row');
     await expect(stash).toHaveCount(1);
     await expect(stash.locator('.stash-wip')).toHaveText('WIP');
@@ -141,6 +149,7 @@ test('a pop that conflicts keeps the stash and shows the conflict; Pop waits unt
   await git(repo, 'commit', '-q', '-am', 'change');
   const { app, page } = await launch({ openDir: repo });
   try {
+    await openStashes(page.locator('body'));
     const stash = page.getByTestId('stash-row');
     await expect(stash).toHaveCount(1);
     await stash.getByTestId('stash-pop').click();

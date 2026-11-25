@@ -9,7 +9,7 @@ import { type BusyKind, type Question, busyQuestion, discardQuestion, dropStashQ
 import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, ClaudeUsage, EdiEvents, GitOp, OpenResult, StashMenuAction, TerminalCreated } from '../shared/api.js';
+import type { AppState, ClaudeUsage, EdiEvents, GitOp, Layout, OpenResult, StashMenuAction, TerminalCreated } from '../shared/api.js';
 import { AutoFetch } from './autoFetch.js';
 import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
@@ -124,6 +124,12 @@ export class AppCore {
   setAutoFetch(enabled: boolean): void {
     this.autoFetch.setEnabled(enabled);
     this.update((state) => ({ ...state, autoFetch: enabled }));
+  }
+
+  /** View > Layout: which side the terminal panel is on. The page follows at once. */
+  setTerminalSide(side: Layout['terminals']): void {
+    this.setLayout({ terminals: side });
+    this.send('layout', this.state.layout);
   }
 
   /** Applies a layout change in memory right away and writes it to disk with a delay. */

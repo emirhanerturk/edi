@@ -41,10 +41,14 @@ export interface RecentFolder {
 }
 
 export interface Layout {
+  /** The terminal panel's width (whichever side it is on). */
   left: number;
+  /** The Git / History / Files panel's width (whichever side it is on). */
   right: number;
   diffMode: 'split' | 'inline';
   historyLayout: 'timeline' | 'byRepo';
+  /** The side the terminal panel is on; the Git / History / Files panel takes the other (View > Layout). */
+  terminals: 'left' | 'right';
 }
 
 export interface AppState {
@@ -158,6 +162,8 @@ export interface EdiEvents {
   servers: [servers: ServerInfo[]];
   /** Claude usage limits changed (or no valid window is left: null). */
   usage: [usage: ClaudeUsage | null];
+  /** The layout changed from the menu (View > Layout). */
+  layout: [layout: Layout];
 }
 
 /** The bridge given to the page as `window.edi`. */

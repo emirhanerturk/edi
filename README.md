@@ -20,13 +20,15 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   conflicted, staged and changed files with a commit box; each group folds. Stage, unstage,
   commit, commit and push, pull, push, fetch all, switch and create branches. Commits not
   pushed yet are listed under the repository; the newest can be undone (its changes come
-  back staged).
+  back staged). Every repository with a remote is fetched in the background every three
+  minutes and when you come back to the window (View > Fetch Automatically turns it off);
+  the commits a pull would bring are listed as Incoming, with who made each.
 - **Stash.** The button next to Commit stashes every change, new files included (or only the
   staged ones), with an optional message. Stashes are listed under the repository, newest
   first, with the branch they came from; Pop brings one back as it was (staged files staged),
-  right-click for Apply and Drop. A collapsed repository shows how many it has; a folder that
-  is a single repository opens with its stashes in view. Clicking a stash shows its diff in
-  the center panel. When a switch or pull is refused because of local changes, the error
+  right-click for Apply and Drop. A collapsed repository shows how many it has; the list
+  starts folded. Clicking a stash shows its diff in the center panel, where it can also be
+  renamed. When a switch or pull is refused because of local changes, the error
   offers "Stash and switch" (or pull).
 - **Center panel.** Closed until you open something. Clicking a changed file in the Git tab
   shows its whole change against HEAD (staged and unstaged together), side by side or inline,
@@ -56,8 +58,10 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   terminal's processes rather than its output; clicking it opens the address in the browser.
   The terminal tab shows the port. Links in terminal output open with Option-click.
 - **Open in Zed** from the file and diff views, and for conflicted files in the Git tab.
-- **Remembers** the last folder, recent folders, the window position, the panel widths, the
-  diff layout and the History layout.
+- **Layout.** View > Layout puts the terminals on the right and the Git, History and Files
+  panel on the left.
+- **Remembers** the last folder, recent folders, the window position, the panel widths and
+  sides, the diff layout and the History layout.
 
 - **The `edi` command.** `edi <folder>` opens that folder in edi from any terminal; `edi .`
   opens the current one, `edi` alone brings edi to the front. When edi is already open, the

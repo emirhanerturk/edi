@@ -16,6 +16,8 @@ export function App() {
   const right = useApp((s) => s.layout.right);
   const left = useApp((s) => s.layout.left);
   const centerOpen = useApp((s) => s.center.open);
+  // With the terminals on the right the row is drawn reversed, so a drag to the right narrows them.
+  const flip = useApp((s) => s.layout.terminals === 'right') ? -1 : 1;
   const body = useRef<HTMLElement>(null);
   const dragStart = useRef(0);
 
@@ -58,7 +60,7 @@ export function App() {
         <EmptyState />
       ) : (
         <main
-          className={`app-body${centerOpen ? ' with-center' : ''}`}
+          className={`app-body${centerOpen ? ' with-center' : ''}${flip === -1 ? ' terminals-right' : ''}`}
           ref={body}
           style={{ '--right-width': `${right}px`, '--left-width': `${left}px` } as CSSProperties}
         >
@@ -69,7 +71,7 @@ export function App() {
               onStart={() => {
                 dragStart.current = body.current?.querySelector('.terminals')?.getBoundingClientRect().width ?? left;
               }}
-              onDrag={(dx) => useApp.getState().resizeLeft(dragStart.current + dx, body.current?.clientWidth ?? window.innerWidth)}
+              onDrag={(dx) => useApp.getState().resizeLeft(dragStart.current + flip * dx, body.current?.clientWidth ?? window.innerWidth)}
               onEnd={() => useApp.getState().saveLayout()}
             />
           )}
@@ -80,7 +82,7 @@ export function App() {
               // Start from the visible width: if the window shrank, it can be smaller than the saved value.
               dragStart.current = body.current?.querySelector('.git')?.getBoundingClientRect().width ?? right;
             }}
-            onDrag={(dx) => useApp.getState().resizeRight(dragStart.current - dx, body.current?.clientWidth ?? window.innerWidth)}
+            onDrag={(dx) => useApp.getState().resizeRight(dragStart.current - flip * dx, body.current?.clientWidth ?? window.innerWidth)}
             onEnd={() => useApp.getState().saveLayout()}
           />
           <RightPanel />

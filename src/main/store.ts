@@ -14,7 +14,7 @@ export interface Persisted {
 export const DEFAULTS: Persisted = {
   lastDir: null,
   recent: [],
-  layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline' },
+  layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
   window: null,
   autoFetch: true,
 };
@@ -44,6 +44,7 @@ function normalize(raw: unknown): Persisted {
       right: num(layout.right, DEFAULTS.layout.right),
       diffMode: oneOf(layout.diffMode, ['split', 'inline'] as const, DEFAULTS.layout.diffMode),
       historyLayout: oneOf(layout.historyLayout, ['timeline', 'byRepo'] as const, DEFAULTS.layout.historyLayout),
+      terminals: oneOf(layout.terminals, ['left', 'right'] as const, DEFAULTS.layout.terminals),
     },
     window: win && bounds ? { x: win.x as number, y: win.y as number, width: win.width as number, height: win.height as number } : null,
     autoFetch: typeof raw.autoFetch === 'boolean' ? raw.autoFetch : DEFAULTS.autoFetch,
@@ -64,6 +65,7 @@ export function mergeLayout(layout: Layout, patch: unknown): Layout {
     right: width(patch.right, layout.right),
     diffMode: oneOf(patch.diffMode, ['split', 'inline'] as const, layout.diffMode),
     historyLayout: oneOf(patch.historyLayout, ['timeline', 'byRepo'] as const, layout.historyLayout),
+    terminals: oneOf(patch.terminals, ['left', 'right'] as const, layout.terminals),
   };
 }
 

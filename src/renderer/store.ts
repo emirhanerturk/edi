@@ -227,7 +227,7 @@ export const useApp = create<AppStore>((set, get) => ({
   home: '',
   workspace: EMPTY,
   recent: [],
-  layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline' },
+  layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
   openError: null,
   async openFolder(dir) {
     const result = await edi.openFolder(dir);
@@ -495,6 +495,8 @@ export function connect(): () => void {
     edi.on('recent', (recent) => useApp.setState({ recent })),
     edi.on('servers', (servers) => useApp.setState({ servers })),
     edi.on('usage', (usage) => useApp.setState({ usage })),
+    // Only the side: the widths here may be newer than the main process's (a drag not saved yet).
+    edi.on('layout', (layout) => useApp.setState((state) => ({ layout: { ...state.layout, terminals: layout.terminals } }))),
     edi.on('pty:data', (id, data) => writeTerminal(id, data)),
     edi.on('tabs', (states) => useApp.setState((state) => ({ tabs: applyTabStates(state.tabs, states, Date.now()) }))),
     edi.on('pty:exit', (id) =>

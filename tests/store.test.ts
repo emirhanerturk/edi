@@ -7,7 +7,7 @@ import { makeTmpDir } from './helpers/tmpRepo.js';
 describe('persistent state', () => {
   it('uses the defaults when the file is missing', async () => {
     expect(await loadState(join(await makeTmpDir(), 'state.json'))).toEqual(DEFAULTS);
-    expect(DEFAULTS.layout).toEqual({ left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline' });
+    expect(DEFAULTS.layout).toEqual({ left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' });
   });
 
   it('falls back to the defaults on broken JSON', async () => {
@@ -24,7 +24,7 @@ describe('persistent state', () => {
       file,
       JSON.stringify({
         lastDir: '/a/b',
-        layout: { right: 420, diffMode: 'side by side', left: 'wide' },
+        layout: { right: 420, diffMode: 'side by side', left: 'wide', terminals: 'middle' },
         recent: [{ dir: '/a/b', repoCount: 3 }, { dir: 7 }, 'x'],
         window: { x: 1, y: 2, width: 'lots' },
         autoFetch: 'no',
@@ -33,7 +33,7 @@ describe('persistent state', () => {
     expect(await loadState(file)).toEqual({
       lastDir: '/a/b',
       recent: [{ dir: '/a/b', repoCount: 3 }],
-      layout: { left: 492, right: 420, diffMode: 'split', historyLayout: 'timeline' },
+      layout: { left: 492, right: 420, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
       window: null,
       autoFetch: true,
     });
@@ -58,7 +58,7 @@ describe('persistent state', () => {
     const state = {
       lastDir: '/a/klasör',
       recent: [{ dir: '/a/klasör', repoCount: 2 }],
-      layout: { left: 500, right: 400, diffMode: 'inline' as const, historyLayout: 'byRepo' as const },
+      layout: { left: 500, right: 400, diffMode: 'inline' as const, historyLayout: 'byRepo' as const, terminals: 'right' as const },
       window: { x: 10, y: 20, width: 1200, height: 800 },
       autoFetch: false,
     };
@@ -73,16 +73,17 @@ describe('mergeLayout', () => {
 
   it('applies the valid fields and keeps the rest', () => {
     expect(mergeLayout(base, { right: 450 })).toEqual({ ...base, right: 450 });
-    expect(mergeLayout(base, { left: 600.4, diffMode: 'inline', historyLayout: 'byRepo' })).toEqual({
+    expect(mergeLayout(base, { left: 600.4, diffMode: 'inline', historyLayout: 'byRepo', terminals: 'right' })).toEqual({
       left: 600,
       right: 372,
       diffMode: 'inline',
       historyLayout: 'byRepo',
+      terminals: 'right',
     });
   });
 
   it('ignores broken values coming from the page', () => {
-    expect(mergeLayout(base, { right: 'wide', left: Number.NaN, diffMode: 'side by side', historyLayout: 7 })).toEqual(base);
+    expect(mergeLayout(base, { right: 'wide', left: Number.NaN, diffMode: 'side by side', historyLayout: 7, terminals: 'top' })).toEqual(base);
     expect(mergeLayout(base, { right: 1e9 })).toEqual(base);
     expect(mergeLayout(base, { right: 12 })).toEqual(base);
     expect(mergeLayout(base, { right: Number.POSITIVE_INFINITY })).toEqual(base);
