@@ -1,4 +1,4 @@
-// Stashes: listing, stashing, popping, applying and dropping them, and reading one for the stash view.
+// Stashes: listing, stashing, popping, applying, dropping and renaming them, and reading one for the stash view.
 import { lstat } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { type ActionResult, CONFLICT_ERROR, LOCAL_WRITE_TIMEOUT_MS, fileList, listedUnder } from './actions.js';
@@ -252,6 +252,69 @@ export async function dropStash(repo: string, oid: unknown): Promise<ActionResul
   return result.ok ? { ok: true, message: 'Stash dropped' } : { ok: false, error: result.error };
 }
 
+/** The line a renamed stash gets: git's "On <branch>: <message>", keeping the branch it was made on if the line said. */
+export function renamedSubject(subject: string, message: string): string {
+  const branch = (WIP_LINE.exec(subject) ?? ON_LINE.exec(subject))?.[1];
+  return branch === undefined ? message : `On ${branch}: ${message}`;
+}
+
+/** Puts stashes back on the list, oldest first (the last one given ends up newest); the ids of those that didn't go back. */
+async function storeStashes(repo: string, stashes: { oid: string; subject: string }[]): Promise<string[]> {
+  const lost: string[] = [];
+  for (const { oid, subject } of stashes) {
+    // One argument: a line starting with '-' can't be read as an option.
+    const stored = await runGit(repo, ['stash', 'store', '-q', `--message=${subject}`, oid]);
+    if (!stored.ok) lost.push(oid);
+  }
+  return lost;
+}
+
+const lostError = (lost: string[]) =>
+  `Some stashes could not be put back on the list. Their changes are safe; bring them back with: ${lost.map((oid) => `git stash store ${oid}`).join('; ')}`;
+
+/**
+ * Gives a stash a new message. git has no command for it, so the stashes from the newest down to this
+ * one come off the list and go back in the same order, this one with its new line. Their commits don't
+ * change, only the list's lines (and the time each line was written). If one can't come off, the ones
+ * already off go back as they were.
+ */
+export async function renameStash(repo: string, oid: unknown, message: unknown): Promise<ActionResult> {
+  if (typeof message !== 'string') return { ok: false, error: 'Invalid name' };
+  const name = stashMessage(message);
+  if (name === '') return { ok: false, error: 'The name is empty' };
+  const found = await findStash(repo, oid);
+  if (!found.ok) return found;
+  const { entry } = found;
+  if (entry.message === name) return { ok: true, message: 'Stash renamed' };
+
+  const list = await listStashes(repo, entry.index + 1);
+  if (!list.ok) return list;
+  // Newest first, down to this one; every position must be there to put them back in order.
+  const above = list.stashes.filter((stash) => stash.index <= entry.index);
+  if (above.length !== entry.index + 1 || above[entry.index]!.oid !== entry.oid) return { ok: false, error: GONE };
+
+  const off: StashEntry[] = [];
+  let failure: string | null = null;
+  for (const stash of above) {
+    // Each one must still be the newest: a stash pushed from a terminal meanwhile is left alone.
+    if ((await newestStash(repo)) !== stash.oid) {
+      failure = 'The stash list changed; try again';
+      break;
+    }
+    const dropped = await runGit(repo, ['stash', 'drop', '-q', 'stash@{0}']);
+    if (!dropped.ok) {
+      failure = dropped.error;
+      break;
+    }
+    off.push(stash);
+  }
+
+  const back = off.map((stash) => ({ oid: stash.oid, subject: failure === null && stash.oid === entry.oid ? renamedSubject(stash.subject, name) : stash.subject }));
+  const lost = await storeStashes(repo, back.reverse());
+  if (lost.length > 0) return { ok: false, error: lostError(lost) };
+  return failure === null ? { ok: true, message: 'Stash renamed' } : { ok: false, error: failure };
+}
+
 /**
  * A stash for the stash view: its changes against the commit it was made on (the stash commit's first
  * parent; staged and unstaged together), then its new files (the third parent, a commit of its own).
@@ -263,14 +326,11 @@ export async function readStash(repo: string, oid: unknown): Promise<StashResult
   const entry = list.stashes.find((stash) => stash.oid === oid);
   if (!entry) return { ok: false, error: GONE, gone: true };
 
-  const [tracked, base, untrackedOid] = await Promise.all([
+  const [tracked, untrackedOid] = await Promise.all([
     readCommit(repo, entry.oid),
-    runGit(repo, [...PINNED, 'log', '-1', '--no-color', '--abbrev=7', '--format=%H%x1f%h%x1f%s', `${entry.oid}^1`, '--'], { env: NO_LAZY_FETCH }),
     entry.untracked ? runGit(repo, ['rev-parse', '--verify', '--quiet', `${entry.oid}^3^{commit}`], { okCodes: [0, 1] }) : null,
   ]);
   if (!tracked.ok) return tracked;
-  if (!base.ok) return { ok: false, error: base.error };
-  const [baseOid = '', baseShort = '', ...baseSubject] = base.stdout.trim().split(US);
 
   let files: CommitFile[] = tracked.commit.files;
   let tooLarge = tracked.commit.tooLarge;
@@ -284,7 +344,6 @@ export async function readStash(repo: string, oid: unknown): Promise<StashResult
   const stash: StashDetail = {
     entry,
     short: tracked.commit.short,
-    base: { oid: baseOid, short: baseShort, subject: baseSubject.join(US) },
     files,
     added: files.reduce((sum, file) => sum + file.diff.added, 0),
     removed: files.reduce((sum, file) => sum + file.diff.removed, 0),

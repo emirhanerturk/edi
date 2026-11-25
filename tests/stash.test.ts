@@ -13,6 +13,8 @@ import {
   parseStashSubject,
   pushStash,
   readStash,
+  renameStash,
+  renamedSubject,
   stashMessage,
 } from '../src/git/stash.js';
 import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
@@ -257,10 +259,64 @@ describe('dropStash', () => {
   });
 });
 
+describe('renamedSubject', () => {
+  it("writes git's line with the branch it was made on; a line without one becomes the name alone", () => {
+    expect(renamedSubject('WIP on feat/x: 1a2b3c4 feat: add login', 'login form')).toBe('On feat/x: login form');
+    expect(renamedSubject('On main: old', 'new: name')).toBe('On main: new: name');
+    expect(renamedSubject('WIP on (no branch): 1a2b3c4 x', 'detached')).toBe('On (no branch): detached');
+    expect(renamedSubject('autostash', 'kept')).toBe('kept');
+  });
+});
+
+describe('renameStash', () => {
+  /** Three stashes, oldest "one", newest "three"; returns their ids newest first. */
+  async function threeStashes() {
+    const repo = await initRepo(await makeTmpDir(), 'r', { commit: true });
+    for (const name of ['one', 'two', 'three']) {
+      await writeFile(join(repo, `${name}.txt`), `${name}\n`);
+      await git(repo, 'stash', 'push', '-q', '--include-untracked', '-m', name);
+    }
+    const oids = [await oidAt(repo, 0), await oidAt(repo, 1), await oidAt(repo, 2)];
+    return { repo, oids };
+  }
+
+  it('renames a stash in the middle; every stash keeps its commit and its place', async () => {
+    const { repo, oids } = await threeStashes();
+    expect(await renameStash(repo, oids[1], '  second\nstash  ')).toEqual({ ok: true, message: 'Stash renamed' });
+    expect(await stashList(repo)).toEqual(['On main: three', 'On main: second stash', 'On main: one']);
+    expect([await oidAt(repo, 0), await oidAt(repo, 1), await oidAt(repo, 2)]).toEqual(oids);
+  });
+
+  it("names git's default line, keeping the branch; renames the newest and the oldest", async () => {
+    const { repo, oids } = await threeStashes();
+    await writeFile(join(repo, 'wip.txt'), 'wip\n');
+    await git(repo, 'stash', 'push', '-q', '--include-untracked');
+    const wip = await oidAt(repo, 0);
+    expect((await renameStash(repo, wip, 'named')).ok).toBe(true);
+    expect((await renameStash(repo, oids[2], 'first')).ok).toBe(true);
+    expect(await stashList(repo)).toEqual(['On main: named', 'On main: three', 'On main: two', 'On main: first']);
+    const listed = await listStashes(repo);
+    expect(listed.ok && listed.stashes.map((s) => [s.oid, s.message, s.branch])).toEqual([
+      [wip, 'named', 'main'],
+      [oids[0], 'three', 'main'],
+      [oids[1], 'two', 'main'],
+      [oids[2], 'first', 'main'],
+    ]);
+  });
+
+  it('refuses an empty name, a malformed id and a stash that is gone; nothing changes', async () => {
+    const { repo, oids } = await threeStashes();
+    expect(await renameStash(repo, oids[1], ' \n ')).toEqual({ ok: false, error: 'The name is empty' });
+    expect(await renameStash(repo, oids[1], 42)).toEqual({ ok: false, error: 'Invalid name' });
+    expect(await renameStash(repo, 'nope', 'x')).toEqual({ ok: false, error: 'Invalid stash' });
+    expect(await renameStash(repo, 'f'.repeat(40), 'x')).toEqual({ ok: false, error: GONE });
+    expect(await stashList(repo)).toEqual(['On main: three', 'On main: two', 'On main: one']);
+  });
+});
+
 describe('readStash', () => {
-  it("lists the stash's changes against its base, then its new files", async () => {
+  it("lists the stash's changes against the commit it was made on, then its new files", async () => {
     const repo = await busyRepo();
-    const base = (await git(repo, 'log', '-1', '--format=%H %h %s')).trim().split(' ');
     await pushStash(repo, { message: 'look', staged: false });
     const oid = await oidAt(repo, 0);
     const result = await readStash(repo, oid);
@@ -268,7 +324,6 @@ describe('readStash', () => {
     if (!result.ok) return;
     const { stash } = result;
     expect(stash.entry).toMatchObject({ oid, index: 0, message: 'look', branch: 'main', untracked: true });
-    expect(stash.base).toEqual({ oid: base[0], short: base[1], subject: base.slice(2).join(' ') });
     expect(stash.short).toBe(oid.slice(0, 7));
     expect(stash.files.map((f) => [f.path, f.letter, f.untracked ?? false])).toEqual([
       ['README.md', 'M', false],

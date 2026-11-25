@@ -76,7 +76,8 @@ export type GitOp =
   /** A stash is named by its commit id; the main process finds its current position. */
   | { op: 'stashPop'; oid: string }
   | { op: 'stashApply'; oid: string }
-  | { op: 'stashDrop'; oid: string };
+  | { op: 'stashDrop'; oid: string }
+  | { op: 'stashRename'; oid: string; message: string };
 
 /** What "Stash and switch" or "Stash and pull" runs again. */
 export type StashRetry = { op: 'switch'; branch: string } | { op: 'pull' };

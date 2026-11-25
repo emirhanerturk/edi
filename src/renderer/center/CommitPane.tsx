@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
+import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -106,7 +106,8 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
             {branch !== null && <span aria-hidden="true">·</span>}
             {branch !== null && (
               <span className="commit-branch mono" title={branch}>
-                {branch}
+                <BranchIcon size={11} />
+                <span className="commit-branch-name">{branch}</span>
               </span>
             )}
             <span aria-hidden="true">·</span>

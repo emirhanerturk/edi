@@ -1,7 +1,7 @@
-import { ArchiveArrowUp, ArchiveX } from 'lucide-react';
+import { ArchiveArrowUp, ArchiveX, Pencil } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StashMenuAction, StashResult } from '../../shared/api';
-import { CheckIcon, CopyIcon } from '../components/icons';
+import { BranchIcon, CheckIcon, CopyIcon } from '../components/icons';
 import { stashTitle } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo } from '../history/time';
@@ -20,11 +20,13 @@ export interface StashPaneProps {
   /** No conflict in the repo: git can pop or apply. */
   canApply: boolean;
   onAction(action: StashMenuAction): void;
+  /** A new message was typed for the stash. */
+  onRename(message: string): void;
   onCopy(): void;
 }
 
-/** A stash: its message, where it was made, Pop / Apply / Drop, and the diff of every file in it. */
-export function StashPane({ repoName, result, now, tokens, busy, canApply, onAction, onCopy }: StashPaneProps) {
+/** A stash: its message, where it was made, Pop / Apply / Rename / Drop, and the diff of every file in it. */
+export function StashPane({ repoName, result, now, tokens, busy, canApply, onAction, onRename, onCopy }: StashPaneProps) {
   const stash = result?.ok ? result.stash : null;
   // As in the commit view: large files start collapsed, and the header button folds or unfolds them all.
   const initial = useMemo(() => (stash ? initiallyCollapsed(stash.files) : new Set<string>()), [stash]);
@@ -34,6 +36,8 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
     if (stash) setChanged({ oid: stash.entry.oid, collapsed: update(collapsed) });
   };
 
+  // The stash whose name is being typed; another stash opened in the view ends it.
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
@@ -46,19 +50,31 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
       </div>
     );
   }
-  const { entry, base, files } = result.stash;
+  const { entry, files } = result.stash;
   const applyTitle = canApply ? undefined : 'Resolve the conflicts first';
   return (
     <div className="center-view commit-view" data-testid="center-view" data-kind="stash">
       <header className="commit-header">
-        <h1 className="commit-title" data-testid="stash-title">
-          {stashTitle(entry)}
-        </h1>
+        {renaming === entry.oid ? (
+          <StashNameInput
+            initial={stashTitle(entry)}
+            onSubmit={(message) => {
+              setRenaming(null);
+              if (message !== stashTitle(entry)) onRename(message);
+            }}
+            onCancel={() => setRenaming(null)}
+          />
+        ) : (
+          <h1 className="commit-title" data-testid="stash-title">
+            {stashTitle(entry)}
+          </h1>
+        )}
         <div className="commit-meta" data-testid="stash-meta">
           <div className="commit-meta-info">
             {entry.branch !== null && (
               <span className="commit-branch mono" title={`Stashed on ${entry.branch}`}>
-                {entry.branch}
+                <BranchIcon size={11} />
+                <span className="commit-branch-name">{entry.branch}</span>
               </span>
             )}
             {entry.branch !== null && <span aria-hidden="true">·</span>}
@@ -67,10 +83,6 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
             </span>
             <span aria-hidden="true">·</span>
             <span className="commit-when">{longAgo(entry.date, now)}</span>
-            <span aria-hidden="true">·</span>
-            <span className="stash-on" title={`Stashed on top of ${base.short} ${base.subject}`}>
-              on top of <span className="mono">{base.short}</span> {base.subject}
-            </span>
           </div>
           <div className="commit-meta-actions">
             <span className="mono">
@@ -120,6 +132,16 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
           >
             <span>Apply</span>
           </button>
+          <button
+            className="stash-action"
+            data-testid="stash-view-rename"
+            title="Give the stash a new message"
+            disabled={busy !== null}
+            onClick={() => setRenaming(entry.oid)}
+          >
+            <Pencil size={12} strokeWidth={1.9} />
+            <span>Rename</span>
+          </button>
           <button className="stash-action danger" data-testid="stash-view-drop" title="Delete the stash" disabled={busy !== null} onClick={() => onAction('drop')}>
             <ArchiveX size={13} strokeWidth={1.8} />
             <span>Drop…</span>
@@ -143,5 +165,39 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
         }
       />
     </div>
+  );
+}
+
+/** The stash's name, typed in place of the title: Enter saves, Escape or clicking away cancels. */
+function StashNameInput({ initial, onSubmit, onCancel }: { initial: string; onSubmit(message: string): void; onCancel(): void }) {
+  const [value, setValue] = useState(initial);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    input.current?.focus();
+    input.current?.select();
+  }, []);
+  return (
+    <input
+      ref={input}
+      className="stash-name-input"
+      data-testid="stash-name-input"
+      aria-label="Stash name"
+      value={value}
+      maxLength={200}
+      spellCheck={false}
+      autoComplete="off"
+      onChange={(event) => setValue(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const message = value.trim();
+          if (message !== '') onSubmit(message);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          onCancel();
+        }
+      }}
+      onBlur={onCancel}
+    />
   );
 }

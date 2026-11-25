@@ -349,15 +349,15 @@ interface FileGroupProps {
   repoPath: string;
 }
 
-/** Collapsed file groups, by repo and group, for the session: the panel redraws on every status poll. */
-const collapsedGroups = new Set<string>();
+/** Sections collapsed or opened by hand, by repo and section, for the session: the panel redraws on every status poll. */
+const flippedGroups = new Set<string>();
 
-/** A section's collapse state, kept for the session in `collapsedGroups`. */
-function useCollapsed(key: string): [boolean, () => void] {
-  const [collapsed, setCollapsed] = useState(() => collapsedGroups.has(key));
+/** A section's collapse state: open, or closed `byDefault`; a section flipped by hand is kept for the session in `flippedGroups`. */
+function useCollapsed(key: string, byDefault = false): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => flippedGroups.has(key) !== byDefault);
   const toggle = () => {
-    if (collapsed) collapsedGroups.delete(key);
-    else collapsedGroups.add(key);
+    if (flippedGroups.has(key)) flippedGroups.delete(key);
+    else flippedGroups.add(key);
     setCollapsed(!collapsed);
   };
   return [collapsed, toggle];
@@ -526,9 +526,9 @@ interface StashGroupProps {
   menu?(canApply: boolean): Promise<StashMenuAction | null>;
 }
 
-/** The repo's stashes, newest first; read again whenever the count moves. */
+/** The repo's stashes, newest first, closed until opened; read again whenever the count moves or an operation starts or ends (a rename). */
 function StashGroup({ repoPath, count, current, busy, canApply, limit, load, selectedOid, onOpen, onAction, menu }: StashGroupProps) {
-  const [collapsed, toggle] = useCollapsed(`${repoPath}\nstashes`);
+  const [collapsed, toggle] = useCollapsed(`${repoPath}\nstashes`, true);
   const [list, setList] = useState<StashEntry[] | null>(null);
   const [all, setAll] = useState(() => longStashLists.has(repoPath));
   useEffect(() => {
@@ -541,7 +541,7 @@ function StashGroup({ repoPath, count, current, busy, canApply, limit, load, sel
     return () => {
       live = false;
     };
-  }, [load, repoPath, count]);
+  }, [load, repoPath, count, busy]);
   const now = Date.now();
   const shown = list === null ? [] : limit === null || all ? list : list.slice(0, limit);
   const hidden = (list?.length ?? 0) - shown.length;

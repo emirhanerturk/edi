@@ -321,7 +321,7 @@ describe('Stashes', () => {
   const wip = entry(1, { subject: 'WIP on feat/login: 1a2b3c4 feat: add login form', message: null, branch: 'feat/login', baseSubject: 'feat: add login form' });
   const two = [entry(0, { message: 'fix spacing on mobile', subject: 'On main: fix spacing on mobile' }), wip];
 
-  function renderStashes(target: RepoView, opts: { stashes?: StashEntry[]; single?: boolean; menuPick?: StashMenuAction | null } = {}) {
+  function renderStashes(target: RepoView, opts: { stashes?: StashEntry[]; single?: boolean; menuPick?: StashMenuAction | null; open?: boolean } = {}) {
     const loadStashes = vi.fn(async () => ({ ok: true as const, stashes: opts.stashes ?? two }));
     const onOpenStash = vi.fn();
     const onStashAction = vi.fn();
@@ -340,8 +340,12 @@ describe('Stashes', () => {
         onOp={onOp}
       />,
     );
+    // STASHES starts closed; opened by hand, it stays open for the session.
+    const head = stashesHead();
+    if (opts.open !== false && head?.getAttribute('aria-expanded') === 'false') fireEvent.click(head);
     return { loadStashes, onOpenStash, onStashAction, onOp, stashMenu };
   }
+  const stashesHead = () => screen.queryAllByTestId('file-group-head').find((el) => el.textContent?.includes('STASHES'));
   const changed = (over: Partial<RepoStatus> = {}) =>
     repo('app', { status: status({ stashes: 2, files: [file('a.ts', '.', 'M'), file('new.ts', '?', '?', 'untracked')], ...over }) });
 
@@ -354,6 +358,18 @@ describe('Stashes', () => {
     cleanup();
     renderStashes(repo('api'));
     expect(screen.queryByTestId('repo-stashes')).toBeNull();
+  });
+
+  it('STASHES starts closed when a repo opens; opened by hand, it stays open', async () => {
+    const fresh = () => repo('fresh', { status: status({ stashes: 2, files: [file('a.ts', '.', 'M')] }) });
+    renderStashes(fresh(), { open: false });
+    expect(stashesHead()!.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryAllByTestId('stash-row')).toHaveLength(0);
+    fireEvent.click(stashesHead()!);
+    expect(await screen.findAllByTestId('stash-row')).toHaveLength(2);
+    cleanup();
+    renderStashes(fresh(), { open: false });
+    expect(stashesHead()!.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('lists the stashes under STASHES: the message, or WIP and its base; the branch only when it is another one', async () => {
