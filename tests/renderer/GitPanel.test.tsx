@@ -599,3 +599,25 @@ describe('Stash and switch', () => {
     expect(screen.queryByTestId('stash-retry')).toBeNull();
   });
 });
+
+describe('a detached HEAD', () => {
+  it('offers the branch menu, to switch back to a branch or make one at this commit', async () => {
+    const onOp = vi.fn();
+    const detached = repo('quizei-app', { status: status({ head: '1a2b3c4', detached: true, upstream: null, ahead: null, behind: null }) });
+    const loadBranches = async () => ({
+      ok: true as const,
+      current: null,
+      branches: [{ name: 'main', ahead: 0, behind: 0, updatedAt: Date.now() }],
+    });
+    render(<GitPanelView repos={[detached]} expanded={{ '/w/quizei-app': true }} onToggle={vi.fn()} onOp={onOp} loadBranches={loadBranches} />);
+    const button = within(row('quizei-app')).getByTestId('branch-button');
+    expect(button.textContent).toBe('1a2b3c4');
+    expect(button.title).toBe('Detached HEAD at 1a2b3c4: pick a branch to switch back');
+    fireEvent.click(button);
+    const main = await screen.findByRole('menuitem', { name: /main/ });
+    // Nothing is checked: no branch is the current one.
+    expect(main.querySelector('.menu-check svg')).toBeNull();
+    fireEvent.click(main);
+    expect(onOp).toHaveBeenCalledWith('/w/quizei-app', { op: 'switch', branch: 'main' });
+  });
+});

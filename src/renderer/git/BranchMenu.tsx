@@ -6,7 +6,10 @@ import { type Placement, placeMenu } from '../components/placeMenu';
 import { usePopover } from '../components/usePopover';
 
 export interface BranchMenuProps {
+  /** The branch's name; on a detached HEAD, the commit's short id. */
   current: string;
+  /** The button's tooltip; defaults to `current`. */
+  title?: string;
   disabled?: boolean;
   load(): Promise<BranchList>;
   onSwitch(branch: string): void;
@@ -28,7 +31,7 @@ function branchTitle(branch: BranchInfo, now: number): string {
 }
 
 /** Branch button and its menu: local branches and "New branch…". */
-export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
+export function BranchMenu({ current, title, disabled, load, onSwitch, onCreate }: BranchMenuProps) {
   const menu = usePopover<HTMLDivElement>();
   const [list, setList] = useState<BranchList | null>(null);
   // The time the list was read: the ages are relative to it.
@@ -91,7 +94,7 @@ export function BranchMenu({ current, disabled, load, onSwitch, onCreate }: Bran
         ref={button}
         className="branch-chip mono"
         data-testid="branch-button"
-        title={current}
+        title={title ?? current}
         aria-haspopup="menu"
         aria-expanded={menu.open}
         disabled={disabled}

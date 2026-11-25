@@ -6,7 +6,6 @@ import { shortAgo } from '../history/time';
 import {
   ArrowDown,
   ArrowUp,
-  BranchIcon,
   CheckIcon,
   ChevronDown,
   ChevronRight,
@@ -159,20 +158,15 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
 
         {open ? (
           <>
-            {status.detached ? (
-              <span className="branch-chip mono" title={`Detached HEAD at ${status.head}`}>
-                <BranchIcon size={11} />
-                <span className="branch-name">{status.head}</span>
-              </span>
-            ) : (
-              <BranchMenu
-                current={status.head}
-                disabled={busy}
-                load={() => props.loadBranches?.(repo.path) ?? Promise.resolve(NO_BRANCHES)}
-                onSwitch={(branch) => run({ op: 'switch', branch })}
-                onCreate={(branch) => run({ op: 'createBranch', branch })}
-              />
-            )}
+            {/* On a detached HEAD too: the way back to a branch, or to a new one at this commit. */}
+            <BranchMenu
+              current={status.head}
+              title={status.detached ? `Detached HEAD at ${status.head}: pick a branch to switch back` : undefined}
+              disabled={busy}
+              load={() => props.loadBranches?.(repo.path) ?? Promise.resolve(NO_BRANCHES)}
+              onSwitch={(branch) => run({ op: 'switch', branch })}
+              onCreate={(branch) => run({ op: 'createBranch', branch })}
+            />
             {repo.busy ? (
               <Busy label={repo.busy} />
             ) : (
