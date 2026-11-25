@@ -47,7 +47,7 @@ export function DiffView({ repo, path }: { repo: RepoView; path: string }) {
       mode={mode}
       tokens={tokens}
       onMode={(next) => useApp.getState().setDiffMode(next)}
-      onOpenInZed={() => void useApp.getState().openInZed(repo.path, path)}
+      onOpenIn={(editor) => void useApp.getState().openIn(editor, repo.path, path)}
       onOpenFile={() => {
         // The new tab replaces the preview tab: so the diff isn't lost, that one is pinned first.
         const app = useApp.getState();

@@ -207,20 +207,20 @@ describe('GitPanelView, opening files', () => {
 });
 
 describe('GitPanelView, conflicted files', () => {
-  it('a conflicted file can be opened in Zed; the button does not open it in the center panel', () => {
+  it('a conflicted file can be opened in an editor; the button does not open it in the center panel', () => {
     const merging = repo('merging', { status: status({ files: [file('README.md', 'U', 'U', 'conflicted')] }) });
-    const onOpenInZed = vi.fn();
+    const onOpenIn = vi.fn();
     const onOpenFile = vi.fn();
-    render(<GitPanelView repos={[merging]} expanded={{}} onToggle={() => undefined} onOpenInZed={onOpenInZed} onOpenFile={onOpenFile} />);
-    const button = screen.getByRole('button', { name: 'Open README.md in Zed' });
-    fireEvent.click(button);
-    expect(onOpenInZed).toHaveBeenCalledWith('/w/merging', 'README.md');
+    render(<GitPanelView repos={[merging]} expanded={{}} onToggle={() => undefined} onOpenIn={onOpenIn} onOpenFile={onOpenFile} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open README.md in…' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Zed' }));
+    expect(onOpenIn).toHaveBeenCalledWith('/w/merging', 'README.md', 'zed');
     expect(onOpenFile).not.toHaveBeenCalled();
   });
 
   it('no such button on a file without conflicts', () => {
-    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onOpenInZed={() => undefined} />);
-    expect(screen.queryByRole('button', { name: /in Zed$/ })).toBeNull();
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onOpenIn={() => undefined} />);
+    expect(screen.queryByRole('button', { name: /in…$/ })).toBeNull();
   });
 });
 

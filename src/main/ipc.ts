@@ -336,7 +336,7 @@ export class AppCore {
     );
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
     ipcMain.handle('view:listDir', (_event, repoPath: unknown, dirPath: unknown) => this.viewOps.listDir(repoPath, dirPath));
-    ipcMain.handle('view:openInZed', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.openInZed(repoPath, filePath));
+    ipcMain.handle('view:openIn', (_event, editor: unknown, repoPath: unknown, filePath: unknown) => this.viewOps.openIn(editor, repoPath, filePath));
     ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));
     ipcMain.handle('history:log', (_event, repoPath: unknown, count: unknown) => this.historyOps.log(repoPath, count));
     ipcMain.handle('history:commit', (_event, repoPath: unknown, oid: unknown) => this.historyOps.commit(repoPath, oid));

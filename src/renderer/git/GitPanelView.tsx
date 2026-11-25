@@ -1,3 +1,5 @@
+import { OpenInMenu } from '../components/OpenInMenu';
+import type { EditorId } from '../../shared/editors';
 import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
@@ -52,7 +54,7 @@ export interface GitPanelProps {
   onOp?(repoPath: string, op: GitOp): void;
   onDismissError?(repoPath: string): void;
   /** Opens the file in Zed (for conflicted files). */
-  onOpenInZed?(repoPath: string, path: string): void;
+  onOpenIn?(repoPath: string, path: string, editor: EditorId): void;
   loadBranches?(repoPath: string): Promise<BranchList>;
   /** A file row was clicked: a single click previews (`pin` false), a double click opens a permanent tab. */
   onOpenFile?(repoPath: string, file: FileChange, pin: boolean): void;
@@ -115,7 +117,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const fileProps = {
     open: (file: FileChange, pin: boolean) => props.onOpenFile?.(repo.path, file, pin),
     selectedPath: props.selected?.repoPath === repo.path ? props.selected.path : null,
-    openInZed: (file: FileChange) => props.onOpenInZed?.(repo.path, file.path),
+    openIn: (file: FileChange, editor: EditorId) => props.onOpenIn?.(repo.path, file.path, editor),
     repoPath: repo.path,
   };
 
@@ -350,7 +352,7 @@ interface FileGroupProps {
   busy: boolean;
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
-  openInZed(file: FileChange): void;
+  openIn(file: FileChange, editor: EditorId): void;
   /** Path of the file open in the center panel, in this repo. */
   selectedPath: string | null;
   /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
@@ -401,7 +403,7 @@ function GroupHead(props: { title: string; count: number; collapsed: boolean; on
   );
 }
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, selectedPath, repoPath }: FileGroupProps) {
+function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, repoPath }: FileGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
   return (
@@ -433,7 +435,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openInZed, s
         )}
       </GroupHead>
       {!collapsed && files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openInZed={openInZed} selected={file.path === selectedPath} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openIn={openIn} selected={file.path === selectedPath} />
       ))}
     </div>
   );
@@ -701,11 +703,11 @@ interface FileRowProps {
   selected: boolean;
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
-  openInZed(file: FileChange): void;
+  openIn(file: FileChange, editor: EditorId): void;
 }
 
 /** Clicking a row opens the file in the center panel; the button on the right only stages or reverts. */
-function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowProps) {
+function FileRow({ file, group, busy, selected, run, open, openIn }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
   const button = (testId: string, label: string, title: string, action: GitOp | (() => void), icon: ReactNode, disabled = busy) => (
@@ -751,7 +753,25 @@ function FileRow({ file, group, busy, selected, run, open, openInZed }: FileRowP
       <span className="file-dir">{dir}</span>
       {group === 'staged' && isPartlyStaged(file) && <span className="chip">partly staged</span>}
       {group === 'staged' && button('unstage-file', `Unstage ${name}`, 'Unstage', { op: 'unstage', file }, <MinusIcon size={12} />)}
-      {group === 'conflicts' && button('open-in-zed', `Open ${name} in Zed`, 'Open in Zed', () => openInZed(file), <ExternalIcon size={12} />, false)}
+      {group === 'conflicts' && (
+        <OpenInMenu
+          className="open-in-row"
+          onOpen={(editor) => openIn(file, editor)}
+          button={({ open: shown, toggle }) => (
+            <button
+              className="icon-button tiny"
+              data-testid="open-in"
+              aria-label={`Open ${name} in…`}
+              aria-haspopup="menu"
+              aria-expanded={shown}
+              onClick={toggle}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <ExternalIcon size={12} />
+            </button>
+          )}
+        />
+      )}
       {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
   );

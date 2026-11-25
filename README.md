@@ -57,7 +57,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   in the status bar with its localhost port, repository and terminal, found from the
   terminal's processes rather than its output; clicking it opens the address in the browser.
   The terminal tab shows the port. Links in terminal output open with Option-click.
-- **Open in Zed** from the file and diff views, and for conflicted files in the Git tab.
+- **Open in…** Antigravity or Zed from the file and diff views, and for conflicted files in
+  the Git tab.
 - **Layout.** View > Layout puts the terminals on the right and the Git, History and Files
   panel on the left.
 - **Remembers** the last folder, recent folders, the window position, the panel widths and

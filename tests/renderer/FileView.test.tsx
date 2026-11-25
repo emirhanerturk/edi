@@ -9,9 +9,9 @@ import type { EditState } from '../../src/renderer/center/editSession';
 afterEach(cleanup);
 
 function renderPane(content: FileContent | null, opts: { isNew?: boolean; path?: string } = {}) {
-  const onOpenInZed = vi.fn();
-  render(<FilePane repoName="quizei-app" repoPath="/w/quizei-app" path={opts.path ?? 'components/video/video-poster.tsx'} content={content} isNew={opts.isNew ?? false} tokens={null} onOpenInZed={onOpenInZed} />);
-  return { onOpenInZed };
+  const onOpenIn = vi.fn();
+  render(<FilePane repoName="quizei-app" repoPath="/w/quizei-app" path={opts.path ?? 'components/video/video-poster.tsx'} content={content} isNew={opts.isNew ?? false} tokens={null} onOpenIn={onOpenIn} />);
+  return { onOpenIn };
 }
 const text = (value: string): FileContent => ({ ok: true, kind: 'text', text: value, size: value.length });
 
@@ -51,7 +51,7 @@ describe('fileInfo', () => {
 const CLEAN: EditState = { dirty: false, conflict: null, error: null, saving: false };
 
 function renderEditing(edit: EditState, content: FileContent | null = text('a\n')) {
-  const handlers = { onOpenInZed: vi.fn(), onSave: vi.fn(), onKeepMine: vi.fn(), onLoadDisk: vi.fn(), onClose: vi.fn() };
+  const handlers = { onOpenIn: vi.fn(), onSave: vi.fn(), onKeepMine: vi.fn(), onLoadDisk: vi.fn(), onClose: vi.fn() };
   render(
     <FilePane
       repoName="r"
@@ -129,15 +129,16 @@ describe('FilePane while editing', () => {
 });
 
 describe('FilePane', () => {
-  it('the header shows repo, path and Open in Zed; "Read-only" only for files that cannot be edited', () => {
-    const { onOpenInZed } = renderPane(text('a\n'));
+  it('the header shows repo, path and Open in…; "Read-only" only for files that cannot be edited', () => {
+    const { onOpenIn } = renderPane(text('a\n'));
     const header = screen.getByTestId('view-header');
     expect(within(header).getByText('quizei-app')).toBeTruthy();
     expect(header.textContent).toContain('components/video/video-poster.tsx');
     expect(within(header).queryByText('Read-only')).toBeNull();
     expect(within(header).queryByText('new file')).toBeNull();
-    fireEvent.click(within(header).getByRole('button', { name: 'Open in Zed' }));
-    expect(onOpenInZed).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(header).getByRole('button', { name: 'Open in…' }));
+    fireEvent.click(within(header).getByRole('menuitem', { name: 'Zed' }));
+    expect(onOpenIn).toHaveBeenCalledWith('zed');
     for (const content of [
       { ok: true, kind: 'binary', size: 4 },
       { ok: true, kind: 'tooLarge', size: 4 },
@@ -165,7 +166,7 @@ describe('FilePane', () => {
 
   it('shows a video with playback controls; says so when it cannot play', () => {
     const { container } = render(
-      <FilePane repoName="r" repoPath="/w/r" path="intro.mp4" content={{ ok: true, kind: 'media', media: 'video', size: 10, mtime: 7 }} isNew={false} tokens={null} onOpenInZed={() => undefined} />,
+      <FilePane repoName="r" repoPath="/w/r" path="intro.mp4" content={{ ok: true, kind: 'media', media: 'video', size: 10, mtime: 7 }} isNew={false} tokens={null} onOpenIn={() => undefined} />,
     );
     const video = container.querySelector('video')!;
     expect(video.getAttribute('src')).toBe(mediaUrl('/w/r', 'intro.mp4', 7));
@@ -189,7 +190,7 @@ describe('FilePane', () => {
         content={text('const a;\n')}
         isNew={false}
         tokens={[[{ text: 'const', color: '#c678dd' }, { text: ' a;', color: '#abb2bf' }]]}
-        onOpenInZed={() => undefined}
+        onOpenIn={() => undefined}
       />,
     );
     const spans = [...screen.getByTestId('file-line').querySelectorAll('.code span')];
@@ -203,7 +204,7 @@ describe('FilePane', () => {
     renderPane({ ok: true, kind: 'tooLarge', size: Math.round(2.4 * 1_048_576) });
     expect(screen.getByText('This file is too large to show (2.4 MB)')).toBeTruthy();
     expect(screen.queryAllByTestId('file-line')).toHaveLength(0);
-    expect(screen.getAllByRole('button', { name: 'Open in Zed' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Open in…' }).length).toBeGreaterThan(0);
   });
 
   it('a note for a binary file', () => {

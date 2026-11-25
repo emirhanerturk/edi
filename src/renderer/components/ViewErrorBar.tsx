@@ -2,7 +2,7 @@ import { useApp } from '../store';
 import { CloseIcon, WarningIcon } from './icons';
 
 /**
- * Error from a view action (Open in Zed) started by the center panel or the Git tab, or from a folder
+ * Error from a view action (Open in…) started by the center panel or the Git tab, or from a folder
  * that could not be opened while another one is open (with none open, the empty screen shows it).
  * Sits at the bottom of the window, above the status bar, so it shows even when the panel is closed.
  */

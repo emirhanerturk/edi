@@ -19,9 +19,9 @@ async function setup(opts: { commit?: boolean } = { commit: true }) {
   open.push(ws);
   await ws.open(dir);
   const opened: string[] = [];
-  const opener = async (target: string): Promise<OpResult> => {
+  const opener = async (editor: string, target: string): Promise<OpResult> => {
     opened.push(target);
-    return { ok: true, message: 'Opened in Zed' };
+    return { ok: true, message: `Opened in ${editor}` };
   };
   return { dir, repo, ws, ops: new ViewOps(ws, opener), opened };
 }
@@ -38,7 +38,7 @@ describe('ViewOps', () => {
       expect(await ops.headText(path, 'README.md'), String(path)).toEqual(UNKNOWN);
       expect(await ops.blame(path, 'README.md', 'x'), String(path)).toEqual(UNKNOWN);
       expect(await ops.listFiles(path), String(path)).toEqual(UNKNOWN);
-      expect(await ops.openInZed(path, null), String(path)).toEqual(UNKNOWN);
+      expect(await ops.openIn('zed', path, null), String(path)).toEqual(UNKNOWN);
     }
     expect(opened).toEqual([]);
   });
@@ -135,12 +135,12 @@ describe('ViewOps', () => {
     const outside = { ok: false, error: 'File is outside the repository' };
     for (const path of ['../outside.txt', join(dir, 'outside.txt'), '.git/config', 'a/../../outside.txt']) {
       expect(await ops.readFile(repo, path), path).toEqual(outside);
-      expect(await ops.openInZed(repo, path), path).toEqual(outside);
+      expect(await ops.openIn('zed', repo, path), path).toEqual(outside);
     }
     expect(await ops.readFile(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
     expect(await ops.writeFile(repo, 7, 'x', null)).toEqual({ ok: false, error: 'Invalid file path' });
     expect(await ops.writeFile(repo, '../outside.txt', 'x', null)).toEqual(outside);
-    expect(await ops.openInZed(repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
+    expect(await ops.openIn('zed', repo, 7)).toEqual({ ok: false, error: 'Invalid file path' });
     expect(opened).toEqual([]);
   });
 
@@ -161,17 +161,24 @@ describe('ViewOps', () => {
     expect(await ops.blame(repo, 'README.md', 7)).toEqual({ ok: false, error: 'Invalid text' });
   });
 
-  it('opens the file in Zed, or the repo folder when no path is given', async () => {
+  it('opens the file in the editor, or the repo folder when no path is given', async () => {
     const { repo, ops, opened } = await setup();
-    expect(await ops.openInZed(repo, 'README.md')).toEqual({ ok: true, message: 'Opened in Zed' });
-    expect(await ops.openInZed(repo, null)).toEqual({ ok: true, message: 'Opened in Zed' });
+    expect(await ops.openIn('zed', repo, 'README.md')).toEqual({ ok: true, message: 'Opened in zed' });
+    expect(await ops.openIn('zed', repo, null)).toEqual({ ok: true, message: 'Opened in zed' });
     expect(opened).toEqual([join(repo, 'README.md'), repo]);
+  });
+
+  it('opens in the editor asked for, and refuses one it does not know', async () => {
+    const { repo, ops, opened } = await setup();
+    expect(await ops.openIn('antigravity', repo, 'README.md')).toEqual({ ok: true, message: 'Opened in antigravity' });
+    expect(await ops.openIn('vim', repo, 'README.md')).toEqual({ ok: false, error: 'Unknown editor' });
+    expect(opened).toEqual([join(repo, 'README.md')]);
   });
 
   it('opens the repo folder for a deleted file', async () => {
     const { repo, ops, opened } = await setup();
     await rm(join(repo, 'README.md'));
-    expect((await ops.openInZed(repo, 'README.md')).ok).toBe(true);
+    expect((await ops.openIn('zed', repo, 'README.md')).ok).toBe(true);
     expect(opened).toEqual([repo]);
   });
 });

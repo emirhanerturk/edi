@@ -25,7 +25,7 @@ impact on the user. An item is removed from here once it is fixed. Last updated:
     `rename` (no exclusive rename on macOS from Node). (editor, Files and Git round)
 6. **Looks and small behaviors:** the repo header's "merging" chip also shows when a stash
     applied with conflicts (it isn't a merge); a long branch name squeezes the repo name in an open repo's
-    header; Zed can open twice on a cold start (5 s+); the branch menu closes when the page
+    header; the branch menu closes when the page
     scrolls; the selected row does not tell the file view from the diff view. (plan 1, 2)
 7. **Install details:** ~60 MB of node-pty Windows files and sources in the bundle;
     `isRunning`'s `pgrep -f` pattern is not anchored (false positives); no warning when

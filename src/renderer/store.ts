@@ -1,3 +1,4 @@
+import type { EditorId } from '../shared/editors';
 import { create } from 'zustand';
 import type { ClaudeUsage, GitOp, Layout, LogResult, RecentFolder, ServerInfo, StashEntry, StashMenuAction, StashRetry, TabState, WorkspaceView } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
@@ -177,11 +178,11 @@ interface AppStore {
   /** After a rename (`to`) or a move to the Trash (`to` null): file tabs follow or close. */
   moveFileTabs(repoPath: string, from: string, to: string | null): void;
 
-  /** Last error in the center panel (such as "Couldn't open Zed"); null if none. */
+  /** Last error in the center panel (such as "Could not open Zed"); null if none. */
   centerError: string | null;
   dismissCenterError(): void;
-  /** Opens the file (or the repo folder if the path is null) in Zed; on failure, shows the error in the center panel. */
-  openInZed(repoPath: string, path: string | null): Promise<void>;
+  /** Opens the file (or the repo folder if the path is null) in an editor; on failure, shows the error in the center panel. */
+  openIn(editor: EditorId, repoPath: string, path: string | null): Promise<void>;
 
   tabs: Tab[];
   /** Localhost ports listening in the terminals. */
@@ -338,8 +339,8 @@ export const useApp = create<AppStore>((set, get) => ({
 
   centerError: null,
   dismissCenterError: () => set({ centerError: null }),
-  async openInZed(repoPath, path) {
-    const result = await edi.openInZed(repoPath, path);
+  async openIn(editor, repoPath, path) {
+    const result = await edi.openIn(editor, repoPath, path);
     set({ centerError: result.ok ? null : result.error });
   },
   dismissOpenError: () => set({ openError: null }),

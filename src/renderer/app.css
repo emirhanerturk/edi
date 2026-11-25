@@ -295,6 +295,18 @@
   width: 340px;
 }
 
+/* "Open in…": the editors drop below the button, its right edge lined up with the button's. */
+.open-in {
+  position: relative;
+  flex: none;
+}
+
+.open-in-menu {
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 150px;
+}
+
 .menu-label {
   padding: 6px 9px 4px;
   font-size: 11px;
