@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import os from 'node:os';
 import { basename, resolve } from 'node:path';
-import { type BrowserWindow, Menu, dialog, ipcMain, protocol, shell } from 'electron';
+import { type BrowserWindow, Menu, dialog, ipcMain, net, protocol, shell } from 'electron';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
 import { serveMedia } from './media.js';
@@ -10,6 +10,7 @@ import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
 import type { AppState, ClaudeUsage, EdiEvents, GitOp, OpenResult, StashMenuAction, TerminalCreated } from '../shared/api.js';
+import { AutoFetch } from './autoFetch.js';
 import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
@@ -35,6 +36,7 @@ export class AppCore {
   readonly workspace: Workspace;
   readonly ptys: PtyManager;
   readonly gitOps: GitOps;
+  readonly autoFetch: AutoFetch;
   readonly viewOps: ViewOps;
   private readonly fileOps: FileOps;
   readonly historyOps: HistoryOps;
@@ -59,6 +61,14 @@ export class AppCore {
     this.state = state;
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
     this.gitOps = new GitOps(this.workspace);
+    this.autoFetch = new AutoFetch(
+      {
+        repos: () => this.workspace.view().repos,
+        fetch: (repoPath) => this.gitOps.fetchQuietly(repoPath),
+        isOnline: () => net.isOnline(),
+      },
+      state.autoFetch,
+    );
     this.viewOps = new ViewOps(this.workspace);
     this.fileOps = new FileOps(this.workspace, {
       ask: (question) => this.ask(question),
@@ -108,6 +118,12 @@ export class AppCore {
       this.update((state) => state);
     }
     return this.saving;
+  }
+
+  /** View > Fetch Automatically. */
+  setAutoFetch(enabled: boolean): void {
+    this.autoFetch.setEnabled(enabled);
+    this.update((state) => ({ ...state, autoFetch: enabled }));
   }
 
   /** Applies a layout change in memory right away and writes it to disk with a delay. */
@@ -304,6 +320,7 @@ export class AppCore {
 
     ipcMain.handle('usage:get', () => this.readUsage());
     this.usageTimer = setInterval(() => void this.pollUsage(), USAGE_MS);
+    this.autoFetch.start();
   }
 
   private async readUsage(): Promise<ClaudeUsage | null> {
@@ -326,6 +343,7 @@ export class AppCore {
     this.processTimer = null;
     if (this.usageTimer) clearInterval(this.usageTimer);
     this.usageTimer = null;
+    this.autoFetch.dispose();
     this.workspace.dispose();
     this.ptys.killAll();
   }

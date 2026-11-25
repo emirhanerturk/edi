@@ -27,6 +27,7 @@ describe('persistent state', () => {
         layout: { right: 420, diffMode: 'side by side', left: 'wide' },
         recent: [{ dir: '/a/b', repoCount: 3 }, { dir: 7 }, 'x'],
         window: { x: 1, y: 2, width: 'lots' },
+        autoFetch: 'no',
       }),
     );
     expect(await loadState(file)).toEqual({
@@ -34,6 +35,7 @@ describe('persistent state', () => {
       recent: [{ dir: '/a/b', repoCount: 3 }],
       layout: { left: 492, right: 420, diffMode: 'split', historyLayout: 'timeline' },
       window: null,
+      autoFetch: true,
     });
   });
 
@@ -58,6 +60,7 @@ describe('persistent state', () => {
       recent: [{ dir: '/a/klasör', repoCount: 2 }],
       layout: { left: 500, right: 400, diffMode: 'inline' as const, historyLayout: 'byRepo' as const },
       window: { x: 10, y: 20, width: 1200, height: 800 },
+      autoFetch: false,
     };
     await saveState(file, state);
     expect(await loadState(file)).toEqual(state);

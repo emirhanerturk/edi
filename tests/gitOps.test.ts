@@ -315,3 +315,64 @@ describe('GitOps', () => {
     expect((await git(repo, 'rev-list', '--count', 'HEAD')).trim()).toBe('2');
   });
 });
+
+describe('fetchQuietly', () => {
+  /** A repo with a remote and a teammate's clone of it; `peerPush` adds a commit there and pushes it. */
+  async function withPeer() {
+    const { repos, ws, ops, views } = await setup();
+    const repo = repos[0]!;
+    const bare = await addBareRemote(repo);
+    await git(repo, 'push', '-q', '-u', 'origin', 'main');
+    const peer = join(await makeTmpDir(), 'peer');
+    await git(repo, 'clone', '-q', bare, peer);
+    await git(peer, 'config', 'user.name', 'Peer');
+    await git(peer, 'config', 'user.email', 'peer@example.com');
+    let n = 0;
+    const peerPush = async () => {
+      await writeFile(join(peer, `remote-${++n}.txt`), 'x\n');
+      await git(peer, 'add', '-A');
+      await git(peer, 'commit', '-q', '-m', `feat: remote ${n}`);
+      await git(peer, 'push', '-q');
+    };
+    await ws.rescan();
+    return { repo, bare, ws, ops, views, peerPush };
+  }
+
+  it("brings in a teammate's push without a busy label: the Pull count shows it", async () => {
+    const { repo, ws, ops, views, peerPush } = await withPeer();
+    await peerPush();
+    views.length = 0;
+    expect(await ops.fetchQuietly(repo)).toBe(true);
+    expect(ws.repo(repo)?.status?.behind).toBe(1);
+    expect(views.every((v) => v.repos.every((r) => r.busy === null))).toBe(true);
+  });
+
+  it('skips a repo without a remote, one with an operation running, and a path that was not discovered', async () => {
+    const { repos, ops, ws } = await setup();
+    expect(await ops.fetchQuietly(repos[0]!)).toBe(false);
+    const { repo, ops: peerOps } = await withPeer();
+    ws.setBusy(repos[0]!, 'Pushing…');
+    expect(await ops.fetchQuietly(repos[0]!)).toBe(false);
+    expect(await peerOps.fetchQuietly(`${repo}/..`)).toBe(false);
+  });
+
+  it('an operation started during it waits for it instead of being refused', async () => {
+    const { repo, ws, ops, peerPush } = await withPeer();
+    await peerPush();
+    const quiet = ops.fetchQuietly(repo);
+    expect(await ops.run(repo, { op: 'pull' })).toEqual({ ok: true, message: 'Pulled' });
+    expect(await quiet).toBe(true);
+    expect(ws.repo(repo)?.status?.behind).toBe(0);
+  });
+
+  it('after three failures in a row it leaves the repo alone, until a fetch of the user succeeds', async () => {
+    const { repo, bare, ops } = await withPeer();
+    await git(repo, 'remote', 'set-url', 'origin', `${bare}-missing`);
+    for (let i = 0; i < 3; i++) expect(await ops.fetchQuietly(repo)).toBe(true);
+    expect(await ops.fetchQuietly(repo)).toBe(false);
+    await git(repo, 'remote', 'set-url', 'origin', bare);
+    expect(await ops.fetchQuietly(repo)).toBe(false);
+    expect((await ops.run(repo, { op: 'fetch' })).ok).toBe(true);
+    expect(await ops.fetchQuietly(repo)).toBe(true);
+  });
+});
