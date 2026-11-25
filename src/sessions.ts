@@ -23,8 +23,9 @@ export function parseLsofPidCwd(out: string): Map<number, string> {
 
 /** Running Claude Code processes. An empty array if they can't be detected. */
 export async function listClaudePids(): Promise<number[]> {
-  // pgrep exits with 1 when nothing matches; stdout is still valid.
-  return (await output('pgrep', ['-x', 'claude']))
+  // pgrep exits with 1 when nothing matches; stdout is still valid. macOS pgrep leaves out its
+  // own ancestors unless given -a, which would hide the Claude that edi was started from.
+  return (await output('pgrep', ['-a', '-x', 'claude']))
     .split('\n')
     .filter((pid) => /^\d+$/.test(pid))
     .map(Number);
