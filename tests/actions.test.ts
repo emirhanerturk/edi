@@ -448,6 +448,16 @@ describe('diff', () => {
     expect(r.ok && r.text).toContain('+first line');
   });
 
+  it('returns the diff of a staged file in a SHA-256 repo without commits', async () => {
+    const repo = join(await makeTmpDir(), 'sha256');
+    await promisify(execFile)('git', ['init', '-q', '--object-format=sha256', repo]);
+    await write(repo, 'first.txt', 'first line\n');
+    await git(repo, 'add', '-A');
+
+    const r = await diffFile(repo, await statusOf(repo), await fileOf(repo, 'first.txt'));
+    expect(r.ok && r.text).toContain('+first line');
+  });
+
   it('shows a staged rename as a rename', async () => {
     const repo = await newRepo();
     await git(repo, 'mv', 'README.md', 'READ.md');

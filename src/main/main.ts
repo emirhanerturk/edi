@@ -3,7 +3,8 @@ import path from 'node:path';
 import { BrowserWindow, Menu, app, powerMonitor, protocol, screen } from 'electron';
 import { folderArg } from './args.js';
 import { AppCore } from './ipc.js';
-import { mergeLoginEnv, readLoginEnv } from './loginEnv.js';
+import { setLoginEnv } from '../childEnv.js';
+import { readLoginEnv } from './loginEnv.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 
 // Tests and development can pass a separate folder so they don't touch the user's real settings folder.
@@ -136,17 +137,11 @@ function createWindow(): void {
 
 // The packaged app launched from the Dock doesn't get the shell settings (PATH): the login shell's
 // environment is read once. It doesn't delay startup; it is ready long before the first commit that runs hooks.
-// Terminals opened after the environment arrives inherit it too; each tab still runs its own login
-// shell. A second instance that will hand over the folder and quit doesn't run the shell.
+// git and the terminals started after it arrives get it (each tab still runs its own login shell); the
+// app's own environment is left alone. A second instance that will hand over the folder and quit doesn't run the shell.
 if (app.isPackaged && primary) {
   const shell = process.env.SHELL || os.userInfo().shell || '/bin/zsh';
-  void readLoginEnv(shell).then((login) => {
-    if (!login) return;
-    // process.env itself is updated (it isn't replaced with a plain object).
-    for (const [name, value] of Object.entries(mergeLoginEnv(process.env, login))) {
-      if (value !== undefined) process.env[name] = value;
-    }
-  });
+  void readLoginEnv(shell).then(setLoginEnv);
 }
 
 app.on('second-instance', (_event, argv) => {

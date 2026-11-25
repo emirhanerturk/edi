@@ -6,6 +6,7 @@ export type ActionResult = { ok: true; message: string } | { ok: false; error: s
 export type DiffResult = { ok: true; text: string } | { ok: false; error: string };
 
 /** git's empty tree object: the diff base in a repo with no commits yet. */
+/** The empty tree in a SHA-1 repo. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 /** Local commands that change the index or the working tree (a large initial `add` can take a while). */
 export const LOCAL_WRITE_TIMEOUT_MS = 120_000;
@@ -229,7 +230,15 @@ export async function createBranch(repo: string, name: string): Promise<ActionRe
   });
 }
 
-const diffBase = (status: RepoStatus) => (status.unborn ? EMPTY_TREE : 'HEAD');
+/**
+ * What a change is compared against: HEAD, or before the first commit the empty tree, whose id depends
+ * on the repo's object format (SHA-1 or SHA-256): git is asked for it then.
+ */
+async function diffBase(repo: string, status: RepoStatus): Promise<string> {
+  if (!status.unborn) return 'HEAD';
+  const empty = await runGit(repo, ['hash-object', '-t', 'tree', '/dev/null']);
+  return empty.ok && /^[0-9a-f]{40,64}$/.test(empty.stdout.trim()) ? empty.stdout.trim() : EMPTY_TREE;
+}
 
 function untrackedDiff(repo: string, path: string, maxOutput: number) {
   // --no-index exits with 1 when it finds differences.
@@ -245,6 +254,6 @@ export async function diffFile(repo: string, status: RepoStatus, f: FileChange, 
   const result =
     f.kind === 'untracked'
       ? await untrackedDiff(repo, f.path, maxOutput)
-      : await runGit(repo, [...DIFF_ARGS, '-M', diffBase(status), '--', ...paths.map(literal)], { maxOutput });
+      : await runGit(repo, [...DIFF_ARGS, '-M', await diffBase(repo, status), '--', ...paths.map(literal)], { maxOutput });
   return result.ok ? { ok: true, text: result.stdout } : { ok: false, error: result.error };
 }

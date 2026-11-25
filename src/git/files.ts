@@ -1,6 +1,6 @@
 // Lists and reads files in the working tree. Read-only; doesn't depend on Electron.
 import { type Dirent, constants } from 'node:fs';
-import { chmod, open, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { type FileHandle, chmod, open, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { mediaOf } from '../shared/media.js';
 import { runGit } from './exec.js';
@@ -187,6 +187,30 @@ export async function listDir(repo: string, relPath: unknown, max = MAX_DIR_ENTR
   }
 }
 
+/**
+ * Whether the opened file (`opened`: its fstat) is the one `relPath` finds inside the repo right now. A
+ * folder on the way swapped for a link between finding the file and opening it would have opened
+ * something else, perhaps outside the repo.
+ */
+export async function sameAsInRepo(opened: { dev: number; ino: number }, repo: string, relPath: unknown): Promise<boolean> {
+  const again = await locateInRepo(repo, relPath);
+  if (!again.ok) return false;
+  const info = await stat(again.target).catch(() => null);
+  return info !== null && info.dev === opened.dev && info.ino === opened.ino;
+}
+
+/** Reads at most `limit` bytes from the start; a file that grows while being read stops there. */
+export async function readAtMost(handle: FileHandle, limit: number): Promise<Buffer> {
+  const buffer = Buffer.alloc(limit);
+  let length = 0;
+  while (length < limit) {
+    const { bytesRead } = await handle.read(buffer, length, limit - length, length);
+    if (bytesRead === 0) break;
+    length += bytesRead;
+  }
+  return buffer.subarray(0, length);
+}
+
 /** Opens the file read-only. The contents of large and binary files aren't returned. */
 export async function readRepoFile(repo: string, relPath: unknown): Promise<FileContent> {
   const located = await locateInRepo(repo, relPath);
@@ -203,8 +227,11 @@ export async function readRepoFile(repo: string, relPath: unknown): Promise<File
     handle = await open(target, constants.O_RDONLY | constants.O_NONBLOCK);
     const info = await handle.stat();
     if (!info.isFile()) return { ok: false, error: 'Not a file' };
+    if (!(await sameAsInRepo(info, repo, relPath))) return { ok: false, error: OUTSIDE };
     if (info.size > MAX_FILE_BYTES) return { ok: true, kind: 'tooLarge', size: info.size };
-    const buffer = await handle.readFile();
+    // One byte past the limit tells a file that grew past it since the stat.
+    const buffer = await readAtMost(handle, MAX_FILE_BYTES + 1);
+    if (buffer.length > MAX_FILE_BYTES) return { ok: true, kind: 'tooLarge', size: buffer.length };
     if (buffer.subarray(0, SNIFF_BYTES).includes(0)) return { ok: true, kind: 'binary', size: buffer.length };
     return { ok: true, kind: 'text', text: buffer.toString('utf8'), size: buffer.length };
   } catch (error) {

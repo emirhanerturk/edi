@@ -113,8 +113,9 @@ export class GitOps {
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     } finally {
-      // Status first, then the label: the page sees the current status together with "done".
-      await this.ws.refresh(repo.path);
+      // Status first, then the label: the page sees the current status together with "done". A refresh
+      // that fails must not keep the lock and the label (the repo would stay busy for good) or hide the result.
+      await this.ws.refresh(repo.path).catch(() => undefined);
       this.running.delete(repo.path);
       this.ws.setBusy(repo.path, null);
     }

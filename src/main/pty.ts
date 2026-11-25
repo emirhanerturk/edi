@@ -1,3 +1,4 @@
+import { childEnv } from '../childEnv.js';
 import * as pty from 'node-pty';
 
 /**
@@ -61,7 +62,7 @@ export class PtyManager {
       cols: clampCols(o.cols),
       rows: clampRows(o.rows),
       cwd: o.cwd,
-      env: shellEnv(process.env),
+      env: shellEnv(childEnv()),
     });
     this.ptys.set(id, proc);
     proc.onData((data) => {
