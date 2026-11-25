@@ -23,11 +23,17 @@ function reachable(host: string): boolean {
  */
 export const EPHEMERAL_FIRST = 49152;
 
-/** `lsof -Fpn` output: pid → ports reachable from localhost and not randomly assigned (sorted, unique). */
+/**
+ * `lsof -Fpn` output: pid → ports reachable from localhost and not randomly assigned (sorted, unique).
+ * Each field ends with a newline; output cut short (a timeout, too much of it) ends in a partial one,
+ * which could read as another port (`n*:51` of `n*:5173`), so it's left out.
+ */
 export function parseListening(out: string): Map<number, number[]> {
   const ports = new Map<number, Set<number>>();
   let pid: number | null = null;
-  for (const line of out.split('\n')) {
+  const lines = out.split('\n');
+  lines.pop();
+  for (const line of lines) {
     if (line.startsWith('p')) {
       pid = /^\d+$/.test(line.slice(1)) ? Number(line.slice(1)) : null;
       continue;

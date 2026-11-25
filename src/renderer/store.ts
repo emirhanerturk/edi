@@ -23,7 +23,7 @@ import {
 import { clampWidths } from './components/Splitter';
 import { isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
-import { disposeAllTerminals, disposeTerminal, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
+import { disposeAllTerminals, disposeTerminal, onTerminalLink, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
 export interface Tab {
   id: number;
@@ -189,6 +189,8 @@ interface AppStore {
   dismissCenterError(): void;
   /** Opens the file (or the repo folder if the path is null) in an editor; on failure, shows the error in the center panel. */
   openIn(editor: EditorId, repoPath: string, path: string | null): Promise<void>;
+  /** Opens a web link in the browser; if that fails, says so in the error bar. */
+  openUrl(url: string): Promise<void>;
 
   tabs: Tab[];
   /** Localhost ports listening in the terminals. */
@@ -355,6 +357,10 @@ export const useApp = create<AppStore>((set, get) => ({
     const result = await edi.openIn(editor, repoPath, path);
     set({ centerError: result.ok ? null : result.error });
   },
+  async openUrl(url) {
+    const result = await edi.openUrl(url);
+    if (!result.ok) set({ centerError: `${result.error}: ${url}` });
+  },
   dismissOpenError: () => set({ openError: null }),
 
   tabs: [],
@@ -492,6 +498,7 @@ useApp.subscribe((state, prev) => {
 
 /** Gets the initial state from the main process and subscribes to changes. The returned function unsubscribes. */
 export function connect(): () => void {
+  onTerminalLink((url) => void useApp.getState().openUrl(url));
   const off = [
     edi.on('workspace', (workspace) =>
       useApp.setState((state) => ({

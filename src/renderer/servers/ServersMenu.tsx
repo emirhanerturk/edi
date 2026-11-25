@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { menuKeys } from '../components/keys';
 import { usePopover } from '../components/usePopover';
 import type { ServerRow } from './model';
@@ -6,7 +7,12 @@ import './servers.css';
 /** Counter of running servers in the status bar; clicking shows the list, clicking a row opens the address in the browser. */
 export function ServersMenu({ rows, onOpen }: { rows: ServerRow[]; onOpen(url: string): void }) {
   const { open, setOpen, ref } = usePopover<HTMLDivElement>();
-  if (rows.length === 0) return null;
+  const none = rows.length === 0;
+  // The last server stopped with the menu open: it closes, rather than coming back open with the next one.
+  useEffect(() => {
+    if (none) setOpen(false);
+  }, [none, setOpen]);
+  if (none) return null;
   const label = `${rows.length} ${rows.length === 1 ? 'server' : 'servers'}`;
   return (
     <div className="servers" ref={ref} onKeyDown={menuKeys}>

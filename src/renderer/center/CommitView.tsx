@@ -81,7 +81,7 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
       onCopy={() => {
         if (data?.ok) void navigator.clipboard.writeText(data.commit.oid).catch(() => undefined);
       }}
-      onOpenUrl={(url) => void edi.openUrl(url)}
+      onOpenUrl={(url) => void useApp.getState().openUrl(url)}
       onOpenFile={openFile}
     />
   );

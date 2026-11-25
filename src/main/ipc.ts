@@ -9,7 +9,7 @@ import { type BusyKind, type Question, busyQuestion, discardQuestion, dropStashQ
 import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, ClaudeUsage, EdiEvents, GitOp, Layout, OpenResult, StashMenuAction, TerminalCreated } from '../shared/api.js';
+import type { AppState, ClaudeUsage, EdiEvents, GitOp, Layout, OpenResult, ServerInfo, StashMenuAction, TerminalCreated } from '../shared/api.js';
 import { AutoFetch } from './autoFetch.js';
 import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
@@ -49,7 +49,13 @@ export class AppCore {
   private saving: Promise<void> = Promise.resolve();
   private processTimer: NodeJS.Timeout | null = null;
   private pollingProcesses = false;
+  /**
+   * Moves on whenever the terminals change (one is closed or exits, the folder switches): a process poll
+   * that began before is out of date, so its result is dropped and the poll runs again.
+   */
+  private terminalsChanged = 0;
   private tabsSent = '';
+  private servers: ServerInfo[] = [];
   private serversSent = '[]';
   private usageTimer: NodeJS.Timeout | null = null;
   private usageSent = 'null';
@@ -92,8 +98,27 @@ export class AppCore {
       shell: process.env.EDI_SHELL,
       login: process.env.EDI_SHELL === undefined,
       onData: (id, data) => this.send('pty:data', id, data),
-      onExit: (id) => this.send('pty:exit', id),
+      onExit: (id) => {
+        this.send('pty:exit', id);
+        this.terminalGone(id);
+      },
     });
+  }
+
+  /** A terminal closed or exited: its servers leave the list now, not at the next poll. */
+  private terminalGone(id: number): void {
+    this.terminalsChanged++;
+    this.sendServers(this.servers.filter((server) => server.tabId !== id));
+    void this.pollProcesses();
+  }
+
+  /** Sent only on change, so the page isn't redrawn needlessly. */
+  private sendServers(servers: ServerInfo[]): void {
+    this.servers = servers;
+    const json = JSON.stringify(servers);
+    if (json === this.serversSent) return;
+    this.serversSent = json;
+    this.send('servers', servers);
   }
 
   static async create(stateFile: string, getWindow: () => BrowserWindow | null): Promise<AppCore> {
@@ -251,7 +276,11 @@ export class AppCore {
     if (!result.ok) return result;
     const opened = this.workspace.view().dir ?? dir;
     // Terminals belong to the open folder: they close when it changes, and the page opens new ones.
-    if (opened !== previous) this.ptys.killAll();
+    if (opened !== previous) {
+      this.ptys.killAll();
+      this.terminalsChanged++;
+      this.sendServers([]);
+    }
     this.update((state) => ({ ...addRecent(state, opened, result.repoCount), lastDir: opened }));
     this.send('workspace', this.workspace.view());
     this.send('recent', this.state.recent);
@@ -364,7 +393,9 @@ export class AppCore {
       if (typeof id === 'number' && typeof cols === 'number' && typeof rows === 'number') this.ptys.resize(id, cols, rows);
     });
     ipcMain.on('pty:close', (_event, id: unknown) => {
-      if (typeof id === 'number') this.ptys.kill(id);
+      if (typeof id !== 'number') return;
+      this.ptys.kill(id);
+      this.terminalGone(id);
     });
 
     this.processTimer = setInterval(() => void this.pollProcesses(), PROCESSES_MS);
@@ -403,10 +434,15 @@ export class AppCore {
   private async pollProcesses(): Promise<void> {
     if (this.pollingProcesses || this.workspace.view().dir === null) return;
     this.pollingProcesses = true;
+    const started = this.terminalsChanged;
     try {
       const [ps, pids] = await Promise.all([listPs(), listClaudePids()]);
-
       const ptys = this.ptyInfos();
+      // Localhost ports opened for listening in the terminals, and the Claude Code sessions.
+      const [servers, sessions] = await Promise.all([listServers(ptys, ps), listClaudeSessions(ps, pids)]);
+      // A terminal closed or the folder switched meanwhile: the old terminals' servers would come back.
+      if (started !== this.terminalsChanged) return;
+
       const tabs = tabStates(ptys, ps, new Set(pids));
       this.busyTabs = tabs.filter((tab) => tab.busy).length;
       // Sent only on change, so the page isn't needlessly redrawn every three seconds.
@@ -415,19 +451,11 @@ export class AppCore {
         this.tabsSent = serialized;
         this.send('tabs', tabs);
       }
-
-      // Localhost ports opened for listening in the terminals; sent only on change.
-      const servers = await listServers(ptys, ps);
-      const serversJson = JSON.stringify(servers);
-      if (serversJson !== this.serversSent) {
-        this.serversSent = serversJson;
-        this.send('servers', servers);
-      }
-
-      const sessions = await listClaudeSessions(ps, pids);
+      this.sendServers(servers);
       this.workspace.setSessionCwds(sessions.map((session) => session.cwd));
     } finally {
       this.pollingProcesses = false;
+      if (started !== this.terminalsChanged) void this.pollProcesses();
     }
   }
 }

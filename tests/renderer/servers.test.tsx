@@ -79,9 +79,29 @@ describe('ServersMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('closes when the last server stops, so the next server does not bring it back open', () => {
+    const { rerender } = render(<ServersMenu rows={rows} onOpen={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: '2 servers' }));
+    expect(screen.getByRole('menu')).toBeTruthy();
+    rerender(<ServersMenu rows={[]} onOpen={() => undefined} />);
+    rerender(<ServersMenu rows={rows} onOpen={() => undefined} />);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('a single server is written in the singular', () => {
     render(<ServersMenu rows={rows.slice(1)} onOpen={() => undefined} />);
     expect(screen.getByRole('button', { name: '1 server' })).toBeTruthy();
+  });
+});
+
+describe('opening a link', () => {
+  it('says in the error bar when the browser could not open it', async () => {
+    bridge.edi.openUrl.mockResolvedValueOnce({ ok: false, error: 'Could not open the link' } as never);
+    await useApp.getState().openUrl('http://localhost:5173/');
+    expect(useApp.getState().centerError).toBe('Could not open the link: http://localhost:5173/');
+    useApp.getState().dismissCenterError();
+    await useApp.getState().openUrl('http://localhost:5173/');
+    expect(useApp.getState().centerError).toBeNull();
   });
 });
 
