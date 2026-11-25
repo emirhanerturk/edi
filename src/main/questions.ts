@@ -8,6 +8,12 @@ const QUESTIONS = {
     git: ['Its result will not be shown.', 'Their results will not be shown.'],
     confirm: 'Switch',
   },
+  close: {
+    message: 'Close the project?',
+    suffix: 'Closing it closes every terminal.',
+    git: ['Its result will not be shown.', 'Their results will not be shown.'],
+    confirm: 'Close',
+  },
 } as const;
 
 export type BusyKind = keyof typeof QUESTIONS;
@@ -94,4 +100,17 @@ export function trashQuestion(name: string, isDir: boolean, unsavedFiles: number
 /** Before renaming a file or folder whose open tabs have unsaved edits (the tabs reload from disk). */
 export function renameQuestion(name: string, unsavedFiles: number): Question {
   return { type: 'warning', message: `Rename "${name}"?`, detail: unsavedLine(unsavedFiles), buttons: ['Rename', 'Cancel'], defaultId: 0, cancelId: 1 };
+}
+
+/** Before forgetting a project: its settings go, its folder stays. */
+export function removeProjectQuestion(name: string): Question {
+  const short = name.length > 60 ? `${name.slice(0, 59)}…` : name;
+  return {
+    type: 'warning',
+    message: `Remove "${short}" from the list?`,
+    detail: 'edi forgets its name, logo and links. The folder and its repositories stay as they are.',
+    buttons: ['Remove', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
 }

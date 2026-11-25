@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { commitWebUrl, githubCommitUrl } from '../src/git/remoteUrl.js';
+import { commitWebUrl, githubCommitUrl, remoteWebUrl, repoWebUrl } from '../src/git/remoteUrl.js';
 import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const OID = 'a'.repeat(40);
@@ -50,5 +50,37 @@ describe('commitWebUrl', () => {
     await git(repo, 'remote', 'set-url', 'origin', 'git@github.com:quizei/app.git');
     expect(await commitWebUrl(repo, first)).toBe(`https://github.com/quizei/app/commit/${first}`);
     expect(await commitWebUrl(repo, local)).toBeNull();
+  });
+});
+
+describe('repoWebUrl', () => {
+  it("builds the repository's page on a known host, named after the host", () => {
+    for (const url of ['git@github.com:quizei/app.git', 'ssh://git@github.com/quizei/app.git', 'https://github.com/quizei/app', 'https://token@github.com/quizei/app.git']) {
+      expect(repoWebUrl(url), url).toEqual({ url: 'https://github.com/quizei/app', label: 'GitHub' });
+    }
+    expect(repoWebUrl('git@gitlab.com:group/sub/app.git')).toEqual({ url: 'https://gitlab.com/group/sub/app', label: 'GitLab' });
+    expect(repoWebUrl('https://bitbucket.org/team/app.git')).toEqual({ url: 'https://bitbucket.org/team/app', label: 'Bitbucket' });
+    expect(repoWebUrl('https://codeberg.org/me/app')).toEqual({ url: 'https://codeberg.org/me/app', label: 'Codeberg' });
+  });
+
+  it('returns null for an unknown host, a local path or an odd URL', () => {
+    for (const url of ['git@git.example.com:team/app.git', '/srv/git/app.git', 'file:///srv/app.git', 'https://github.com/quizei', 'https://github.com/a/b/c', 'https://github.com/a/b?x=1', 'git@github.com:a/..']) {
+      expect(repoWebUrl(url), url).toBeNull();
+    }
+  });
+});
+
+describe('remoteWebUrl', () => {
+  it("reads origin's URL; null without a remote or for one on an unknown host", async () => {
+    const repo = await initRepo(await makeTmpDir(), 'app');
+    expect(await remoteWebUrl(repo)).toBeNull();
+    await git(repo, 'remote', 'add', 'upstream', 'git@github.com:other/app.git');
+    expect(await remoteWebUrl(repo)).toEqual({ url: 'https://github.com/other/app', label: 'GitHub' });
+    await git(repo, 'remote', 'add', 'origin', 'git@github.com:quizei/app.git');
+    expect(await remoteWebUrl(repo)).toEqual({ url: 'https://github.com/quizei/app', label: 'GitHub' });
+    await addBareRemote(await initRepo(await makeTmpDir(), 'local'));
+    const local = await initRepo(await makeTmpDir(), 'local-only');
+    await addBareRemote(local);
+    expect(await remoteWebUrl(local)).toBeNull();
   });
 });

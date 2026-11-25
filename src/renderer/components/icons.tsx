@@ -193,3 +193,34 @@ export const CopyIcon = (p: IconProps) => (
     <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
   </Icon>
 );
+
+/** A web link: the globe beside a project's main link on its card. */
+export const GlobeIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <circle cx="8" cy="8" r="6.25" />
+    <path d="M1.75 8h12.5M8 1.75c1.7 1.8 2.55 3.9 2.55 6.25S9.7 12.45 8 14.25C6.3 12.45 5.45 10.35 5.45 8S6.3 3.55 8 1.75z" />
+  </Icon>
+);
+
+/** Opens in the browser: next to a link written out. */
+export const LinkArrow = (p: IconProps) => (
+  <Icon strokeWidth={1.8} {...p}>
+    <path d="M5 11l6-6M6.5 5H11v4.5" />
+  </Icon>
+);
+
+/** The main link; filled when `filled`. */
+export const StarIcon = ({ filled = false, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon strokeWidth={1.4} fill={filled ? 'currentColor' : 'none'} {...p}>
+    <path d="M8 1.9l1.85 3.85 4.2.55-3.07 2.9.78 4.15L8 11.3l-3.76 2.05.78-4.15L1.95 6.3l4.2-.55z" />
+  </Icon>
+);
+
+/** More actions: three dots. */
+export const MoreIcon = (p: IconProps) => (
+  <Icon stroke="none" fill="currentColor" {...p}>
+    <circle cx="3.5" cy="8" r="1.3" />
+    <circle cx="8" cy="8" r="1.3" />
+    <circle cx="12.5" cy="8" r="1.3" />
+  </Icon>
+);

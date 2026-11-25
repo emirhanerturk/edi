@@ -1,5 +1,5 @@
 import { access, symlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { launch, makeRepo, tmpDir } from './helpers.js';
 
@@ -79,8 +79,8 @@ test('switching to another folder reopens the terminals in the new folder', asyn
     await page.keyboard.press('Meta+t');
     await expect(page.getByTestId('tab')).toHaveCount(2);
 
-    await page.getByTestId('folder-button').click();
-    await page.getByTestId('folder-menu').getByRole('menuitem').first().click();
+    await page.getByTestId('project-button').click();
+    await page.getByTestId('project-menu').getByRole('menuitem', { name: new RegExp(basename(one)) }).click();
     await expect(page.getByTestId('tab')).toHaveCount(1);
     await page.locator('.term-host.active').click();
     await page.keyboard.type('touch in-new-folder\n');

@@ -3,12 +3,31 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { EdiApi, EdiEvents } from '../shared/api.js' with { 'resolution-mode': 'import' };
 
-const EVENTS: ReadonlySet<string> = new Set<keyof EdiEvents>(['workspace', 'recent', 'pty:data', 'pty:exit', 'tabs', 'servers', 'usage', 'layout']);
+const EVENTS: ReadonlySet<string> = new Set<keyof EdiEvents>([
+  'workspace',
+  'projects',
+  'project:draft',
+  'pty:data',
+  'pty:exit',
+  'tabs',
+  'servers',
+  'usage',
+  'layout',
+]);
 
 const api: EdiApi = {
   getState: () => ipcRenderer.invoke('state:get'),
-  chooseFolder: () => ipcRenderer.invoke('folder:choose'),
-  openFolder: (dir) => ipcRenderer.invoke('folder:open', dir),
+  newProject: () => ipcRenderer.invoke('project:new'),
+  chooseProjectFolder: (projectId) => ipcRenderer.invoke('project:chooseFolder', projectId),
+  projectDraft: (projectId) => ipcRenderer.invoke('project:sheet', projectId),
+  chooseLogo: () => ipcRenderer.invoke('project:chooseLogo'),
+  createProject: (input) => ipcRenderer.invoke('project:create', input),
+  updateProject: (projectId, input) => ipcRenderer.invoke('project:update', projectId, input),
+  removeProject: (projectId) => ipcRenderer.invoke('project:remove', projectId),
+  openProject: (projectId) => ipcRenderer.invoke('project:open', projectId),
+  locateProject: (projectId) => ipcRenderer.invoke('project:locate', projectId),
+  revealProject: (projectId) => ipcRenderer.invoke('project:reveal', projectId),
+  projectMenu: (projectId) => ipcRenderer.invoke('project:menu', projectId),
   rescan: () => ipcRenderer.invoke('workspace:rescan'),
   setLayout: (patch) => ipcRenderer.send('layout:set', patch),
   git: (repoPath, op) => ipcRenderer.invoke('git:run', repoPath, op),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyQuestion, discardQuestion, dropStashQuestion, renameQuestion, trashQuestion, undoCommitQuestion } from '../src/main/questions.js';
+import { busyQuestion, discardQuestion, dropStashQuestion, removeProjectQuestion, renameQuestion, trashQuestion, undoCommitQuestion } from '../src/main/questions.js';
 
 describe('busyQuestion', () => {
   it('asks nothing when no terminal is busy and no file has unsaved changes', () => {
@@ -107,5 +107,28 @@ describe('renameQuestion', () => {
       defaultId: 0,
       cancelId: 1,
     });
+  });
+});
+
+describe('closing and removing a project', () => {
+  it('asks before closing the open project while a terminal is busy', () => {
+    expect(busyQuestion('close', 0, 0)).toBeNull();
+    expect(busyQuestion('close', 1, 0)).toMatchObject({
+      message: 'Close the project?',
+      detail: '1 terminal still has a running process. Closing it closes every terminal.',
+      buttons: ['Close', 'Cancel'],
+    });
+  });
+
+  it('says the folder stays when a project is removed from the list', () => {
+    expect(removeProjectQuestion('Quizei')).toEqual({
+      type: 'warning',
+      message: 'Remove "Quizei" from the list?',
+      detail: 'edi forgets its name, logo and links. The folder and its repositories stay as they are.',
+      buttons: ['Remove', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    expect(removeProjectQuestion('x'.repeat(80)).message).toBe(`Remove "${'x'.repeat(59)}…" from the list?`);
   });
 });

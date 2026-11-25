@@ -1,11 +1,12 @@
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { Layout, RecentFolder } from '../shared/api.js';
+import type { Layout, Project } from '../shared/api.js';
+import { fromRecent, normalizeProjects } from './projects.js';
 
 export interface Persisted {
-  lastDir: string | null;
-  recent: RecentFolder[];
+  /** In the order they were made; the page gets them last opened first. */
+  projects: Project[];
   layout: Layout;
   window: { x: number; y: number; width: number; height: number } | null;
   /** Fetch every repo with a remote every few minutes (View > Fetch Automatically). */
@@ -15,15 +16,12 @@ export interface Persisted {
 }
 
 export const DEFAULTS: Persisted = {
-  lastDir: null,
-  recent: [],
+  projects: [],
   layout: { left: 492, right: 372, diffMode: 'split', historyLayout: 'timeline', terminals: 'left' },
   window: null,
   autoFetch: true,
   keepAwake: false,
 };
-
-const RECENT_MAX = 8;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -31,18 +29,18 @@ const num = (value: unknown, fallback: number) => (typeof value === 'number' && 
 const oneOf = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
   options.includes(value as T) ? (value as T) : fallback;
 
-/** Every field from the file is validated one by one: a hand-corrupted file or one left by an old version doesn't crash the app. */
-function normalize(raw: unknown): Persisted {
+/**
+ * Every field from the file is validated one by one: a hand-corrupted file or one left by an old version
+ * doesn't crash the app. A file from before projects existed has recent folders instead: they become
+ * projects (`now` is the last one's time).
+ */
+function normalize(raw: unknown, now: number): Persisted {
   if (!isRecord(raw)) return DEFAULTS;
   const layout = isRecord(raw.layout) ? raw.layout : {};
   const win = isRecord(raw.window) ? raw.window : null;
   const bounds = win && ['x', 'y', 'width', 'height'].every((key) => typeof win[key] === 'number' && Number.isFinite(win[key]));
   return {
-    lastDir: typeof raw.lastDir === 'string' ? raw.lastDir : null,
-    recent: (Array.isArray(raw.recent) ? raw.recent : [])
-      .filter((item): item is Record<string, unknown> => isRecord(item) && typeof item.dir === 'string')
-      .map((item) => ({ dir: item.dir as string, repoCount: num(item.repoCount, 0) }))
-      .slice(0, RECENT_MAX),
+    projects: Array.isArray(raw.projects) ? normalizeProjects(raw.projects) : fromRecent(raw.recent, raw.lastDir, now),
     layout: {
       left: num(layout.left, DEFAULTS.layout.left),
       right: num(layout.right, DEFAULTS.layout.right),
@@ -74,9 +72,9 @@ export function mergeLayout(layout: Layout, patch: unknown): Layout {
   };
 }
 
-export async function loadState(file: string): Promise<Persisted> {
+export async function loadState(file: string, now = Date.now()): Promise<Persisted> {
   try {
-    return normalize(JSON.parse(await readFile(file, 'utf8')));
+    return normalize(JSON.parse(await readFile(file, 'utf8')), now);
   } catch {
     return DEFAULTS;
   }
@@ -99,9 +97,4 @@ export function saveStateSync(file: string, state: Persisted): void {
   const tmp = `${file}.${process.pid}.sync.tmp`;
   writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
   renameSync(tmp, file);
-}
-
-export function addRecent(state: Persisted, dir: string, repoCount: number): Persisted {
-  const recent = [{ dir, repoCount }, ...state.recent.filter((item) => item.dir !== dir)].slice(0, RECENT_MAX);
-  return { ...state, recent };
 }

@@ -3,6 +3,7 @@
  * and takes no runtime code from this file.
  */
 import type { EditorId } from './editors.js';
+import type { LogoColor } from './projects.js';
 import type { ParsedDiff } from '../git/diffParse.js';
 import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
@@ -40,10 +41,79 @@ export interface WorkspaceView {
   refreshedAt: number;
 }
 
-export interface RecentFolder {
+export interface ProjectLink {
+  url: string;
+  /** "Admin", "App Store"; empty: the address stands in for it. */
+  label: string;
+}
+
+/** An image is a copy edi keeps in its own folder; a letter is the name's first letter on a color. */
+export type ProjectLogo = { kind: 'image'; file: string } | { kind: 'letter'; color: LogoColor };
+
+/** A folder of git repositories with a name, a logo and links. */
+export interface Project {
+  id: string;
+  /** The folder (its real path); its git repositories are what the project shows. */
   dir: string;
+  name: string;
+  logo: ProjectLogo;
+  /** The first one is the main link, written out in the title bar. */
+  links: ProjectLink[];
+  /** When it was last opened (epoch ms); 0 if unknown (a folder opened before projects existed). */
+  openedAt: number;
+  /** The git repositories found when it was last opened. */
   repoCount: number;
 }
+
+/** A project as the page shows it. */
+export interface ProjectView extends Project {
+  /** The image logo's address; null with a letter. */
+  logoUrl: string | null;
+  /** The folder is still where it was. */
+  exists: boolean;
+  /** It is the project open in the window. */
+  open: boolean;
+}
+
+/** An image that can become a project's logo: found in its folder or picked with Choose…. */
+export interface LogoCandidate {
+  /** Given by the main process; the page sends it back to pick the image. */
+  id: string;
+  /** Relative to the folder (`docs/design/icon/wordmark.svg`), or the file's name for one picked with Choose…. */
+  path: string;
+  /** The address that shows it. */
+  url: string;
+}
+
+/** What the New project (and Edit project) sheet starts with for a folder. */
+export interface ProjectDraft {
+  dir: string;
+  /** The folder's name: the suggested project name. */
+  name: string;
+  repoCount: number;
+  /** Images in the folder that look like its logo, the likeliest first. */
+  logos: LogoCandidate[];
+  /** The repository's web page, for a folder holding a single repository with a remote on a known host. */
+  links: ProjectLink[];
+  /** The project that already has this folder (other than the one being edited); null if none. */
+  taken: { id: string; name: string } | null;
+}
+
+/** What the sheet sends. */
+export interface ProjectInput {
+  dir: string;
+  name: string;
+  /** `candidate`: one of the images offered (found or chosen); `keep`: the project's current image. */
+  logo: { kind: 'candidate'; id: string } | { kind: 'keep' } | { kind: 'letter'; color: LogoColor };
+  /** The first one is the main link. */
+  links: ProjectLink[];
+}
+
+/** The right-click menu of a project card (and of its … button). `link:N`: open the project's Nth link. */
+export type ProjectMenuAction = 'open' | 'edit' | 'reveal' | 'remove' | `link:${number}`;
+
+/** Choose… in the sheet: the image picked, why it can't be used, or null if the panel was cancelled. */
+export type ChosenLogo = { ok: true; logo: LogoCandidate } | { ok: false; error: string } | null;
 
 export interface Layout {
   /** The terminal panel's width (whichever side it is on). */
@@ -59,7 +129,10 @@ export interface Layout {
 export interface AppState {
   home: string;
   workspace: WorkspaceView;
-  recent: RecentFolder[];
+  /** Last opened first. */
+  projects: ProjectView[];
+  /** `edi <folder>` named a folder that isn't a project yet: the New project sheet to show. */
+  draft: ProjectDraft | null;
   layout: Layout;
 }
 
@@ -160,7 +233,10 @@ export interface ClaudeUsage {
 /** Events the main process sends to the page on its own. */
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
-  recent: [recent: RecentFolder[]];
+  /** A project was made, changed, removed or opened. Last opened first. */
+  projects: [projects: ProjectView[]];
+  /** `edi <folder>` named a folder that isn't a project yet: the page shows the New project sheet for it. */
+  'project:draft': [draft: ProjectDraft];
   'pty:data': [id: number, data: string];
   'pty:exit': [id: number];
   tabs: [tabs: TabState[]];
@@ -174,9 +250,29 @@ export interface EdiEvents {
 /** The bridge given to the page as `window.edi`. */
 export interface EdiApi {
   getState(): Promise<AppState>;
-  /** Opens the system folder picker; if a folder is chosen, it is opened. */
-  chooseFolder(): Promise<void>;
-  openFolder(dir: string): Promise<OpenResult>;
+  /**
+   * New project (⌘O): the folder panel first. A folder that already is a project opens; for any other,
+   * what the New project sheet starts with. Null if the panel was cancelled or a project opened.
+   */
+  newProject(): Promise<ProjectDraft | null>;
+  /** Change… in the sheet: another folder through the panel. `projectId`: the project being edited, if any. */
+  chooseProjectFolder(projectId: string | null): Promise<ProjectDraft | null>;
+  /** Edit project…: the images and repositories of the project's folder, for the sheet. */
+  projectDraft(projectId: string): Promise<ProjectDraft | null>;
+  /** Choose… in the sheet: an image through the open panel. */
+  chooseLogo(): Promise<ChosenLogo>;
+  /** Makes the project and opens it. */
+  createProject(input: ProjectInput): Promise<OpenResult>;
+  /** Saves the sheet's changes to a project. */
+  updateProject(projectId: string, input: ProjectInput): Promise<OpenResult>;
+  /** Forgets the project, after asking; its folder stays as it is. The open project closes first. */
+  removeProject(projectId: string): Promise<OpenResult>;
+  openProject(projectId: string): Promise<OpenResult>;
+  /** Locate…: the folder panel, for a project whose folder has moved. */
+  locateProject(projectId: string): Promise<OpenResult>;
+  revealProject(projectId: string): Promise<void>;
+  /** The native right-click menu of a project card; the picked action, or null. */
+  projectMenu(projectId: string): Promise<ProjectMenuAction | null>;
   rescan(): Promise<void>;
   /** Saves layout preferences such as panel width; the main process validates them. */
   setLayout(patch: Partial<Layout>): void;

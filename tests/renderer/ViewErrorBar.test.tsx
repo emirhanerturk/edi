@@ -12,7 +12,7 @@ const bridge = vi.hoisted(() => {
         return () => undefined;
       },
       openIn: async () => ({ ok: false, error: 'Could not open Zed' }),
-      openFolder: async () => ({ ok: false, error: 'Folder not found' }),
+      openProject: async () => ({ ok: false, error: 'Folder not found' }),
       // The initial state never arrives: the test sends the events itself.
       getState: () => new Promise(() => undefined),
       claudeUsage: () => new Promise(() => undefined),
@@ -49,12 +49,14 @@ describe('ViewErrorBar', () => {
     expect(useApp.getState().centerError).toBeNull();
   });
 
-  it('shows a folder that could not be opened while another folder is open, and it can be dismissed', async () => {
+  it('shows a project that could not be opened while another one is open, and it can be dismissed', async () => {
     connect();
     bridge.handlers.workspace!(workspace('/w'));
+    const gone = { id: 'p2', dir: '/gone', name: 'Gone', logo: { kind: 'letter' as const, color: 'blue' as const }, links: [], openedAt: 0, repoCount: 0 };
+    bridge.handlers.projects!([{ ...gone, logoUrl: null, exists: true, open: false }]);
     render(<ViewErrorBar />);
-    await useApp.getState().openFolder('/gone');
-    expect(screen.getByRole('alert').textContent).toContain('/gone: Folder not found');
+    await useApp.getState().openProject('p2');
+    expect(screen.getByRole('alert').textContent).toContain('Gone: Folder not found');
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByRole('alert')).toBeNull();
     expect(useApp.getState().openError).toBeNull();

@@ -17,11 +17,13 @@ test('the window opens with edi in the title bar', async () => {
   }
 });
 
-test('the empty state shows Open a folder', async () => {
+test('without a project yet, the Projects screen offers only New project', async () => {
   const { app, page } = await launch();
   try {
-    await expect(page.getByRole('heading', { name: 'Open a folder' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Choose folder' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New project', exact: true })).toBeVisible();
+    await expect(page.getByTestId('new-project-card')).toBeVisible();
+    await expect(page.getByTestId('project-card')).toHaveCount(0);
     await expect(page.getByTestId('statusbar')).toHaveCount(0);
   } finally {
     await app.close();
@@ -38,14 +40,14 @@ test('opening a folder shows the repo count in the status bar and its name in th
   try {
     await expect(page.getByTestId('statusbar')).toContainText('2 repositories');
     await expect(page.getByTestId('statusbar')).toContainText('1 with changes');
-    await expect(page.getByTestId('folder-button')).toContainText(basename(dir));
-    await expect(page.getByRole('heading', { name: 'Open a folder' })).toHaveCount(0);
+    await expect(page.getByTestId('project-button')).toContainText(basename(dir));
+    await expect(page.getByRole('heading', { name: 'Projects' })).toHaveCount(0);
   } finally {
     await app.close();
   }
 });
 
-test('the last folder comes back on relaunch and earlier ones are listed in the menu', async () => {
+test('nothing opens on its own at relaunch: the projects are listed, the last one marked, and one opens on a click', async () => {
   const one = await tmpDir();
   await makeRepo(one, 'alpha');
   const two = await tmpDir();
@@ -60,20 +62,31 @@ test('the last folder comes back on relaunch and earlier ones are listed in the 
   await expect(second.page.getByTestId('statusbar')).toContainText('2 repositories');
   await second.app.close();
 
-  // Launch without a folder: the last one opened (with two repos) comes back.
+  // Launched without a folder: the Projects screen, the last project opened first and marked.
   const third = await launch({ userData: first.userData });
   try {
-    await expect(third.page.getByTestId('statusbar')).toContainText('2 repositories');
-    await third.page.getByTestId('folder-button').click();
-    const menu = third.page.getByTestId('folder-menu');
-    await expect(menu).toContainText(basename(one));
-    await expect(menu).toContainText('1 repo');
-    await expect(menu).toContainText('Choose folder…');
+    await expect(third.page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    await expect(third.page.getByTestId('statusbar')).toHaveCount(0);
+    const cards = third.page.getByTestId('project-card');
+    await expect(cards).toHaveCount(2);
+    await expect(cards.nth(0)).toContainText(basename(two));
+    await expect(cards.nth(0)).toContainText('Last opened');
+    await expect(cards.nth(0)).toContainText('2 repos');
+    await expect(cards.nth(1)).toContainText(basename(one));
+    await expect(cards.nth(1)).not.toContainText('Last opened');
 
-    // Switch to the earlier folder from the menu.
-    await menu.getByRole('menuitem', { name: new RegExp(basename(one)) }).click();
+    await cards.nth(1).getByRole('button').first().click();
     await expect(third.page.getByTestId('statusbar')).toContainText('1 repository');
-    await expect(third.page.getByTestId('folder-button')).toContainText(basename(one));
+    await expect(third.page.getByTestId('project-button')).toContainText(basename(one));
+
+    // The other project is in the title bar's menu.
+    await third.page.getByTestId('project-button').click();
+    const menu = third.page.getByTestId('project-menu');
+    await expect(menu).toContainText(basename(two));
+    await expect(menu).toContainText('New project…');
+    await menu.getByRole('menuitem', { name: new RegExp(basename(two)) }).click();
+    await expect(third.page.getByTestId('statusbar')).toContainText('2 repositories');
+    await expect(third.page.getByTestId('project-button')).toContainText(basename(two));
   } finally {
     await third.app.close();
   }
