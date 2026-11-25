@@ -15,6 +15,7 @@ const status = (files: FileChange[] = []): RepoStatus => ({
   upstream: null,
   ahead: null,
   behind: null,
+  stashes: 0,
   files,
 });
 const repo = (name: string, files: FileChange[] = []): RepoView => ({

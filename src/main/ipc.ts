@@ -5,12 +5,12 @@ import { type BrowserWindow, Menu, dialog, ipcMain, protocol, shell } from 'elec
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
 import { serveMedia } from './media.js';
-import { type BusyKind, type Question, busyQuestion, discardQuestion, undoCommitQuestion } from './questions.js';
+import { type BusyKind, type Question, busyQuestion, discardQuestion, dropStashQuestion, undoCommitQuestion } from './questions.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
 import { listServers } from '../servers.js';
 import { listClaudePids, listClaudeSessions } from '../sessions.js';
-import type { AppState, ClaudeUsage, EdiEvents, FilesMenuAction, GitOp, OpenResult, TerminalCreated } from '../shared/api.js';
-import { FileOps, type MenuItem } from './fileOps.js';
+import type { AppState, ClaudeUsage, EdiEvents, GitOp, OpenResult, StashMenuAction, TerminalCreated } from '../shared/api.js';
+import { FileOps } from './fileOps.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, addRecent, loadState, mergeLayout, saveState } from './store.js';
@@ -136,7 +136,7 @@ export class AppCore {
   }
 
   /** A native context menu at the mouse; resolves with the picked item's id, or null when it closes without one. */
-  private popup(items: MenuItem[]): Promise<FilesMenuAction | null> {
+  private popup<T extends string>(items: { id: T | null; label: string; enabled?: boolean }[]): Promise<T | null> {
     return new Promise((resolve) => {
       let picked = false;
       const menu = Menu.buildFromTemplate(
@@ -145,6 +145,7 @@ export class AppCore {
             ? { type: 'separator' as const }
             : {
                 label: item.label,
+                enabled: item.enabled !== false,
                 click: () => {
                   picked = true;
                   resolve(item.id);
@@ -233,6 +234,18 @@ export class AppCore {
     ipcMain.handle('git:fetchAll', () => this.gitOps.fetchAll());
     ipcMain.handle('git:branches', (_event, repoPath: unknown) => this.gitOps.branches(repoPath as string));
     ipcMain.handle('git:unpushed', (_event, repoPath: unknown) => this.gitOps.unpushed(repoPath));
+    ipcMain.handle('git:stashes', (_event, repoPath: unknown) => this.gitOps.stashes(repoPath));
+    ipcMain.handle('git:stash', (_event, repoPath: unknown, oid: unknown) => this.gitOps.stash(repoPath, oid));
+    ipcMain.handle('git:stashMenu', (_event, canApply: unknown) => {
+      const apply = canApply === true;
+      return this.popup<StashMenuAction>([
+        { id: 'pop', label: 'Pop', enabled: apply },
+        { id: 'apply', label: 'Apply', enabled: apply },
+        { id: null, label: '-' },
+        { id: 'drop', label: 'Drop…' },
+      ]);
+    });
+    ipcMain.handle('git:confirmDropStash', (_event, label: unknown) => this.ask(dropStashQuestion(typeof label === 'string' ? label : 'this stash')));
     // Read-only view operations: paths are validated in ViewOps.
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
     ipcMain.on('edits:unsaved', (_event, count: unknown) => {

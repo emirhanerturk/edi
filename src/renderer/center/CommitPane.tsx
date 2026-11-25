@@ -157,7 +157,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
 }
 
 /** The single header button: collapses all if at least one file is expanded, expands all if all are collapsed. */
-function AllFilesButton({ allCollapsed, onCollapse, onExpand }: { allCollapsed: boolean; onCollapse(): void; onExpand(): void }) {
+export function AllFilesButton({ allCollapsed, onCollapse, onExpand }: { allCollapsed: boolean; onCollapse(): void; onExpand(): void }) {
   const label = allCollapsed ? 'Expand all files' : 'Collapse all files';
   return (
     <button className="commit-copy commit-fold" aria-label={label} title={label} onClick={allCollapsed ? onExpand : onCollapse}>
@@ -175,7 +175,8 @@ interface CommitFilesProps {
   onOpenFile?(path: string): void;
 }
 
-function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile }: CommitFilesProps) {
+/** Every changed file's diff, one below the other (the commit and stash views). */
+export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile }: CommitFilesProps) {
   if (files.length === 0) return <ViewNote>No file changes</ViewNote>;
   return (
     <div className="commit-files mono">
@@ -210,6 +211,8 @@ const CommitFileSection = memo(function CommitFileSection({
 }) {
   const slash = file.path.lastIndexOf('/');
   const showsLines = !file.diff.binary && (file.diff.hunks.length > 0 || open === null);
+  // A stash's new file was untracked and comes back untracked: `?`, as in the Git tab.
+  const mark = file.untracked ? '?' : file.letter;
   return (
     <section className="commit-file" data-testid="commit-file">
       <div className="commit-file-bar">
@@ -220,8 +223,8 @@ const CommitFileSection = memo(function CommitFileSection({
           onClick={open === null ? undefined : () => onToggle(file.path)}
         >
           {open === null ? <span className="commit-file-spacer" /> : open ? <ChevronDown size={11} strokeWidth={1.9} /> : <ChevronRight size={11} strokeWidth={1.9} />}
-          <span className="commit-file-letter" style={{ color: letterColor(file.letter) }}>
-            {file.letter}
+          <span className="commit-file-letter" style={{ color: letterColor(mark) }} title={file.untracked ? 'New file' : undefined}>
+            {mark}
           </span>
           <span className="commit-file-path">
             {slash !== -1 && file.path.slice(0, slash + 1)}

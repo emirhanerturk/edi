@@ -4,7 +4,8 @@ import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Readable } from 'node:stream';
 
-export type GitResult = { ok: true; stdout: string } | { ok: false; error: string; stdout: string };
+/** `stderr`: all of git's error output, for callers that need more than the line in `error`. */
+export type GitResult = { ok: true; stdout: string } | { ok: false; error: string; stdout: string; stderr?: string };
 
 export interface RunGitOptions {
   /** Defaults to 15000. If exceeded, the process group is terminated. */
@@ -130,7 +131,7 @@ export async function runGit(cwd: string, args: string[], opts: RunGitOptions = 
       if (timedOut) finish({ ok: false, error: 'Timed out', stdout });
       else if (code !== null && okCodes.includes(code)) finish({ ok: true, stdout });
       // Some git errors (like "nothing to commit") are written to stdout, not stderr.
-      else finish({ ok: false, error: pickErrorLine(stderr.trim() === '' ? stdout : stderr), stdout });
+      else finish({ ok: false, error: pickErrorLine(stderr.trim() === '' ? stdout : stderr), stdout, stderr });
     };
     child.on('close', settle);
     // If a hook leaves a process in the background, the pipes stay open and 'close' doesn't fire until it ends.

@@ -38,6 +38,10 @@ describe('busyLabel', () => {
     expect(busyLabel({ op: 'switch', branch: 'x' })).toBe('Switching…');
     expect(busyLabel({ op: 'createBranch', branch: 'x' })).toBe('Switching…');
     expect(busyLabel({ op: 'undoCommit', oid: 'a'.repeat(40) })).toBe('Undoing commit…');
+    expect(busyLabel({ op: 'stash', message: '', staged: false })).toBe('Stashing…');
+    expect(busyLabel({ op: 'stashPop', oid: 'a'.repeat(40) })).toBe('Popping stash…');
+    expect(busyLabel({ op: 'stashApply', oid: 'a'.repeat(40) })).toBe('Applying stash…');
+    expect(busyLabel({ op: 'stashDrop', oid: 'a'.repeat(40) })).toBe('Dropping stash…');
     expect(busyLabel({ op: 'stageAll' })).toBe('Working…');
   });
 });
@@ -67,6 +71,13 @@ describe('GitOps', () => {
     expect(await ops.run(repo, null as unknown as GitOp)).toEqual(invalid);
     expect(await ops.run(repo, { op: 'commit', message: 7 } as unknown as GitOp)).toEqual(invalid);
     expect(await ops.run(repo, { op: 'switch' } as unknown as GitOp)).toEqual(invalid);
+    expect(await ops.run(repo, { op: 'stash', message: 'x' } as unknown as GitOp)).toEqual(invalid);
+    expect(await ops.run(repo, { op: 'stash', message: 'x', staged: false, then: { op: 'push' } } as unknown as GitOp)).toEqual(invalid);
+    expect(await ops.run(repo, { op: 'stash', message: 'x', staged: false, then: { op: 'switch' } } as unknown as GitOp)).toEqual(invalid);
+    // Retrying a switch or pull only makes sense after stashing everything.
+    expect(await ops.run(repo, { op: 'stash', message: 'x', staged: true, then: { op: 'pull' } })).toEqual(invalid);
+    expect(await ops.run(repo, { op: 'stashDrop', oid: 7 } as unknown as GitOp)).toEqual(invalid);
+    expect(await ops.run(repo, { op: 'stashPop' } as unknown as GitOp)).toEqual(invalid);
     expect(await ops.run(repo, { op: 'stage', file: { path: '../../etc/passwd' } } as unknown as GitOp)).toEqual({
       ok: false,
       error: 'File is not in the list of changes',
@@ -200,6 +211,61 @@ describe('GitOps', () => {
     expect(fileOf(ws, repo, 'new.txt').x).toBe('A');
     expect(await ops.run(repo, { op: 'undoCommit', oid })).toEqual({ ok: false, error: 'This is no longer the latest commit' });
     expect(await ops.unpushed('/nope')).toEqual({ ok: false, error: 'Unknown repository' });
+  });
+
+  it('stashes, lists, pops and drops by stash id; the status counts the stashes', async () => {
+    const { repos, ws, ops } = await setup();
+    const repo = repos[0]!;
+    await writeFile(join(repo, 'README.md'), 'changed\n');
+    await writeFile(join(repo, 'new.txt'), 'x\n');
+    await ws.refresh(repo);
+
+    expect(await ops.run(repo, { op: 'stash', message: 'first', staged: false })).toEqual({ ok: true, message: 'Stashed' });
+    expect(ws.repo(repo)?.status).toMatchObject({ stashes: 1, files: [] });
+    await writeFile(join(repo, 'other.txt'), 'y\n');
+    expect((await ops.run(repo, { op: 'stash', message: 'second', staged: false })).ok).toBe(true);
+    const listed = await ops.stashes(repo);
+    expect(listed.ok && listed.stashes.map((s) => s.message)).toEqual(['second', 'first']);
+    const [second, first] = listed.ok ? listed.stashes : [];
+
+    const view = await ops.stash(repo, first!.oid);
+    expect(view.ok && view.stash.files.map((f) => f.path)).toEqual(['README.md', 'new.txt']);
+    expect(await ops.run(repo, { op: 'stashPop', oid: first!.oid })).toEqual({ ok: true, message: 'Stash popped' });
+    expect(ws.repo(repo)?.status?.stashes).toBe(1);
+    expect(ws.repo(repo)?.status?.files.map((f) => f.path).sort()).toEqual(['README.md', 'new.txt']);
+    expect(await ops.run(repo, { op: 'stashDrop', oid: second!.oid })).toEqual({ ok: true, message: 'Stash dropped' });
+    expect(ws.repo(repo)?.status?.stashes).toBe(0);
+    expect(await ops.run(repo, { op: 'stashDrop', oid: second!.oid })).toEqual({ ok: false, error: 'This stash is no longer in the list' });
+    expect(await ops.stashes('/nope')).toEqual({ ok: false, error: 'Unknown repository' });
+    expect(await ops.stash('/nope', first!.oid)).toEqual({ ok: false, error: 'Unknown repository' });
+  });
+
+  it('"Stash and switch": stashes the changes git refused to carry over, then switches', async () => {
+    const { repos, ws, ops } = await setup();
+    const repo = repos[0]!;
+    await git(repo, 'switch', '-q', '-c', 'feat/x');
+    await writeFile(join(repo, 'README.md'), 'feat/x line\n');
+    await git(repo, 'commit', '-q', '-am', 'feat: x');
+    await git(repo, 'switch', '-q', 'main');
+    await writeFile(join(repo, 'README.md'), 'local edit\n');
+    await ws.refresh(repo);
+
+    const refused = await ops.run(repo, { op: 'switch', branch: 'feat/x' });
+    expect(!refused.ok && refused.error).toMatch(/would be overwritten by checkout/);
+    expect(await ops.run(repo, { op: 'stash', message: '', staged: false, then: { op: 'switch', branch: 'feat/x' } })).toEqual({
+      ok: true,
+      message: 'Switched to feat/x',
+    });
+    expect(ws.repo(repo)?.status).toMatchObject({ head: 'feat/x', stashes: 1, files: [] });
+    const listed = await ops.stashes(repo);
+    expect(listed.ok && listed.stashes[0]).toMatchObject({ branch: 'main', message: null });
+
+    // When the retried switch still fails, the stash is kept and both are said.
+    await writeFile(join(repo, 'README.md'), 'another edit\n');
+    const failed = await ops.run(repo, { op: 'stash', message: '', staged: false, then: { op: 'switch', branch: 'missing' } });
+    expect(!failed.ok && failed.error).toMatch(/^Stashed your changes, but the switch failed: /);
+    expect(ws.repo(repo)?.status?.stashes).toBe(2);
+    expect(ws.repo(repo)?.busy).toBeNull();
   });
 
   it('fetchAll runs in every repo with a remote and skips the rest', async () => {

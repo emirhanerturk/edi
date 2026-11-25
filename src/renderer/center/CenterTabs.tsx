@@ -1,10 +1,11 @@
+import { Archive } from 'lucide-react';
 import { CloseIcon, CommitIcon, PlusIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 
 /** How a tab looks in the bar. */
 export interface TabLabel {
   id: string;
-  kind: 'diff' | 'file' | 'commit' | 'untitled';
+  kind: 'diff' | 'file' | 'commit' | 'stash' | 'untitled';
   name: string;
   /** The file's folder; empty if at the root. */
   dir: string;
@@ -62,6 +63,7 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
               onDoubleClick={() => onPin(tab.id)}
             >
               {tab.kind === 'commit' && <CommitIcon size={13} className="tab-commit-icon" data-testid="commit-icon" />}
+              {tab.kind === 'stash' && <Archive size={13} strokeWidth={1.7} className="tab-commit-icon" data-testid="stash-icon" aria-hidden="true" />}
               {tab.letter !== null && (
                 <span className="mono tab-letter" style={{ color: letterColor(tab.letter) }}>
                   {tab.letter}

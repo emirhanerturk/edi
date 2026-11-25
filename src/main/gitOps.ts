@@ -1,7 +1,8 @@
 import { commit, createBranch, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
 import { type UnpushedResult, readUnpushed, undoLastCommit } from '../git/unpushed.js';
+import { applyStash, dropStash, listStashes, pushStash, readStash } from '../git/stash.js';
 import { getStatus } from '../git/status.js';
-import type { BranchList, GitOp, OpResult } from '../shared/api.js';
+import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
 import type { Workspace } from './workspace.js';
 
 export function busyLabel(op: GitOp): string {
@@ -19,6 +20,14 @@ export function busyLabel(op: GitOp): string {
       return 'Switching…';
     case 'undoCommit':
       return 'Undoing commit…';
+    case 'stash':
+      return 'Stashing…';
+    case 'stashPop':
+      return 'Popping stash…';
+    case 'stashApply':
+      return 'Applying stash…';
+    case 'stashDrop':
+      return 'Dropping stash…';
     default:
       return 'Working…';
   }
@@ -26,6 +35,13 @@ export function busyLabel(op: GitOp): string {
 
 const UNKNOWN_REPO: OpResult = { ok: false, error: 'Unknown repository' };
 const INVALID: OpResult = { ok: false, error: 'Invalid operation' };
+
+/** The switch or pull to run again after stashing. */
+function isRetry(then: unknown): then is StashRetry {
+  if (typeof then !== 'object' || then === null) return false;
+  const t = then as Record<string, unknown>;
+  return t.op === 'pull' || (t.op === 'switch' && typeof t.branch === 'string');
+}
 
 /** Whether an operation from the page is well formed. The page isn't trusted: every field is checked. */
 function isValidOp(op: unknown): op is GitOp {
@@ -47,7 +63,13 @@ function isValidOp(op: unknown): op is GitOp {
     case 'createBranch':
       return typeof o.branch === 'string';
     case 'undoCommit':
+    case 'stashPop':
+    case 'stashApply':
+    case 'stashDrop':
       return typeof o.oid === 'string';
+    case 'stash':
+      // A switch or pull is retried only after stashing everything.
+      return typeof o.message === 'string' && typeof o.staged === 'boolean' && (o.then === undefined || (isRetry(o.then) && o.staged === false));
     default:
       return false;
   }
@@ -100,6 +122,19 @@ export class GitOps {
     return readUnpushed(repo.path);
   }
 
+  async stashes(repoPath: unknown): Promise<StashList> {
+    const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
+    if (!repo) return { ok: false, error: 'Unknown repository' };
+    return listStashes(repo.path);
+  }
+
+  /** Read-only: the stash view. The id is checked in `readStash`. */
+  async stash(repoPath: unknown, oid: unknown): Promise<StashResult> {
+    const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
+    if (!repo) return { ok: false, error: 'Unknown repository' };
+    return readStash(repo.path, oid);
+  }
+
   private async execute(repo: string, op: GitOp): Promise<OpResult> {
     switch (op.op) {
       case 'stage':
@@ -134,6 +169,19 @@ export class GitOps {
         return createBranch(repo, op.branch);
       case 'undoCommit':
         return undoLastCommit(repo, op.oid);
+      case 'stash': {
+        const stashed = await pushStash(repo, { message: op.message, staged: op.staged });
+        if (!stashed.ok || !op.then) return stashed;
+        this.ws.setBusy(repo, busyLabel(op.then));
+        const retried = await this.execute(repo, op.then);
+        const what = op.then.op === 'pull' ? 'pull' : 'switch';
+        return retried.ok ? retried : { ok: false, error: `Stashed your changes, but the ${what} failed: ${retried.error}` };
+      }
+      case 'stashPop':
+      case 'stashApply':
+        return applyStash(repo, op.oid, { drop: op.op === 'stashPop' });
+      case 'stashDrop':
+        return dropStash(repo, op.oid);
     }
   }
 

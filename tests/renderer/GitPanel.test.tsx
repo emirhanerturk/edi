@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileChange, RepoStatus } from '../../src/git/types';
+import type { FileChange, RepoStatus, StashEntry } from '../../src/git/types';
 import { GitPanelView } from '../../src/renderer/git/GitPanelView';
 import { changeTotal } from '../../src/renderer/git/model';
-import type { RepoView } from '../../src/shared/api';
+import type { RepoView, StashMenuAction } from '../../src/shared/api';
 
 afterEach(cleanup);
 
@@ -16,6 +16,7 @@ const status = (over: Partial<RepoStatus> = {}): RepoStatus => ({
   upstream: 'origin/main',
   ahead: 0,
   behind: 0,
+  stashes: 0,
   files: [],
   ...over,
 });
@@ -301,5 +302,216 @@ describe('Unpushed commits', () => {
     expect(loadUnpushed).not.toHaveBeenCalled();
     expect(second.loadUnpushed).not.toHaveBeenCalled();
     expect(screen.queryByTestId('unpushed-row')).toBeNull();
+  });
+});
+
+describe('Stashes', () => {
+  afterEach(cleanup);
+  const entry = (n: number, over: Partial<StashEntry> = {}): StashEntry => ({
+    oid: String(n % 10).repeat(40),
+    index: n,
+    subject: `On main: stash ${n}`,
+    message: `stash ${n}`,
+    branch: 'main',
+    baseSubject: null,
+    date: Date.now() - (n + 1) * 3_600_000,
+    untracked: false,
+    ...over,
+  });
+  const wip = entry(1, { subject: 'WIP on feat/login: 1a2b3c4 feat: add login form', message: null, branch: 'feat/login', baseSubject: 'feat: add login form' });
+  const two = [entry(0, { message: 'fix spacing on mobile', subject: 'On main: fix spacing on mobile' }), wip];
+
+  function renderStashes(target: RepoView, opts: { stashes?: StashEntry[]; single?: boolean; menuPick?: StashMenuAction | null } = {}) {
+    const loadStashes = vi.fn(async () => ({ ok: true as const, stashes: opts.stashes ?? two }));
+    const onOpenStash = vi.fn();
+    const onStashAction = vi.fn();
+    const onOp = vi.fn();
+    const stashMenu = vi.fn(async () => opts.menuPick ?? null);
+    render(
+      <GitPanelView
+        repos={[target]}
+        expanded={{}}
+        onToggle={() => undefined}
+        single={opts.single}
+        loadStashes={loadStashes}
+        onOpenStash={onOpenStash}
+        onStashAction={onStashAction}
+        stashMenu={stashMenu}
+        onOp={onOp}
+      />,
+    );
+    return { loadStashes, onOpenStash, onStashAction, onOp, stashMenu };
+  }
+  const changed = (over: Partial<RepoStatus> = {}) =>
+    repo('app', { status: status({ stashes: 2, files: [file('a.ts', '.', 'M'), file('new.ts', '?', '?', 'untracked')], ...over }) });
+
+  it('a collapsed repo shows how many stashes it has; nothing is read until it opens', () => {
+    const { loadStashes } = renderStashes(repo('api', { status: status({ stashes: 2 }) }));
+    expect(screen.getByTestId('repo-stashes').textContent).toBe('2');
+    expect(screen.getByTestId('repo-stashes').title).toBe('2 stashes');
+    expect(row('api').getAttribute('aria-expanded')).toBe('false');
+    expect(loadStashes).not.toHaveBeenCalled();
+    cleanup();
+    renderStashes(repo('api'));
+    expect(screen.queryByTestId('repo-stashes')).toBeNull();
+  });
+
+  it('lists the stashes under STASHES: the message, or WIP and its base; the branch only when it is another one', async () => {
+    const { loadStashes } = renderStashes(changed());
+    expect(loadStashes).toHaveBeenCalledWith('/w/app');
+    const rows = await screen.findAllByTestId('stash-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('fix spacing on mobile');
+    expect(rows[0]!.querySelector('.stash-branch')).toBeNull();
+    expect(within(rows[1]!).getByText('WIP')).toBeTruthy();
+    expect(within(rows[1]!).getByText('feat: add login form')).toBeTruthy();
+    expect(rows[1]!.querySelector('.stash-branch')?.textContent).toBe('feat/login');
+    expect(rows[1]!.title).toBe('stash@{1}: WIP on feat/login: 1a2b3c4 feat: add login form');
+    const head = screen.getAllByTestId('file-group-head').find((el) => el.textContent?.includes('STASHES'))!;
+    expect(head.textContent).toContain('2');
+  });
+
+  it('a click previews a stash, a double click pins it; Pop pops without opening', async () => {
+    const { onOpenStash, onStashAction } = renderStashes(changed());
+    const rows = await screen.findAllByTestId('stash-row');
+    fireEvent.click(rows[1]!);
+    expect(onOpenStash).toHaveBeenLastCalledWith('/w/app', wip, false);
+    fireEvent.doubleClick(rows[0]!);
+    expect(onOpenStash).toHaveBeenLastCalledWith('/w/app', two[0], true);
+    onOpenStash.mockClear();
+    fireEvent.click(within(rows[1]!).getByRole('button', { name: 'Pop stash WIP on feat/login' }));
+    expect(onStashAction).toHaveBeenCalledWith('/w/app', wip, 'pop');
+    expect(onOpenStash).not.toHaveBeenCalled();
+  });
+
+  it('right-click opens the stash menu; its pick is run on that stash', async () => {
+    const { stashMenu, onStashAction } = renderStashes(changed(), { menuPick: 'drop' });
+    const rows = await screen.findAllByTestId('stash-row');
+    fireEvent.contextMenu(rows[0]!);
+    expect(stashMenu).toHaveBeenCalledWith(true);
+    await vi.waitFor(() => expect(onStashAction).toHaveBeenCalledWith('/w/app', two[0], 'drop'));
+  });
+
+  it('during a conflict Pop is disabled and the menu greys out Pop and Apply', async () => {
+    const { stashMenu } = renderStashes(changed({ files: [file('a.ts', 'U', 'U', 'conflicted')] }));
+    const rows = await screen.findAllByTestId('stash-row');
+    const pop = within(rows[0]!).getByTestId('stash-pop') as HTMLButtonElement;
+    expect(pop.disabled).toBe(true);
+    expect(pop.title).toBe('Resolve the conflicts first');
+    fireEvent.contextMenu(rows[0]!);
+    expect(stashMenu).toHaveBeenCalledWith(false);
+  });
+
+  it('with several repos the newest five show until "Show N more"; a single repo lists them all', async () => {
+    const seven = Array.from({ length: 7 }, (_, i) => entry(i));
+    renderStashes(changed({ stashes: 7 }), { stashes: seven });
+    expect(await screen.findAllByTestId('stash-row')).toHaveLength(5);
+    fireEvent.click(screen.getByTestId('stash-more'));
+    expect(screen.getAllByTestId('stash-row')).toHaveLength(7);
+    expect(screen.queryByTestId('stash-more')).toBeNull();
+    cleanup();
+    renderStashes(repo('solo', { status: status({ stashes: 7, files: [file('a.ts', '.', 'M')] }) }), { stashes: seven, single: true });
+    expect(await screen.findAllByTestId('stash-row')).toHaveLength(7);
+    expect(screen.queryByTestId('stash-more')).toBeNull();
+  });
+
+  it('a clean single repo with stashes starts expanded; with several repos it stays collapsed', async () => {
+    renderStashes(repo('solo', { status: status({ stashes: 2 }) }), { single: true });
+    expect(row('solo').getAttribute('aria-expanded')).toBe('true');
+    expect(await screen.findAllByTestId('stash-row')).toHaveLength(2);
+    expect(within(row('solo')).getByText('No changes')).toBeTruthy();
+    cleanup();
+    renderStashes(repo('solo', { status: status({ stashes: 2 }) }));
+    expect(row('solo').getAttribute('aria-expanded')).toBe('false');
+    cleanup();
+    renderStashes(repo('solo', { status: status() }), { single: true });
+    expect(row('solo').getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('Stash button', () => {
+  afterEach(cleanup);
+  function renderButton(files: FileChange[], over: Partial<RepoStatus> = {}) {
+    const onOp = vi.fn();
+    render(<GitPanelView repos={[repo('app', { status: status({ files, ...over }) })]} expanded={{}} onToggle={() => undefined} onOp={onOp} />);
+    return { onOp };
+  }
+
+  it('opens a menu with a message field; Enter stashes every change with that message', () => {
+    const { onOp } = renderButton([file('a.ts', '.', 'M'), file('new.ts', '?', '?', 'untracked')]);
+    fireEvent.click(screen.getByTestId('stash-button'));
+    const menu = screen.getByRole('menu', { name: 'Stash' });
+    expect(within(menu).getByRole('menuitem', { name: /Stash all changes/ }).textContent).toContain('2 files');
+    // Nothing is staged: no "staged" choice.
+    expect(within(menu).queryByRole('menuitem', { name: /Stash staged changes/ })).toBeNull();
+    const input = within(menu).getByLabelText('Stash message');
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: '  wip: login  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onOp).toHaveBeenCalledWith('/w/app', { op: 'stash', message: 'wip: login', staged: false });
+    expect(screen.queryByRole('menu', { name: 'Stash' })).toBeNull();
+  });
+
+  it('offers the staged changes alone when something else is not staged, unless a file is partly staged', () => {
+    const { onOp } = renderButton([file('a.ts', 'M', '.'), file('b.ts', '.', 'M')]);
+    fireEvent.click(screen.getByTestId('stash-button'));
+    const staged = screen.getByRole('menuitem', { name: /Stash staged changes/ }) as HTMLButtonElement;
+    expect(staged.textContent).toContain('1 file');
+    fireEvent.click(staged);
+    expect(onOp).toHaveBeenCalledWith('/w/app', { op: 'stash', message: '', staged: true });
+    cleanup();
+
+    renderButton([file('a.ts', 'M', 'M')]);
+    fireEvent.click(screen.getByTestId('stash-button'));
+    expect((screen.getByRole('menuitem', { name: /Stash staged changes/ }) as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
+
+    // Everything is staged: "staged" would be the same as "all".
+    renderButton([file('a.ts', 'M', '.')]);
+    fireEvent.click(screen.getByTestId('stash-button'));
+    expect(screen.queryByRole('menuitem', { name: /Stash staged changes/ })).toBeNull();
+  });
+
+  it('is disabled during a conflict and absent before the first commit', () => {
+    renderButton([file('a.ts', 'U', 'U', 'conflicted')]);
+    const button = screen.getByTestId('stash-button') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe('Resolve the conflicts first');
+    cleanup();
+    renderButton([file('a.ts', 'A', '.')], { unborn: true, headOid: null });
+    expect(screen.getByTestId('commit-button')).toBeTruthy();
+    expect(screen.queryByTestId('stash-button')).toBeNull();
+  });
+});
+
+describe('Stash and switch', () => {
+  afterEach(cleanup);
+  it('a switch refused because of local changes offers to stash them and switch again', () => {
+    const onOp = vi.fn();
+    const target = repo('app', { status: status({ files: [file('a.ts', '.', 'M')] }) });
+    const error = 'error: Your local changes to the following files would be overwritten by checkout:';
+    render(
+      <GitPanelView
+        repos={[target]}
+        expanded={{}}
+        onToggle={() => undefined}
+        onOp={onOp}
+        errors={{ '/w/app': error }}
+        retries={{ '/w/app': { op: 'switch', branch: 'feat/x' } }}
+      />,
+    );
+    expect(screen.getByText('Local changes are in the way')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('stash-retry'));
+    expect(screen.getByTestId('stash-retry').textContent).toBe('Stash and switch');
+    expect(onOp).toHaveBeenCalledWith('/w/app', { op: 'stash', message: '', staged: false, then: { op: 'switch', branch: 'feat/x' } });
+  });
+
+  it('a refused pull says "Stash and pull"; without a retry there is no such button', () => {
+    const target = repo('app', { status: status({ files: [file('a.ts', '.', 'M')] }) });
+    render(<GitPanelView repos={[target]} expanded={{}} onToggle={() => undefined} errors={{ '/w/app': 'x' }} retries={{ '/w/app': { op: 'pull' } }} />);
+    expect(screen.getByTestId('stash-retry').textContent).toBe('Stash and pull');
+    cleanup();
+    render(<GitPanelView repos={[target]} expanded={{}} onToggle={() => undefined} errors={{ '/w/app': 'x' }} />);
+    expect(screen.queryByTestId('stash-retry')).toBeNull();
   });
 });

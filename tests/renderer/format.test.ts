@@ -11,6 +11,7 @@ const status = (over: Partial<RepoStatus> = {}): RepoStatus => ({
   upstream: 'origin/main',
   ahead: 0,
   behind: 0,
+  stashes: 0,
   files: [],
   ...over,
 });

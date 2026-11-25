@@ -1,5 +1,5 @@
 // Pure logic of the Git tab: from state to buttons, groups and labels.
-import type { FileChange, RepoStatus } from '../../git/types';
+import type { FileChange, RepoStatus, StashEntry } from '../../git/types';
 
 export type SyncAction = { kind: 'pull' | 'push' | 'publish'; label: string } | null;
 
@@ -100,10 +100,35 @@ export function commitTarget(g: FileGroups): CommitTarget {
   return { all: false, count: 0, label: 'Commit', enabled: false };
 }
 
-/** A repo with changes starts expanded, a clean one collapsed; if the user changed it by hand, their choice wins. */
-export function isExpanded(status: RepoStatus | null, preference: boolean | undefined): boolean {
+/**
+ * A repo with changes starts expanded, a clean one collapsed; if the user changed it by hand, their choice wins.
+ * When the open folder is this one repo (`single`), stashes expand it too: nothing else is in the panel, and a
+ * collapsed row would hide them behind a click.
+ */
+export function isExpanded(status: RepoStatus | null, preference: boolean | undefined, single = false): boolean {
   if (!status) return false;
-  return preference ?? status.files.length > 0;
+  return preference ?? (status.files.length > 0 || (single && status.stashes > 0));
+}
+
+type StashText = Pick<StashEntry, 'message' | 'baseSubject' | 'subject' | 'branch'>;
+
+/** How a stash reads in the list: its message, or (git's default line) "WIP" and the subject it was made on. */
+export function stashLabel(stash: StashText): { wip: boolean; text: string } {
+  if (stash.message !== null && stash.message.trim() !== '') return { wip: false, text: stash.message };
+  if (stash.baseSubject !== null) return { wip: true, text: stash.baseSubject };
+  return { wip: false, text: stash.subject };
+}
+
+/** A stash's name on its own (a tab, a question): its message, or "WIP on <branch>". */
+export function stashTitle(stash: StashText): string {
+  const { wip, text } = stashLabel(stash);
+  if (!wip) return text;
+  return stash.branch !== null ? `WIP on ${stash.branch}` : 'WIP';
+}
+
+/** Switching or pulling refused because local changes would be overwritten: stashing them first helps. */
+export function isBlockedByLocalChanges(error: string): boolean {
+  return /would be overwritten by (checkout|merge)/.test(error);
 }
 
 /** A push rejected because the remote has commits that aren't local: the fix is to pull first. */

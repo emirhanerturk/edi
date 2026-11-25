@@ -5,6 +5,7 @@ import { CenterTabs, type TabLabel } from './CenterTabs';
 import { CommitView } from './CommitView';
 import { DiffView } from './DiffView';
 import { FileView } from './FileView';
+import { StashView } from './StashView';
 import { UntitledView } from './UntitledView';
 import type { CenterTab } from './tabs';
 import './center.css';
@@ -21,6 +22,10 @@ export function CenterPanel() {
     if (tab.kind === 'commit') {
       const repo = repos.find((r) => r.path === tab.repoPath);
       return { id: tab.id, kind: tab.kind, name: tab.path.slice(0, 7), dir: repo?.name ?? '', letter: null, pinned: tab.pinned };
+    }
+    if (tab.kind === 'stash') {
+      const repo = repos.find((r) => r.path === tab.repoPath);
+      return { id: tab.id, kind: tab.kind, name: tab.label ?? 'Stash', dir: repo?.name ?? '', letter: null, pinned: tab.pinned };
     }
     if (tab.kind === 'untitled') {
       return { id: tab.id, kind: tab.kind, name: tab.path, dir: '', letter: null, pinned: true, unsaved: unsaved[tab.id] === true };
@@ -61,5 +66,6 @@ function CenterView({ tab, repo }: { tab: CenterTab; repo: RepoView | null }) {
   if (!repo) return null;
   if (tab.kind === 'diff') return <DiffView repo={repo} path={tab.path} />;
   if (tab.kind === 'file') return <FileView repo={repo} path={tab.path} />;
+  if (tab.kind === 'stash') return <StashView repo={repo} oid={tab.path} />;
   return <CommitView repo={repo} oid={tab.path} />;
 }

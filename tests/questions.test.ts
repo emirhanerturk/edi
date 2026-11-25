@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyQuestion, discardQuestion, renameQuestion, trashQuestion, undoCommitQuestion } from '../src/main/questions.js';
+import { busyQuestion, discardQuestion, dropStashQuestion, renameQuestion, trashQuestion, undoCommitQuestion } from '../src/main/questions.js';
 
 describe('busyQuestion', () => {
   it('asks nothing when no terminal is busy and no file has unsaved changes', () => {
@@ -48,6 +48,20 @@ describe('undoCommitQuestion', () => {
       cancelId: 1,
     });
     expect(undoCommitQuestion('x'.repeat(100)).message).toBe(`Undo the commit "${'x'.repeat(59)}…"?`);
+  });
+});
+
+describe('dropStashQuestion', () => {
+  it('names the stash and says the changes are deleted; long labels are shortened', () => {
+    expect(dropStashQuestion('wip: login form')).toEqual({
+      type: 'warning',
+      message: 'Drop the stash "wip: login form"?',
+      detail: 'The stashed changes are deleted. This cannot be undone.',
+      buttons: ['Drop stash', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    expect(dropStashQuestion('x'.repeat(100)).message).toBe(`Drop the stash "${'x'.repeat(59)}…"?`);
   });
 });
 

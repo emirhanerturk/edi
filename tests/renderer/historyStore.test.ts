@@ -27,7 +27,7 @@ const { useApp, connect } = await import('../../src/renderer/store');
 const repo = (path: string, headOid = 'a'.repeat(40)): RepoView => ({
   name: path.split('/').pop()!,
   path,
-  status: { head: 'main', headOid, detached: false, unborn: false, upstream: null, ahead: null, behind: null, files: [] },
+  status: { head: 'main', headOid, detached: false, unborn: false, upstream: null, ahead: null, behind: null, stashes: 0, files: [] },
   error: null,
   busy: null,
   claude: 0,

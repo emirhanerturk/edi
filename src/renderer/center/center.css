@@ -590,6 +590,66 @@
   color: var(--muted);
 }
 
+/* Stash view: the commit view's header and files, with "on top of" and the Pop / Apply / Drop buttons. */
+.stash-on {
+  flex: 0 4 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stash-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.stash-action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.stash-action:hover:not(:disabled) {
+  background: var(--chip-quiet);
+  border-color: var(--muted);
+}
+
+.stash-action.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.stash-action.primary:hover:not(:disabled) {
+  background: #fff;
+  border-color: #fff;
+}
+
+.stash-action.danger:hover:not(:disabled) {
+  color: var(--red);
+  border-color: rgba(224, 108, 117, 0.55);
+  background: rgba(224, 108, 117, 0.08);
+}
+
+.stash-action:disabled {
+  opacity: 0.45;
+}
+
+.stash-busy {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
 .commit-file-spacer {
   flex: none;
   width: 11px;

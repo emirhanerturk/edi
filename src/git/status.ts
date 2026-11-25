@@ -13,7 +13,7 @@ function afterNthSpace(s: string, n: number): string {
   return s.slice(index + 1);
 }
 
-/** Parses the output of `git status --porcelain=v2 --branch -z`. */
+/** Parses the output of `git status --porcelain=v2 --branch --show-stash -z`. */
 export function parseStatus(raw: string): RepoStatus {
   const status: RepoStatus = {
     head: '',
@@ -23,6 +23,7 @@ export function parseStatus(raw: string): RepoStatus {
     upstream: null,
     ahead: null,
     behind: null,
+    stashes: 0,
     files: [],
   };
   let oid = '';
@@ -38,6 +39,8 @@ export function parseStatus(raw: string): RepoStatus {
       if (key === 'branch.oid') oid = value;
       else if (key === 'branch.head') status.head = value;
       else if (key === 'branch.upstream') status.upstream = value;
+      // Only with --show-stash, and only when there is at least one (git 2.35+).
+      else if (key === 'stash') status.stashes = /^\d+$/.test(value) ? Number(value) : 0;
       else if (key === 'branch.ab') {
         const match = /^\+(\d+) -(\d+)$/.exec(value);
         if (match) {
@@ -92,11 +95,13 @@ export async function getStatus(
   repoPath: string,
 ): Promise<{ ok: true; status: RepoStatus } | { ok: false; error: string }> {
   // --no-optional-locks: polling doesn't take the index lock, so it doesn't clash with other git commands running at the time.
+  // --show-stash adds the stash count, so the list needs no extra git process per poll.
   const result = await runGit(repoPath, [
     '--no-optional-locks',
     'status',
     '--porcelain=v2',
     '--branch',
+    '--show-stash',
     '-z',
     '--untracked-files=all',
   ]);

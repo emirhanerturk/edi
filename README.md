@@ -21,6 +21,13 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   commit, commit and push, pull, push, fetch all, switch and create branches. Commits not
   pushed yet are listed under the repository; the newest can be undone (its changes come
   back staged).
+- **Stash.** The button next to Commit stashes every change, new files included (or only the
+  staged ones), with an optional message. Stashes are listed under the repository, newest
+  first, with the branch they came from; Pop brings one back as it was (staged files staged),
+  right-click for Apply and Drop. A collapsed repository shows how many it has; a folder that
+  is a single repository opens with its stashes in view. Clicking a stash shows its diff in
+  the center panel. When a switch or pull is refused because of local changes, the error
+  offers "Stash and switch" (or pull).
 - **Center panel.** Closed until you open something. Clicking a changed file in the Git tab
   shows its whole change against HEAD (staged and unstaged together), side by side or inline,
   with syntax colors; a new file opens with its content. A single click opens a preview tab
@@ -132,6 +139,11 @@ preferences:
   `restore` on the working tree, `clean`, a force push, `rebase`, `fetch --prune` or anything
   with `--no-verify`. There is no discard button. Undoing a commit is `reset --soft HEAD~1`
   on a commit that isn't pushed, after asking; nothing in the working tree changes.
+- **Stashes are kept until you drop them.** Stashing saves before it cleans the working tree;
+  pop and apply leave the stash in the list on a conflict or a refusal, and refuse before git
+  runs when a new file of the stash is already there (git would apply it halfway). Dropping a
+  stash asks first; it is the only stash action that deletes anything. A stash is named by
+  its commit id, never by its position, which shifts.
 - **Files change only on purpose.** Saving writes only if the disk still holds the text the
   edit started from. New files and folders, and renames, never replace an existing one.
   Deleting moves to the macOS Trash, after asking.
