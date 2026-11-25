@@ -420,7 +420,11 @@ export const useApp = create<AppStore>((set, get) => ({
       errors: result.ok ? without(state.errors, repoPath) : { ...state.errors, [repoPath]: result.error },
       retries: retry ? { ...state.retries, [repoPath]: retry } : without(state.retries, repoPath),
       // If the commit went through, the message is cleared (the commit stays even if its push failed).
-      drafts: op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) ? without(state.drafts, repoPath) : state.drafts,
+      // Only if the box still holds what was committed: text typed while a hook ran is kept.
+      drafts:
+        op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) && state.drafts[repoPath] === op.message
+          ? without(state.drafts, repoPath)
+          : state.drafts,
       center: gone ? closeCenterTab(state.center, gone) : state.center,
     }));
   },
