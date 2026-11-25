@@ -109,7 +109,10 @@ textarea {
 }
 
 /* Title bar: the window is dragged from here; the space on the left is for the traffic lights. */
+/* Its menus open over the All projects overlay (z-index 40), below the sheet (60). */
 .titlebar {
+  position: relative;
+  z-index: 45;
   height: 38px;
   flex: none;
   display: flex;
