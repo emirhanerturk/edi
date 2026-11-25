@@ -12,6 +12,7 @@ const bridge = vi.hoisted(() => {
         return () => undefined;
       },
       openInZed: async () => ({ ok: false, error: 'Could not open Zed' }),
+      openFolder: async () => ({ ok: false, error: 'Folder not found' }),
       // The initial state never arrives: the test sends the events itself.
       getState: () => new Promise(() => undefined),
       claudeUsage: () => new Promise(() => undefined),
@@ -46,5 +47,16 @@ describe('ViewErrorBar', () => {
     expect(useApp.getState().centerError).toBe('Could not open Zed');
     bridge.handlers.workspace!(workspace('/other'));
     expect(useApp.getState().centerError).toBeNull();
+  });
+
+  it('shows a folder that could not be opened while another folder is open, and it can be dismissed', async () => {
+    connect();
+    bridge.handlers.workspace!(workspace('/w'));
+    render(<ViewErrorBar />);
+    await useApp.getState().openFolder('/gone');
+    expect(screen.getByRole('alert').textContent).toContain('/gone: Folder not found');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(useApp.getState().openError).toBeNull();
   });
 });
