@@ -181,6 +181,31 @@ describe('CommitPane', () => {
     expect(renamed!.textContent).toContain('Renamed from lib/old-name.ts');
   });
 
+  it('a long body is folded until clicked; a short one shows whole', () => {
+    // jsdom has no layout: the body is as tall as its line count says, 19px a line.
+    const tall = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.textContent!.split('\n').length * 19;
+    });
+    try {
+      renderPane({ ok: true, commit: detail({ body: 'One.\nTwo.\nThree.\nFour.' }) });
+      expect(screen.getByTestId('commit-text').dataset.folded).toBe('false');
+      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+      cleanup();
+
+      renderPane({ ok: true, commit: detail({ body: 'One.\nTwo.\nThree.\nFour.\nFive.' }) });
+      const message = screen.getByTestId('commit-text');
+      expect(message.dataset.folded).toBe('true');
+      fireEvent.click(message);
+      expect(message.dataset.folded).toBe('false');
+      fireEvent.click(screen.getByRole('button', { name: 'Show less' }));
+      expect(message.dataset.folded).toBe('true');
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+      expect(message.dataset.folded).toBe('false');
+    } finally {
+      tall.mockRestore();
+    }
+  });
+
   it('a commit with an empty subject, no body and no files', () => {
     renderPane({ ok: true, commit: detail({ subject: '', body: '', files: [], added: 0, removed: 0 }) });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('(no subject)');
