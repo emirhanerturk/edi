@@ -12,6 +12,7 @@ import {
   overwriteError,
   pull,
   push,
+  pushError,
   stageAll,
   stageFile,
   switchBranch,
@@ -81,6 +82,14 @@ async function commitAt(repo: string, subject: string, seconds: number) {
     cwd: repo,
     env: { ...process.env, GIT_COMMITTER_DATE: `@${seconds} +0000`, GIT_AUTHOR_DATE: `@${seconds} +0000` },
   });
+}
+
+/** Installs a hook script in a work tree's `.git/hooks`, or in a bare repo's `hooks`. */
+async function hook(repo: string, name: string, lines: string[]) {
+  const dir = (await git(repo, 'rev-parse', '--git-path', 'hooks')).trim();
+  const file = join(repo, dir, name);
+  await writeFile(file, ['#!/bin/sh', ...lines, ''].join('\n'));
+  await chmod(file, 0o755);
 }
 
 async function peerPushes(peer: string, name: string) {
@@ -270,6 +279,45 @@ describe('push / pull / fetch', () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toContain('[rejected]');
     expect((await git(bare, 'rev-parse', 'main')).trim()).toBe(remoteHead);
+  });
+
+  it("shows the server's reason when a hook on the remote rejects the push", async () => {
+    const { repo, bare } = await repoWithRemoteAndPeer();
+    await hook(bare, 'pre-receive', [
+      'echo "error: GH006: Protected branch update failed for refs/heads/main." >&2',
+      'echo "error: Changes must be made through a pull request." >&2',
+      'exit 1',
+    ]);
+    await write(repo, 'a.txt', 'x\n');
+    await commit(repo, 'feat: a', { addAll: true });
+
+    expect(await push(repo, await statusOf(repo))).toEqual({
+      ok: false,
+      error: [
+        '! [remote rejected] main -> main (pre-receive hook declined)',
+        'error: GH006: Protected branch update failed for refs/heads/main.',
+        'error: Changes must be made through a pull request.',
+      ].join('\n'),
+    });
+  });
+
+  it('shows the end of the output when the pre-push hook fails', async () => {
+    const { repo } = await repoWithRemoteAndPeer();
+    await hook(repo, 'pre-push', ['echo "Running tests..."', ...['1', '2', '3', '4', '5', '6'].map((n) => `echo "line ${n}" >&2`), 'exit 1']);
+    await write(repo, 'a.txt', 'x\n');
+    await commit(repo, 'feat: a', { addAll: true });
+
+    const r = await push(repo, await statusOf(repo));
+    expect(r).toEqual({ ok: false, error: ['The pre-push hook failed:', 'line 2', 'line 3', 'line 4', 'line 5', 'line 6'].join('\n') });
+  });
+
+  it('a pre-push hook that prints nothing still says it failed', async () => {
+    const { repo } = await repoWithRemoteAndPeer();
+    await hook(repo, 'pre-push', ['exit 1']);
+    await write(repo, 'a.txt', 'x\n');
+    await commit(repo, 'feat: a', { addAll: true });
+
+    expect(await push(repo, await statusOf(repo))).toEqual({ ok: false, error: 'The pre-push hook failed' });
   });
 
   it('pull fast-forwards', async () => {
@@ -647,5 +695,32 @@ describe('refusals because of local changes', () => {
       'Your local changes to a, b, c and 2 more would be overwritten by merge',
     );
     expect(overwriteError('fatal: Not possible to fast-forward, aborting.')).toBeNull();
+  });
+});
+
+describe('pushError', () => {
+  it("drops the remote's progress lines and the padding after its messages", () => {
+    const stderr = [
+      'remote: Resolving deltas: 100% (2/2), done.        ',
+      'remote: error: GH013: Repository rule violations found for refs/heads/main.        ',
+      'remote:        ',
+      'remote: - Cannot update this protected ref.        ',
+      'To github.com:me/app.git',
+      ' ! [remote rejected] main -> main (push declined due to repository rule violations)',
+      "error: failed to push some refs to 'github.com:me/app.git'",
+    ].join('\n');
+    expect(pushError(stderr)).toBe(
+      [
+        '! [remote rejected] main -> main (push declined due to repository rule violations)',
+        'error: GH013: Repository rule violations found for refs/heads/main.',
+        '- Cannot update this protected ref.',
+      ].join('\n'),
+    );
+  });
+
+  it("leaves git's own errors to the usual error line", () => {
+    expect(pushError(" ! [rejected] main -> main (fetch first)\nerror: failed to push some refs to 'x'\nhint: pull first")).toBeNull();
+    expect(pushError("error: src refspec main does not match any\nerror: failed to push some refs to 'x'")).toBeNull();
+    expect(pushError("fatal: 'origin' does not appear to be a git repository")).toBeNull();
   });
 });

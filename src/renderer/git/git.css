@@ -792,6 +792,8 @@ button.branch-chip:hover {
   line-height: 1.45;
   color: var(--text-2);
   overflow-wrap: anywhere;
+  /* A rejected push can bring the remote's message or a hook's output, line by line. */
+  white-space: pre-wrap;
   user-select: text;
 }
 

@@ -123,11 +123,40 @@ export async function commit(repo: string, message: string, opts: { addAll: bool
   return committed;
 }
 
-export function push(repo: string, status: RepoStatus): Promise<ActionResult> {
-  if (status.detached) return Promise.resolve({ ok: false, error: 'Detached HEAD: cannot push' });
+/** How many lines of a failed pre-push hook's output are shown: the end, where the reason usually is. */
+const HOOK_LINES = 5;
+/** How many of the remote's message lines are shown. */
+const REMOTE_LINES = 6;
+const FAILED_TO_PUSH = /^error: failed to push some refs/;
+
+/**
+ * Why a push failed, when git's own error line doesn't say: what the remote said when one of its hooks
+ * refused the push (with the ref line naming the hook), or the end of the output of a pre-push hook
+ * that failed. Null otherwise; the error line is then shown as usual.
+ */
+export function pushError(stderr: string): string | null {
+  const lines = stderr.split('\n').map((line) => line.trim()).filter((line) => line !== '');
+  const refused = lines.find((line) => line.startsWith('! [remote rejected]'));
+  const remote = lines
+    .filter((line) => line.startsWith('remote:'))
+    .map((line) => line.slice('remote:'.length).trim())
+    // Progress lines ("Resolving deltas: 100% (3/3)") say nothing about the reason.
+    .filter((line) => line !== '' && !/^(Resolving|Counting|Compressing|Enumerating|Total)\b/.test(line));
+  if (refused) return [refused, ...remote.slice(0, REMOTE_LINES)].join('\n');
+
+  // A failed pre-push hook leaves no line of git's own but the last one: no ref was even sent.
+  if (!lines.some((line) => FAILED_TO_PUSH.test(line))) return null;
+  const others = lines.filter((line) => !FAILED_TO_PUSH.test(line));
+  if (others.some((line) => line.startsWith('! [') || line.startsWith('To ') || /^(fatal|error|hint):/.test(line))) return null;
+  return others.length === 0 ? 'The pre-push hook failed' : ['The pre-push hook failed:', ...others.slice(-HOOK_LINES)].join('\n');
+}
+
+export async function push(repo: string, status: RepoStatus): Promise<ActionResult> {
+  if (status.detached) return { ok: false, error: 'Detached HEAD: cannot push' };
   // Full ref name: the short name is ambiguous if a tag with the same name exists.
   const args = status.upstream === null ? ['push', '-u', 'origin', `refs/heads/${status.head}`] : ['push'];
-  return act(repo, args, 'Pushed', { timeoutMs: SLOW_TIMEOUT_MS });
+  const result = await runGit(repo, args, { timeoutMs: SLOW_TIMEOUT_MS });
+  return result.ok ? { ok: true, message: 'Pushed' } : { ok: false, error: pushError(result.stderr ?? '') ?? result.error };
 }
 
 export function pull(repo: string): Promise<ActionResult> {
