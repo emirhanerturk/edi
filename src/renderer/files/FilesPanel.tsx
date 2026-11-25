@@ -509,9 +509,15 @@ export function FilesPanel() {
   // While a name is being saved, clicking away (or a question dialog taking focus) doesn't cancel it.
   const submitting = useRef(false);
   useEffect(() => setEditError(null), [edit]);
-  /** An empty new folder or a renamed one may not change the status: the list is read again by hand. */
+  /**
+   * An empty new folder or a renamed one may not change the status: the list is read again by hand, and so
+   * are the repo's open ignored folders (a change inside one changes no list). Their old contents stay
+   * shown until the new ones arrive.
+   */
   const reload = (repoPath: string) => {
     loaded.current.delete(repoPath);
+    const prefix = dirKey(repoPath, '');
+    for (const key of [...dirsRead.current]) if (key.startsWith(prefix)) dirsRead.current.delete(key);
     setReloads((count) => count + 1);
   };
   const unsaved = (repoPath: string, path: string) => {

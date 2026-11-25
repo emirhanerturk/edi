@@ -1,7 +1,7 @@
 import { lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createEntry, entryPath, renameEntry, validName } from '../src/git/entries.js';
+import { createEntry, entryPath, renameEntry, renameNoReplace, validName } from '../src/git/entries.js';
 import { initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 async function setup() {
@@ -57,6 +57,25 @@ describe('renameEntry', () => {
     expect(await readFile(join(repo, 'src', 'c.ts'), 'utf8')).toBe('a\n');
     expect(await renameEntry(repo, 'src', 'lib')).toEqual({ ok: true, path: 'lib' });
     expect(await readFile(join(repo, 'lib', 'c.ts'), 'utf8')).toBe('a\n');
+  });
+
+  it('never replaces what is at the new name, even if it appeared after the check', async () => {
+    const { repo } = await setup();
+    await writeFile(join(repo, 'src', 'b.ts'), 'b\n');
+    await mkdir(join(repo, 'full'));
+    await writeFile(join(repo, 'full', 'x'), 'x\n');
+    await mkdir(join(repo, 'empty'));
+    // Called directly: as if the name were taken between the check and the rename.
+    expect(await renameNoReplace(join(repo, 'src', 'a.ts'), join(repo, 'src', 'b.ts'))).toBe('taken');
+    expect(await readFile(join(repo, 'src', 'b.ts'), 'utf8')).toBe('b\n');
+    expect(await readFile(join(repo, 'src', 'a.ts'), 'utf8')).toBe('a\n');
+    expect(await renameNoReplace(join(repo, 'src'), join(repo, 'full'))).toBe('taken');
+    expect(await renameNoReplace(join(repo, 'src'), join(repo, 'empty'))).toBe('taken');
+    expect(await readFile(join(repo, 'full', 'x'), 'utf8')).toBe('x\n');
+    expect(await readFile(join(repo, 'src', 'a.ts'), 'utf8')).toBe('a\n');
+    // A link is moved as a link.
+    expect(await renameNoReplace(join(repo, 'link-out'), join(repo, 'link-moved'))).toBe('ok');
+    expect((await lstat(join(repo, 'link-moved'))).isSymbolicLink()).toBe(true);
   });
 
   it('a change of case only is allowed', async () => {

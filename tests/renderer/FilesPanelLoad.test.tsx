@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RepoStatus } from '../../src/git/types';
 import type { RepoView } from '../../src/shared/api';
@@ -7,6 +7,7 @@ import type { RepoView } from '../../src/shared/api';
 const bridge = vi.hoisted(() => ({
   listFiles: vi.fn(async (_repoPath: string) => ({ ok: true, files: ['a.ts'], ignored: ['dist/'], dirs: [] })),
   listDir: vi.fn(async (_repoPath: string, _dirPath: string) => ({ ok: true, entries: [{ name: 'app.js', dir: false }], more: 0 })),
+  createEntry: vi.fn(async (_repoPath: string, path: string) => ({ ok: true, path })),
 }));
 vi.mock('../../src/renderer/bridge', () => ({ edi: bridge }));
 
@@ -82,5 +83,32 @@ describe('FilesPanel and ignored folders', () => {
     act(() => useApp.getState().toggleFilesDir('/w/a\ndist', true));
     await act(async () => {});
     expect(bridge.listDir).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads an open one again after a file is made in it', async () => {
+    bridge.listDir.mockClear();
+    useApp.setState({ filesOpen: { '/w/a\ndist': true }, filesEdit: null });
+    show('/w/a', [repo('/w/a')]);
+    render(<FilesPanel />);
+    await act(async () => {});
+    expect(bridge.listDir).toHaveBeenCalledTimes(1);
+    bridge.listDir.mockResolvedValueOnce({
+      ok: true,
+      entries: [
+        { name: 'app.js', dir: false },
+        { name: 'new.js', dir: false },
+      ],
+      more: 0,
+    });
+    act(() => useApp.getState().startFilesEdit({ mode: 'new', kind: 'file', repoPath: '/w/a', parent: 'dist' }));
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'new.js' } });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    await act(async () => {});
+    expect(bridge.createEntry).toHaveBeenCalledWith('/w/a', 'dist/new.js', 'file');
+    expect(bridge.listDir).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByRole('treeitem').map((row) => row.dataset.name)).toContain('new.js');
   });
 });
