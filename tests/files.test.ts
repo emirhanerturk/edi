@@ -43,6 +43,23 @@ describe('listFiles', () => {
     });
   });
 
+  it('lists a nested repo and a submodule as folders of their own, not as files', async () => {
+    const parent = await makeTmpDir();
+    const lib = await initRepo(parent, 'lib', { commit: true });
+    const repo = await initRepo(parent, 'app', { commit: true });
+    await git(repo, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', lib, 'vendor/lib');
+    await git(repo, 'commit', '-q', '-m', 'feat: lib');
+    await initRepo(repo, 'tools/nested', { commit: true });
+
+    expect(await listFiles(repo)).toEqual({
+      ok: true,
+      files: ['.gitmodules', 'README.md'],
+      ignored: [],
+      dirs: [],
+      nested: ['tools/nested', 'vendor/lib'],
+    });
+  });
+
   it('lists empty folders, nested ones too: git leaves them out, but a new folder must show', async () => {
     const repo = await initRepo(await makeTmpDir(), 'a', { commit: true });
     await mkdir(join(repo, 'empty'));

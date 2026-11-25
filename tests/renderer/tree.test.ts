@@ -68,7 +68,7 @@ describe('buildTree', () => {
     const tree = buildTree(['src/lib/a.ts'], []);
     expect(tree[0]).toMatchObject({ name: 'src', path: 'src', kind: 'dir' });
     expect(tree[0]!.children[0]).toMatchObject({ name: 'lib', path: 'src/lib', kind: 'dir' });
-    expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false, ignored: false });
+    expect(tree[0]!.children[0]!.children[0]).toEqual({ name: 'a.ts', path: 'src/lib/a.ts', kind: 'file', children: [], letter: null, dirty: false, ignored: false, nested: false });
   });
 
   it('changed files get their letter and the folders containing them are marked', () => {
@@ -103,6 +103,27 @@ describe('buildTree', () => {
     expect(tree.map((node) => `${node.kind}:${node.path}`)).toEqual(['dir:new', 'file:a.ts']);
     expect(tree[0]!.children.map((node) => `${node.kind}:${node.path}`)).toEqual(['dir:new/inner']);
     expect(tree[0]!.children[0]!.children).toEqual([]);
+  });
+});
+
+describe('buildTree with nested repos', () => {
+  it('shows a nested repo or a submodule as a folder of its own with nothing inside, never a nameless file', () => {
+    const tree = buildTree(['a.ts', 'vendor/x.ts'], [change('tools/nested/', '?', '?', 'untracked'), change('vendor/lib', '.', 'M')], [], {}, [], [
+      'tools/nested',
+      'vendor/lib',
+    ]);
+    expect(show(tree)).toEqual(['tools/ ●', '  nested/ ●', 'vendor/ ●', '  lib/ ●', '  x.ts', 'a.ts']);
+    const lib = tree[1]!.children[0]!;
+    expect(lib).toMatchObject({ kind: 'dir', nested: true, children: [], letter: null });
+    // It never opens: its files belong to the other repo.
+    expect(flattenTree(tree, () => true).map((row) => [row.node.path, row.open])).toEqual([
+      ['tools', true],
+      ['tools/nested', false],
+      ['vendor', true],
+      ['vendor/lib', false],
+      ['vendor/x.ts', false],
+      ['a.ts', false],
+    ]);
   });
 });
 

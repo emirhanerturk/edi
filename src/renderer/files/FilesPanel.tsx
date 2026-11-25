@@ -73,7 +73,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
     for (const [key, dir] of Object.entries(dirs)) {
       if (key.startsWith(prefix) && dir.ok) loaded[key.slice(prefix.length)] = dir.entries;
     }
-    const tree = cachedTree(list.files, repo.status?.files ?? [], list.ignored, loaded, list.dirs);
+    const tree = cachedTree(list.files, repo.status?.files ?? [], list.ignored, loaded, list.dirs, list.nested);
     const lines: Line[] = [];
     const newHere = (parent: string, at: number) => {
       if (edit?.mode === 'new' && edit.repoPath === repo.path && edit.parent === parent) {
@@ -168,6 +168,26 @@ export function FilesPanelView(props: FilesPanelViewProps) {
     }
     const { repo, row } = line;
     const { node } = row;
+    if (node.kind === 'dir' && node.nested) {
+      // Its files belong to the other repo: it doesn't open, and nothing is made inside it from here.
+      return (
+        <TreeItem
+          key={`${repo.path}\n${node.path}`}
+          name={node.name}
+          title={`${node.path} (a repository of its own)`}
+          depth={row.depth}
+          kind="dir"
+          nested
+          badge={node.dirty ? '●' : ''}
+          onClick={() => undefined}
+          // A file's menu: rename, Trash and Finder, without New File / New Folder.
+          onMenu={props.onRowMenu && (() => props.onRowMenu!(repo.path, node.path, 'file'))}
+          onTrash={props.onTrash && (() => props.onTrash!(repo.path, node.path))}
+          onRename={props.onRename && (() => props.onRename!(repo.path, node.path))}
+          nameEditor={renaming(repo, node.path) ? renameInput(node.name) : undefined}
+        />
+      );
+    }
     if (node.kind === 'dir') {
       return (
         <TreeItem
@@ -243,6 +263,8 @@ interface TreeItemProps {
   open?: boolean;
   /** Matched by `.gitignore`: dimmed. */
   ignored?: boolean;
+  /** A nested repo or a submodule: a folder without a chevron, never open. */
+  nested?: boolean;
   /** Status letter on a file, "●" on a folder; empty if none. */
   badge: string;
   selected?: boolean;
@@ -263,7 +285,7 @@ function TreeItem(props: TreeItemProps) {
   const color = isFile && badge !== '' ? letterColor(badge) : undefined;
   return (
     <div
-      className={`tree-row ${kind}${selected ? ' selected' : ''}${ignored ? ' ignored' : ''}`}
+      className={`tree-row ${kind}${selected ? ' selected' : ''}${ignored ? ' ignored' : ''}${props.nested ? ' nested' : ''}`}
       data-testid="tree-row"
       data-depth={depth}
       data-name={name}
@@ -271,7 +293,7 @@ function TreeItem(props: TreeItemProps) {
       data-ignored={ignored ? 'true' : undefined}
       role="treeitem"
       tabIndex={0}
-      aria-expanded={isFile ? undefined : open}
+      aria-expanded={isFile || props.nested ? undefined : open}
       aria-current={selected ? 'true' : undefined}
       aria-selected={isFile ? selected === true : undefined}
       title={ignored ? `${title ?? name} (ignored by git)` : (title ?? name)}
@@ -305,6 +327,8 @@ function TreeItem(props: TreeItemProps) {
           <span className="tree-spacer" />
           <FileTypeIcon name={name} className="tree-icon" />
         </>
+      ) : props.nested ? (
+        <span className="tree-spacer" />
       ) : open ? (
         <ChevronDown size={11} strokeWidth={1.9} className="tree-icon" />
       ) : (

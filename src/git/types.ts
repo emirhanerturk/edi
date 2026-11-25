@@ -33,7 +33,16 @@ export interface RepoStatus {
  * `ignored`: files and folders caught by `.gitignore` (a folder ends with `/`, without its contents).
  * `dirs`: folders with nothing git lists inside them (git leaves empty folders out).
  */
-export type FileList = { ok: true; files: string[]; ignored: string[]; dirs: string[] } | { ok: false; error: string };
+export type FileList =
+  | {
+      ok: true;
+      files: string[];
+      ignored: string[];
+      dirs: string[];
+      /** Nested repos and submodules: folders whose files belong to another repo. Absent when there are none. */
+      nested?: string[];
+    }
+  | { ok: false; error: string };
 
 /** One entry of a folder listing. */
 export interface DirEntry {

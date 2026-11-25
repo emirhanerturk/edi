@@ -26,10 +26,24 @@ export async function listFiles(repo: string): Promise<FileList> {
   if (!deleted.ok) return { ok: false, error: deleted.error };
   if (!ignored.ok) return { ok: false, error: ignored.error };
   const gone = new Set(split(deleted.stdout));
-  const files = [...new Set(split(present.stdout))].filter((path) => !gone.has(path));
+  const listed = [...new Set(split(present.stdout))].filter((path) => !gone.has(path));
+  // A nested repo is listed as `dir/`, a submodule as a file: both are folders whose files belong to another repo.
+  const submodules = await submodulePaths(repo);
+  const nested = listed.filter((path) => path.endsWith('/') || submodules.has(path)).map((path) => path.replace(/\/$/, ''));
+  const files = listed.filter((path) => !path.endsWith('/') && !submodules.has(path));
   const ignoredList = split(ignored.stdout).sort();
-  const dirs = untrackedDirs.ok ? await emptyDirs(repo, split(untrackedDirs.stdout), files, ignoredList) : [];
-  return { ok: true, files: files.sort(), ignored: ignoredList, dirs };
+  const dirs = untrackedDirs.ok ? await emptyDirs(repo, split(untrackedDirs.stdout), [...files, ...ignoredList, ...nested], nested) : [];
+  return { ok: true, files: files.sort(), ignored: ignoredList, dirs, ...(nested.length > 0 ? { nested: nested.sort() } : {}) };
+}
+
+/** The submodules' paths, from `.gitmodules`; empty without one. */
+async function submodulePaths(repo: string): Promise<Set<string>> {
+  const exists = await stat(join(repo, '.gitmodules')).then((info) => info.isFile(), () => false);
+  if (!exists) return new Set();
+  // Exits with 1 when nothing matches. Each entry is "key\nvalue".
+  const result = await runGit(repo, ['config', '-z', '--file', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$'], { okCodes: [0, 1] });
+  if (!result.ok) return new Set();
+  return new Set(split(result.stdout).map((entry) => entry.slice(entry.indexOf('\n') + 1)));
 }
 
 /** At most this many empty folders are looked for: they are only there to show a just-made folder. */
@@ -39,11 +53,12 @@ const MAX_EMPTY_DIRS = 200;
  * Untracked folders (`dir/` from `ls-files --directory`) with no listed file inside them, and the
  * folders below them: git collapses `a/b/` into `a/`.
  */
-async function emptyDirs(repo: string, untracked: string[], files: string[], ignored: string[]): Promise<string[]> {
+async function emptyDirs(repo: string, untracked: string[], listed: string[], nested: string[]): Promise<string[]> {
   const result: string[] = [];
-  const holdsFiles = (dir: string) => [...files, ...ignored].some((path) => path.startsWith(`${dir}/`));
+  const holdsFiles = (dir: string) => listed.some((path) => path.startsWith(`${dir}/`));
   const walk = async (dir: string): Promise<void> => {
-    if (result.length >= MAX_EMPTY_DIRS) return;
+    // A nested repo's folders are its own.
+    if (result.length >= MAX_EMPTY_DIRS || nested.includes(dir)) return;
     result.push(dir);
     let entries: Dirent[];
     try {

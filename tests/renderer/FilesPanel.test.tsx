@@ -63,6 +63,28 @@ describe('FilesPanelView', () => {
     expect(brief()).toEqual(['quizei-app ●', '-app ●', '--play.tsx M', '--result.tsx', '-node_modules', '-.env', '-package.json', 'quizei-api']);
   });
 
+  it('a nested repo or a submodule is a folder that does not open, and its menu offers nothing to make inside', () => {
+    const nestedRepo = repo('app', [{ path: 'vendor/lib', origPath: null, x: '.', y: 'M', kind: 'changed' }]);
+    const onToggle = vi.fn();
+    const onRowMenu = vi.fn();
+    renderView({
+      repos: [nestedRepo],
+      single: true,
+      lists: { '/w/app': { ok: true, files: ['a.ts'], ignored: [], dirs: [], nested: ['vendor/lib'] } },
+      open: { '/w/app\nvendor': true, '/w/app\nvendor/lib': true },
+      onToggle,
+      onRowMenu,
+    });
+    expect(brief()).toEqual(['vendor ●', '-lib ●', 'a.ts']);
+    const lib = rows()[1]!;
+    expect(lib.getAttribute('aria-expanded')).toBeNull();
+    expect(lib.title).toBe('vendor/lib (a repository of its own)');
+    fireEvent.click(lib);
+    expect(onToggle).not.toHaveBeenCalled();
+    fireEvent.contextMenu(lib);
+    expect(onRowMenu).toHaveBeenCalledWith('/w/app', 'vendor/lib', 'file');
+  });
+
   it('says when the file list is loading, and shows the error when it cannot be read', () => {
     renderView({ open: { '/w/quizei-api\n': true } });
     expect(screen.getByText('Loading…')).toBeTruthy();
