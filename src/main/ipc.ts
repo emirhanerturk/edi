@@ -88,7 +88,9 @@ export class AppCore {
     });
     this.historyOps = new HistoryOps(this.workspace);
     this.ptys = new PtyManager({
+      // A shell set through EDI_SHELL is the tests': it doesn't read the profile of whoever runs them.
       shell: process.env.EDI_SHELL,
+      login: process.env.EDI_SHELL === undefined,
       onData: (id, data) => this.send('pty:data', id, data),
       onExit: (id) => this.send('pty:exit', id),
     });

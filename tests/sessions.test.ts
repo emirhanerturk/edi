@@ -1,6 +1,9 @@
+import { realpath } from 'node:fs/promises';
+import * as pty from 'node-pty';
 import { describe, expect, it } from 'vitest';
-import type { PsRow } from '../src/procs.js';
+import { type PsRow, listPs } from '../src/procs.js';
 import { assignSessions, joinSessions, listClaudePids, listClaudeSessions, parseLsofPidCwd } from '../src/sessions.js';
+import { makeTmpDir } from './helpers/tmpRepo.js';
 
 const row = (pid: number, tty: string): PsRow => ({ pid, pgid: pid, tpgid: pid, tty, args: 'claude' });
 
@@ -68,10 +71,27 @@ describe('assignSessions', () => {
 });
 
 describe('listClaudeSessions', () => {
-  it('returns sessions with terminals and absolute paths without throwing', async () => {
-    const sessions = await listClaudeSessions([], await listClaudePids());
-    expect(sessions).toEqual([]); // no ps rows given, so no terminal is known
+  it('finds a process named claude running in a terminal, with its folder and terminal', async () => {
+    const dir = await realpath(await makeTmpDir());
+    // A stand-in for Claude Code: a process whose name is `claude`, in a real terminal.
+    const proc = pty.spawn('/bin/zsh', ['-f', '-c', 'exec -a claude sleep 30'], { cwd: dir, cols: 80, rows: 24, env: { PATH: '/bin:/usr/bin' } });
+    try {
+      let found: Awaited<ReturnType<typeof listClaudeSessions>> = [];
+      const started = Date.now();
+      while (Date.now() - started < 5000) {
+        const [ps, pids] = await Promise.all([listPs(), listClaudePids()]);
+        found = (await listClaudeSessions(ps, pids)).filter((session) => session.pid === proc.pid);
+        if (found.length > 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(found).toEqual([{ pid: proc.pid, cwd: dir, tty: expect.stringMatching(/^ttys\d+$/) }]);
+    } finally {
+      proc.kill();
+    }
+  });
 
-    expect((await listClaudeSessions([], [])).length).toBe(0);
+  it('returns nothing without processes, or when none of them is in a terminal', async () => {
+    expect(await listClaudeSessions([], [])).toEqual([]);
+    expect(await listClaudeSessions([row(process.pid, '')], [process.pid])).toEqual([]); // '' is how ps rows say "no terminal"
   });
 });

@@ -36,11 +36,19 @@ export class PtyManager {
   private readonly ptys = new Map<number, pty.IPty>();
   private nextId = 1;
   private readonly shell: string;
+  private readonly login: boolean;
   private readonly onData: (id: number, data: string) => void;
   private readonly onExit: (id: number) => void;
 
-  constructor(opts: { shell?: string; onData: (id: number, data: string) => void; onExit: (id: number) => void }) {
+  constructor(opts: {
+    shell?: string;
+    /** Defaults to true. False in tests: the shell doesn't read the user's profile. */
+    login?: boolean;
+    onData: (id: number, data: string) => void;
+    onExit: (id: number) => void;
+  }) {
     this.shell = opts.shell ?? process.env.SHELL ?? '/bin/zsh';
+    this.login = opts.login ?? true;
     this.onData = opts.onData;
     this.onExit = opts.onExit;
   }
@@ -48,7 +56,7 @@ export class PtyManager {
   /** Opens a login shell (`-l`): the user's profile, PATH and aliases match those in their own terminal. */
   create(o: { cols: number; rows: number; cwd: string; command?: string }): number {
     const id = this.nextId++;
-    const proc = pty.spawn(this.shell, ['-l'], {
+    const proc = pty.spawn(this.shell, this.login ? ['-l'] : [], {
       name: 'xterm-256color',
       cols: clampCols(o.cols),
       rows: clampRows(o.rows),
