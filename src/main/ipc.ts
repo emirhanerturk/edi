@@ -150,10 +150,12 @@ export class AppCore {
     return tabStates(ptys, ps, new Set(pids)).filter((tab) => tab.busy).length;
   }
 
-  /** Asks the user if a process is running. True if none is, or if the user confirms. */
+  /** Asks the user if a process or a git operation is running. True if none is, or if the user confirms. */
   async confirmBusy(kind: BusyKind): Promise<boolean> {
     const busy = await this.busyTerminals().catch(() => 0);
-    const question = busyQuestion(kind, busy, this.unsavedFiles);
+    // A busy label means an operation the user started (the automatic fetch shows none).
+    const gitRepos = this.workspace.view().repos.filter((repo) => repo.busy !== null).map((repo) => repo.name);
+    const question = busyQuestion(kind, busy, this.unsavedFiles, gitRepos);
     return question === null || (await this.ask(question));
   }
 

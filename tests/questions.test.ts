@@ -22,6 +22,21 @@ describe('busyQuestion', () => {
   it('Cancel is the escape answer and the confirm button is the default', () => {
     expect(busyQuestion('quit', 1, 1)).toMatchObject({ type: 'warning', defaultId: 0, cancelId: 1 });
   });
+
+  it('asks while a git operation runs, naming the repos', () => {
+    expect(busyQuestion('quit', 0, 0, ['app'])).toMatchObject({
+      message: 'Quit edi?',
+      detail: 'A git operation is still running in app. Quitting may cut it off halfway.',
+      buttons: ['Quit', 'Cancel'],
+    });
+    expect(busyQuestion('quit', 0, 0, ['app', 'web', 'api'])?.detail).toBe(
+      'Git operations are still running in app, web and api. Quitting may cut them off halfway.',
+    );
+    expect(busyQuestion('switch', 0, 0, ['app'])?.detail).toBe('A git operation is still running in app. Its result will not be shown.');
+    expect(busyQuestion('switch', 1, 0, ['app', 'web'])?.detail).toBe(
+      'Git operations are still running in app and web. Their results will not be shown. 1 terminal still has a running process. Switching closes every terminal.',
+    );
+  });
 });
 
 describe('discardQuestion', () => {
