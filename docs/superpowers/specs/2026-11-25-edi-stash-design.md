@@ -25,7 +25,9 @@ Until now stash was a non-goal of the first version (`2026-11-24-edi-desktop-app
 
 - An expanded repo with changes has a **Stash button** (archive icon) next to the commit
   button's arrow. It opens a small menu:
-  - a message field, focused, optional ("Message (optional)"); Enter stashes all changes;
+  - the stash's message: the commit box's text, on one line (no field of its own; with the box
+    empty it says "No message: type one in the commit box"). "Stash all changes" has the focus,
+    so Enter stashes everything. A stash that goes through clears the commit box, as a commit does;
   - **Stash all changes · N files** (N is the count the repo shows);
   - **Stash staged changes · N files** (`git stash push --staged`), offered when something is
     staged and something else isn't. Disabled while a file is partly staged: git can't take only

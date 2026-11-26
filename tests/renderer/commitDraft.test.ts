@@ -83,3 +83,27 @@ describe('the commit message box', () => {
     expect(useApp.getState().drafts['/w/app']).toBe('feat: x');
   });
 });
+
+describe('a stash takes the commit box text', () => {
+  const stash = (message: string): GitOp => ({ op: 'stash', message, staged: false });
+
+  it('which is cleared once the stash is made', async () => {
+    useApp.getState().setDraft('/w/app', 'wip: login');
+    bridge.edi.git.mockResolvedValueOnce({ ok: true, message: 'Stashed' });
+    await useApp.getState().gitOp('/w/app', stash('wip: login'));
+    expect(useApp.getState().drafts['/w/app']).toBeUndefined();
+  });
+
+  it('which is kept when the stash fails, or when it was changed meanwhile', async () => {
+    useApp.getState().setDraft('/w/app', 'wip: login');
+    bridge.edi.git.mockResolvedValueOnce({ ok: false, error: 'Nothing to stash' });
+    await useApp.getState().gitOp('/w/app', stash('wip: login'));
+    expect(useApp.getState().drafts['/w/app']).toBe('wip: login');
+
+    bridge.edi.git.mockResolvedValueOnce({ ok: true, message: 'Stashed' });
+    const done = useApp.getState().gitOp('/w/app', stash('wip: login'));
+    useApp.getState().setDraft('/w/app', 'feat: login');
+    await done;
+    expect(useApp.getState().drafts['/w/app']).toBe('feat: login');
+  });
+});

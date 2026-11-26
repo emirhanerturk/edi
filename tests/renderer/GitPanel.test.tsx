@@ -538,25 +538,36 @@ describe('Stashes', () => {
 
 describe('Stash button', () => {
   afterEach(cleanup);
-  function renderButton(files: FileChange[], over: Partial<RepoStatus> = {}) {
+  function renderButton(files: FileChange[], over: Partial<RepoStatus> = {}, draft?: string) {
     const onOp = vi.fn();
-    render(<GitPanelView repos={[repo('app', { status: status({ files, ...over }) })]} expanded={{}} onToggle={() => undefined} onOp={onOp} />);
+    const drafts = draft === undefined ? {} : { '/w/app': draft };
+    render(<GitPanelView repos={[repo('app', { status: status({ files, ...over }) })]} expanded={{}} onToggle={() => undefined} onOp={onOp} drafts={drafts} />);
     return { onOp };
   }
 
-  it('opens a menu with a message field; Enter stashes every change with that message', () => {
-    const { onOp } = renderButton([file('a.ts', '.', 'M'), file('new.ts', '?', '?', 'untracked')]);
+  it('opens a menu that stashes every change with the commit box text as its message', () => {
+    const { onOp } = renderButton([file('a.ts', '.', 'M'), file('new.ts', '?', '?', 'untracked')], {}, 'wip: login\n\nthe form half done');
     fireEvent.click(screen.getByTestId('stash-button'));
     const menu = screen.getByRole('menu', { name: 'Stash' });
-    expect(within(menu).getByRole('menuitem', { name: /Stash all changes/ }).textContent).toContain('2 files');
+    // No field of its own: the message shown is the commit box's, on one line.
+    expect(within(menu).queryByRole('textbox')).toBeNull();
+    expect(within(menu).getByTestId('stash-menu-message').textContent).toBe('wip: login the form half done');
+    const all = within(menu).getByRole('menuitem', { name: /Stash all changes/ });
+    expect(all.textContent).toContain('2 files');
+    expect(document.activeElement).toBe(all);
     // Nothing is staged: no "staged" choice.
     expect(within(menu).queryByRole('menuitem', { name: /Stash staged changes/ })).toBeNull();
-    const input = within(menu).getByLabelText('Stash message');
-    expect(document.activeElement).toBe(input);
-    fireEvent.change(input, { target: { value: '  wip: login  ' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onOp).toHaveBeenCalledWith('/w/app', { op: 'stash', message: 'wip: login', staged: false });
+    fireEvent.click(all);
+    expect(onOp).toHaveBeenCalledWith('/w/app', { op: 'stash', message: 'wip: login\n\nthe form half done', staged: false });
     expect(screen.queryByRole('menu', { name: 'Stash' })).toBeNull();
+  });
+
+  it('with an empty commit box, says git will name the stash itself', () => {
+    const { onOp } = renderButton([file('a.ts', '.', 'M')], {}, '  ');
+    fireEvent.click(screen.getByTestId('stash-button'));
+    expect(screen.getByTestId('stash-menu-message').textContent).toBe('No message: type one in the commit box');
+    fireEvent.click(screen.getByRole('menuitem', { name: /Stash all changes/ }));
+    expect(onOp).toHaveBeenCalledWith('/w/app', { op: 'stash', message: '  ', staged: false });
   });
 
   it('offers the staged changes alone when something else is not staged, unless a file is partly staged', () => {

@@ -17,18 +17,23 @@ export interface StashMenuProps {
   busy: boolean;
   /** The repo has conflicts: git can't stash then. */
   blocked: boolean;
-  onStash(o: { message: string; staged: boolean }): void;
+  /** The commit box's text: the stash takes it as its message (git keeps one line of it). */
+  message: string;
+  onStash(o: { staged: boolean }): void;
 }
 
 const MENU_SIZE = { width: 280, maxHeight: 220 };
 const files = (n: number) => `${n} ${n === 1 ? 'file' : 'files'}`;
 
-/** The Stash button next to the commit button, and its menu: an optional message and what to stash. */
-export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked, onStash }: StashMenuProps) {
+/** The commit box's text as git will keep it: one line. */
+const oneLine = (message: string) => message.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+
+/** The Stash button next to the commit button, and its menu: what to stash, with the commit box's text as its message. */
+export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked, message, onStash }: StashMenuProps) {
   const menu = usePopover<HTMLDivElement>();
   const button = useRef<HTMLButtonElement>(null);
   const [place, setPlace] = useState<Placement | null>(null);
-  const [message, setMessage] = useState('');
+  const line = oneLine(message);
 
   // Fixed relative to the window, as the branch menu: the Git panel's scroll area can't clip it.
   useLayoutEffect(() => {
@@ -36,7 +41,6 @@ export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked
       setPlace(null);
       return;
     }
-    setMessage('');
     const update = () => {
       const anchor = button.current?.getBoundingClientRect();
       if (anchor) setPlace(placeMenu(anchor, { width: window.innerWidth, height: window.innerHeight }, MENU_SIZE));
@@ -57,7 +61,7 @@ export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked
 
   const stash = (stagedOnly: boolean) => {
     menu.setOpen(false);
-    onStash({ message: message.trim(), staged: stagedOnly });
+    onStash({ staged: stagedOnly });
   };
   const disabled = busy || blocked;
 
@@ -78,23 +82,12 @@ export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked
       </button>
       {menu.open && place && (
         <div className="menu stash-menu" role="menu" aria-label="Stash" style={place}>
-          <input
-            className="menu-input"
-            placeholder="Message (optional)"
-            aria-label="Stash message"
-            autoFocus
-            spellCheck={false}
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                stash(false);
-              }
-            }}
-          />
+          {/* The message comes from the commit box; without one git names the stash after the last commit. */}
+          <div className={`stash-menu-message${line === '' ? ' is-empty' : ' mono'}`} data-testid="stash-menu-message" title={line || undefined}>
+            {line === '' ? 'No message: type one in the commit box' : line}
+          </div>
           <div className="menu-divider" />
-          <button className="menu-item" role="menuitem" title="Staged and unstaged changes and new files" onClick={() => stash(false)}>
+          <button className="menu-item" role="menuitem" title="Staged and unstaged changes and new files" autoFocus onClick={() => stash(false)}>
             <span className="menu-check">
               <ArchiveArrowDown size={12} strokeWidth={1.8} />
             </span>

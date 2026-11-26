@@ -595,9 +595,19 @@ button.branch-chip:hover {
   min-width: 0;
 }
 
-.stash-menu .menu-input {
+/* The stash's message: the commit box's text, on one line. */
+.stash-menu-message {
   flex: none;
-  margin: 2px 2px 0;
+  padding: 6px 9px 4px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stash-menu-message.is-empty {
+  color: var(--muted);
 }
 
 .stash-menu .menu-item {
