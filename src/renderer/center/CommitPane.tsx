@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
 import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon, HistoryIcon, MoreIcon } from '../components/icons';
 import { letterColor } from '../git/model';
@@ -60,10 +60,14 @@ export interface CommitPaneProps {
   media?(file: CommitFile): MediaPair | null;
   /** A file's History button: its history in a tab. Must be stable. */
   onFileHistory?(path: string): void;
+  /** First among the buttons: Claude Code explains the commit. */
+  explain?: ReactNode;
+  /** Under the header: Claude Code's explanation. */
+  explanation?: ReactNode;
 }
 
 /** A commit: subject, body, details and the diff of every changed file, one below the other. */
-export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore, media, onFileHistory }: CommitPaneProps) {
+export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore, media, onFileHistory, explain, explanation }: CommitPaneProps) {
   const commitOrNull = result?.ok ? result.commit : null;
   // Collapsed files are kept here: the "expand/collapse all" button in the header changes them too.
   // Switching to another commit starts over, with those over 400 lines collapsed.
@@ -129,6 +133,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
             <span className="commit-when">{longAgo(commit.date, now)}</span>
           </div>
           <div className="commit-meta-actions">
+            {explain}
             <span className="mono">
               <span className="add">+{commit.added}</span> <span className="del">−{commit.removed}</span>
             </span>
@@ -163,6 +168,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
           </div>
         </div>
       </header>
+      {explanation}
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
       <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onOpenFile={onOpenFile} onFileHistory={onFileHistory} media={media} onToggle={(path) =>
           setCollapsed((prev) => {

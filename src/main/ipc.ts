@@ -62,6 +62,7 @@ import { type Persisted, loadState, mergeLayout, saveState, saveStateSync } from
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
 import { SearchOps } from './searchOps.js';
+import { SummaryOps } from './summaryOps.js';
 import { duplicateSnippet, placeOf, saveSnippet, typedCommand } from './snippets.js';
 import { openUrl } from './openUrl.js';
 import { Serial } from './serial.js';
@@ -113,6 +114,7 @@ export class AppCore {
   private readonly fileOps: FileOps;
   readonly historyOps: HistoryOps;
   readonly searchOps: SearchOps;
+  readonly summaryOps: SummaryOps;
   private state: Persisted;
   /** Open files with unsaved edits, as the page last reported. */
   private unsavedFiles = 0;
@@ -183,6 +185,7 @@ export class AppCore {
     });
     this.historyOps = new HistoryOps(this.workspace, { menu: (items) => this.popup(items) });
     this.searchOps = new SearchOps(this.workspace);
+    this.summaryOps = new SummaryOps(this.workspace, { usage: () => readUsage(this.usagePath) });
     this.ptys = new PtyManager({
       // A shell set through EDI_SHELL is the tests': it doesn't read the profile of whoever runs them.
       shell: process.env.EDI_SHELL,
@@ -903,6 +906,8 @@ export class AppCore {
     this.processTimer = setInterval(() => void this.pollProcesses(), PROCESSES_MS);
 
     ipcMain.handle('usage:get', () => this.readUsage());
+    ipcMain.handle('claude:summarize', (_event, id: unknown, request: unknown) => this.summaryOps.summarize(id, request));
+    ipcMain.on('claude:cancel', (_event, id: unknown) => this.summaryOps.cancel(id));
     this.usageTimer = setInterval(() => void this.pollUsage(), USAGE_MS);
     this.autoFetch.start();
   }
@@ -928,6 +933,7 @@ export class AppCore {
     if (this.usageTimer) clearInterval(this.usageTimer);
     this.usageTimer = null;
     this.autoFetch.dispose();
+    this.summaryOps.dispose();
     this.keepAwake.dispose();
     this.workspace.dispose();
     this.ptys.killAll();

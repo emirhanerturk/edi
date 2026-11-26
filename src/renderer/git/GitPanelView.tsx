@@ -2,7 +2,7 @@ import { openKey } from '../components/keys';
 import { OpenInMenu } from '../components/OpenInMenu';
 import type { EditorId } from '../../shared/editors';
 import { Archive, ArchiveArrowUp, RotateCcw, Undo2 } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
 import type { BranchList, GitOp, IncomingResult, RepoOperation, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
 import { discardHow } from '../../git/discardKind';
@@ -26,6 +26,11 @@ import { CommitBox } from './CommitBox';
 import { ErrorBox } from './ErrorBox';
 import { NoRepos } from '../components/NoRepos';
 import { StashMenu } from './StashMenu';
+import { SparkButton, problemText } from '../summaries/SummaryCard';
+import { PlaceCard, type SummaryPlace, SummarySpark, closeSummary, startSummary } from '../summaries/places';
+import { PullRequestActions, PullRequestBody } from '../summaries/pullRequest';
+import { readingCommits, readingFiles, readingText, summaryKey, useSummary } from '../summaries/summaryStore';
+import { useNow } from '../components/useNow';
 import {
   type Group,
   type SyncAction,
@@ -96,6 +101,12 @@ export interface GitPanelProps {
   stashMenu?(canApply: boolean): Promise<StashMenuAction | null>;
   /** A switch or pull git refused because of local changes, per repo: the error box offers to stash and retry it. */
   retries?: Record<string, StashRetry>;
+  /** Claude summaries: the sparkle buttons (incoming, changes, the commit message, a pull request, stashes) and their cards. */
+  summaries?: boolean;
+  /** "Push and open on GitHub" on a drafted pull request: push the branch, then open the page (`url`). */
+  onOpenPullRequest?(repoPath: string, url: string): void;
+  /** "Use as its name" on a stash's summary. */
+  onRenameStash?(repoPath: string, stash: StashEntry, name: string): void;
 }
 
 const NO_BRANCHES: BranchList = { ok: true, branches: [], current: null };
@@ -132,6 +143,9 @@ function LaunchButtons({ repoName, onTerminal, onClaude }: { repoName: string; o
 function Repo(props: GitPanelProps & { repo: RepoView }) {
   const { repo, expanded, onToggle, onOpenTerminal, onOpenClaude } = props;
   const { status } = repo;
+  const summaries = props.summaries === true;
+  // Claude Code is writing the commit message: the box waits for it.
+  const writing = useSummary(summaryKey.message(repo.path))?.result === null;
   const error = props.errors?.[repo.path];
   const run = (op: GitOp) => props.onOp?.(repo.path, op);
   const busy = repo.busy !== null;
@@ -174,6 +188,13 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
   const groups = groupFiles(status);
   const count = changeCount(status);
   const action = syncAction(status, repo.hasRemote);
+  // What the changes do: on CHANGES, or on STAGED when everything is staged.
+  const changesPlace: SummaryPlace = { key: summaryKey.changes(repo.path), request: { kind: 'changes', repoPath: repo.path }, reading: readingFiles(count) };
+  const changesOn = groups.changes.length > 0 ? 'changes' : 'staged';
+  const changesSummary = summaries && {
+    head: <SummarySpark place={changesPlace} title="Summarize the changes" testId="summarize-changes" />,
+    card: <PlaceCard place={changesPlace} label="WHAT CHANGED" testId="changes-summary" />,
+  };
 
   return (
     <div className={`repo${open ? ' open' : ''}`} data-testid="repo-row" data-repo={repo.name} aria-expanded={open}>
@@ -255,6 +276,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
             target={commitTarget(groups)}
             message={props.drafts?.[repo.path] ?? ''}
             busy={busy}
+            writing={writing}
+            messageButton={summaries ? <MessageSpark repoPath={repo.path} files={count} onWritten={(message) => props.onDraft?.(repo.path, message)} /> : undefined}
             canPush={repo.hasRemote}
             onChange={(message) => props.onDraft?.(repo.path, message)}
             onCommit={({ all, push }) => run({ op: 'commit', message: props.drafts?.[repo.path] ?? '', all, push })}
@@ -276,6 +299,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               )
             }
           />
+          {summaries && <MessageProblem repoPath={repo.path} />}
           {groups.conflicts.length > 0 && (
             <p className="repo-note">
               {groups.conflicts.length === 1 ? '1 file has conflicts. Resolve it' : `${groups.conflicts.length} files have conflicts. Resolve them`}{' '}
@@ -284,8 +308,26 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
             </p>
           )}
           <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} busy={busy} run={run} {...fileProps} />
-          <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
-          <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
+          <FileGroup
+            title="STAGED"
+            group="staged"
+            files={groups.staged}
+            busy={busy}
+            run={run}
+            blocked={groups.conflicts.length > 0}
+            summary={changesOn === 'staged' ? changesSummary : false}
+            {...fileProps}
+          />
+          <FileGroup
+            title="CHANGES"
+            group="changes"
+            files={groups.changes}
+            busy={busy}
+            run={run}
+            blocked={groups.conflicts.length > 0}
+            summary={changesOn === 'changes' ? changesSummary : false}
+            {...fileProps}
+          />
           {count === 0 && <p className="repo-clean">{cleanNote(status, repo.hasRemote)}</p>}
           {repo.status && repo.status.upstream !== null && (repo.status.behind ?? 0) > 0 && (
             <IncomingGroup
@@ -293,6 +335,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               upstream={repo.status.upstream}
               headOid={repo.status.headOid}
               behind={repo.status.behind ?? 0}
+              summaries={summaries}
               load={props.loadIncoming}
               selectedOid={selectedCommit}
               onOpen={(oid, pin) => props.onOpenCommit?.(repo.path, oid, pin)}
@@ -304,6 +347,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               headOid={repo.status.headOid}
               ahead={repo.status.ahead ?? 0}
               busy={busy}
+              summaries={summaries}
+              onOpenPullRequest={props.onOpenPullRequest && ((url) => props.onOpenPullRequest!(repo.path, url))}
               load={props.loadUnpushed}
               selectedOid={selectedCommit}
               onOpen={(oid, pin) => props.onOpenCommit?.(repo.path, oid, pin)}
@@ -323,6 +368,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
               onOpen={(stash, pin) => props.onOpenStash?.(repo.path, stash, pin)}
               onAction={(stash, action) => props.onStashAction?.(repo.path, stash, action)}
               menu={props.stashMenu}
+              summaries={summaries}
+              onRename={props.onRenameStash && ((stash, name) => props.onRenameStash!(repo.path, stash, name))}
             />
           )}
         </div>
@@ -399,6 +446,8 @@ interface FileGroupProps {
   repoPath: string;
   /** CHANGES only: discards a file, or all of them with null. No buttons without it. */
   discard?(file: FileChange | null): void;
+  /** The changes' Claude summary: its sparkle first in the header, its card under it. */
+  summary?: { head: ReactNode; card: ReactNode } | false;
 }
 
 /** Sections collapsed or opened by hand, by repo and section, for the session: the panel redraws on every status poll. */
@@ -447,13 +496,14 @@ function GroupHead(props: { title: string; count: number; collapsed: boolean; on
 /** What clicking a changed file's row opens: a new file has no old version, so it opens in the file view. */
 export const opensIn = (file: FileChange) => (file.kind === 'untracked' ? 'file' : 'diff');
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath, discard: discardAny, menu, fileKey }: FileGroupProps) {
+function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath, discard: discardAny, menu, fileKey, summary }: FileGroupProps) {
   const discard = group === 'changes' ? discardAny : undefined;
   const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
   return (
     <div className="file-group">
       <GroupHead title={title} count={files.length} collapsed={collapsed} onToggle={toggle}>
+        {summary && summary.head}
         {group === 'staged' && (
           <button
             className="icon-button tiny"
@@ -491,6 +541,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openIn, sele
           </button>
         )}
       </GroupHead>
+      {summary && summary.card}
       {!collapsed && files.map((file) => (
         <FileRow
           key={file.path}
@@ -561,6 +612,9 @@ interface UnpushedGroupProps {
   headOid: string | null;
   ahead: number;
   busy: boolean;
+  /** Draft a pull request with Claude Code. */
+  summaries?: boolean;
+  onOpenPullRequest?(url: string): void;
   load?(repoPath: string): Promise<UnpushedResult>;
   /** The commit open in the center panel. */
   selectedOid: string | null;
@@ -569,13 +623,27 @@ interface UnpushedGroupProps {
 }
 
 /** Commits made but not pushed yet, newest first; read again whenever HEAD or the count moves. */
-function UnpushedGroup({ repoPath, headOid, ahead, busy, load, selectedOid, onOpen, onUndo }: UnpushedGroupProps) {
+function UnpushedGroup({ repoPath, headOid, ahead, busy, summaries, onOpenPullRequest, load, selectedOid, onOpen, onUndo }: UnpushedGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\nunpushed`);
   const result = useCommitList(load, repoPath, [headOid, ahead]);
   const list = result?.ok ? result : null;
+  const place: SummaryPlace = { key: summaryKey.pullRequest(repoPath), request: { kind: 'pullRequest', repoPath }, reading: readingText("the branch's commits") };
   return (
     <div className="file-group" data-testid="unpushed-group">
-      <GroupHead title="UNPUSHED" count={ahead} collapsed={collapsed} onToggle={toggle} />
+      <GroupHead title="UNPUSHED" count={ahead} collapsed={collapsed} onToggle={toggle}>
+        {summaries && <SummarySpark place={place} title="Draft a pull request" testId="draft-pull-request" />}
+      </GroupHead>
+      {summaries && (
+        <PlaceCard
+          place={place}
+          label="PULL REQUEST"
+          testId="pull-request-draft"
+          againLabel="Draft again"
+          closeLabel="Close the draft"
+          body={(done) => <PullRequestBody title={done.title ?? ''} body={done.text} />}
+          actions={(done) => <PullRequestActions done={done} onOpen={onOpenPullRequest} busy={busy} />}
+        />
+      )}
       {!collapsed &&
         list?.commits.map((commit, index) => (
           <CommitRow key={commit.oid} testId="unpushed-row" commit={commit} meta={commit.short} selected={commit.oid === selectedOid} onOpen={onOpen}>
@@ -608,6 +676,8 @@ interface IncomingGroupProps {
   upstream: string;
   headOid: string | null;
   behind: number;
+  /** Summarize them with Claude Code. */
+  summaries?: boolean;
   load?(repoPath: string): Promise<IncomingResult>;
   /** The commit open in the center panel. */
   selectedOid: string | null;
@@ -618,17 +688,20 @@ interface IncomingGroupProps {
  * The upstream's commits not pulled yet (a teammate's push, once fetched), newest first, with who made
  * each: what Pull would bring. Read again whenever HEAD or the count moves.
  */
-function IncomingGroup({ repoPath, upstream, headOid, behind, load, selectedOid, onOpen }: IncomingGroupProps) {
+function IncomingGroup({ repoPath, upstream, headOid, behind, summaries, load, selectedOid, onOpen }: IncomingGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\nincoming`);
   const result = useCommitList(load, repoPath, [headOid, behind]);
   const commits = result?.ok ? result.commits : null;
+  const place: SummaryPlace = { key: summaryKey.incoming(repoPath), request: { kind: 'incoming', repoPath }, reading: readingCommits(behind) };
   return (
     <div className="file-group" data-testid="incoming-group">
       <GroupHead title="INCOMING" count={behind} collapsed={collapsed} onToggle={toggle}>
+        {summaries && <SummarySpark place={place} title="Summarize the incoming commits" testId="summarize-incoming" />}
         <span className="group-hint mono" title={`Fetched from ${upstream}, not pulled yet`}>
           {upstream}
         </span>
       </GroupHead>
+      {summaries && <PlaceCard place={place} label="SUMMARY" testId="incoming-summary" />}
       {!collapsed &&
         commits?.map((commit) => (
           <CommitRow
@@ -667,10 +740,13 @@ interface StashGroupProps {
   onOpen(stash: StashEntry, pin: boolean): void;
   onAction(stash: StashEntry, action: StashMenuAction): void;
   menu?(canApply: boolean): Promise<StashMenuAction | null>;
+  /** A stash's one-line summary from Claude Code, on hover; it can become the stash's name. */
+  summaries?: boolean;
+  onRename?(stash: StashEntry, name: string): void;
 }
 
 /** The repo's stashes, newest first, closed until opened; read again whenever the count moves or an operation starts or ends (a rename). */
-function StashGroup({ repoPath, count, current, busy, canApply, limit, load, selectedOid, onOpen, onAction, menu }: StashGroupProps) {
+function StashGroup({ repoPath, count, current, busy, canApply, limit, load, selectedOid, onOpen, onAction, menu, summaries, onRename }: StashGroupProps) {
   const [collapsed, toggle] = useCollapsed(`${repoPath}\nstashes`, true);
   const [list, setList] = useState<StashEntry[] | null>(null);
   const [all, setAll] = useState(() => longStashLists.has(repoPath));
@@ -696,9 +772,10 @@ function StashGroup({ repoPath, count, current, busy, canApply, limit, load, sel
           {shown.map((stash) => {
             const { wip, text } = stashLabel(stash);
             const title = stashTitle(stash);
+            const place = stashPlace(repoPath, stash);
             return (
+              <Fragment key={stash.oid}>
               <div
-                key={stash.oid}
                 className="file-row stash-row"
                 data-testid="stash-row"
                 title={`stash@{${stash.index}}: ${stash.subject}`}
@@ -725,6 +802,7 @@ function StashGroup({ repoPath, count, current, busy, canApply, limit, load, sel
                     {stash.branch}
                   </span>
                 )}
+                {summaries && <SummarySpark place={place} title="Summarize this stash" testId="summarize-stash" className="stash-spark" />}
                 <span className="unpushed-time">{shortAgo(stash.date, now)}</span>
                 <button
                   className="icon-button tiny"
@@ -742,6 +820,8 @@ function StashGroup({ repoPath, count, current, busy, canApply, limit, load, sel
                   <ArchiveArrowUp size={13} strokeWidth={2} />
                 </button>
               </div>
+              {summaries && <StashSummary place={place} busy={busy} onUse={onRename && ((name) => onRename(stash, name))} />}
+              </Fragment>
             );
           })}
           {hidden > 0 && (
@@ -891,4 +971,108 @@ function OperationChip({ operation, conflicts }: { operation: RepoOperation | nu
       {label}
     </span>
   );
+}
+
+const stashPlace = (repoPath: string, stash: StashEntry): SummaryPlace => ({
+  key: summaryKey.stash(repoPath, stash.oid),
+  request: { kind: 'stash', repoPath, oid: stash.oid },
+  reading: readingText('this stash'),
+});
+
+/**
+ * Under a stash's row once its sparkle was clicked: reading, then one line about it, which can become its name;
+ * or why there is none.
+ */
+function StashSummary({ place, busy, onUse }: { place: SummaryPlace; busy: boolean; onUse?(name: string): void }) {
+  const run = useSummary(place.key);
+  const now = useNow(30_000);
+  if (!run) return null;
+  const { result } = run;
+  const close = () => closeSummary(place.key);
+  if (result === null) {
+    return (
+      <div className="stash-summary" data-testid="stash-summary" data-state="running" aria-busy="true">
+        <div className="summary-head">
+          <span className="summary-reading">{run.reading}</span>
+          <button className="summary-button" onClick={close}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (!result.ok) {
+    const { title, detail } = problemText(result, now);
+    return (
+      <div className="stash-summary" data-testid="stash-summary" data-state="error" role="alert">
+        <span className="summary-problem">{title}</span>
+        <span className="summary-detail">{detail}</span>
+        <div className="stash-summary-actions">
+          {result.reason !== 'missing' && (
+            <button className="summary-button" onClick={() => void startSummary(place)}>
+              Try again
+            </button>
+          )}
+          <button className="summary-button quiet" onClick={close}>
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="stash-summary" data-testid="stash-summary" data-state="done">
+      <span className="stash-summary-text">{result.text}</span>
+      <div className="stash-summary-actions">
+        {onUse && (
+          <button
+            className="summary-button"
+            data-testid="stash-use-name"
+            title="Rename the stash to this line"
+            disabled={busy}
+            onClick={() => {
+              onUse(result.text);
+              close();
+            }}
+          >
+            Use as its name
+          </button>
+        )}
+        <button className="summary-button quiet" onClick={close}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The commit box's sparkle: Claude Code writes the message from the staged changes, or from all of them. */
+function MessageSpark({ repoPath, files, onWritten }: { repoPath: string; files: number; onWritten(message: string): void }) {
+  const place: SummaryPlace = { key: summaryKey.message(repoPath), request: { kind: 'message', repoPath }, reading: 'Claude Code is writing a commit message…' };
+  const running = useSummary(place.key)?.result === null;
+  return (
+    <SparkButton
+      title={files === 0 ? 'Nothing to write a message for' : 'Write a commit message'}
+      state={running ? 'running' : 'idle'}
+      size={13}
+      disabled={files === 0 && !running}
+      testId="write-message"
+      onClick={() => {
+        if (running) return closeSummary(place.key);
+        void startSummary(place).then((result) => {
+          if (!result?.ok) return;
+          onWritten(result.text);
+          closeSummary(place.key);
+        });
+      }}
+    />
+  );
+}
+
+/** Why Claude Code wrote no message, under the commit box. */
+function MessageProblem({ repoPath }: { repoPath: string }) {
+  const place: SummaryPlace = { key: summaryKey.message(repoPath), request: { kind: 'message', repoPath }, reading: 'Claude Code is writing a commit message…' };
+  const run = useSummary(place.key);
+  if (!run?.result || run.result.ok) return null;
+  return <PlaceCard place={place} label="COMMIT MESSAGE" testId="message-problem" />;
 }

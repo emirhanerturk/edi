@@ -8,6 +8,9 @@ import { COLLAPSE_LINES, CommitPane } from './CommitPane';
 import { commitMedia } from './media';
 import { tabId } from './tabs';
 import { useView } from './useView';
+import { ExplainButton } from '../summaries/ExplainButton';
+import { PlaceCard, type SummaryPlace } from '../summaries/places';
+import { readingText, summaryKey } from '../summaries/summaryStore';
 
 /**
  * The files to color, in order: those that start expanded (up to 400 lines), up to `MAX_HIGHLIGHT_CHARS`
@@ -63,6 +66,7 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
   }, [info]);
   useEffect(() => () => useApp.getState().setCenterInfo(null), []);
   const media = useCallback((file: CommitFile) => commitMedia(repo.path, oid, file), [repo.path, oid]);
+  const place: SummaryPlace = { key: summaryKey.commit(repo.path, oid), request: { kind: 'commit', repoPath: repo.path, oid }, reading: readingText('this commit') };
   // The commit tab stays; the file's history opens in the preview tab.
   const fileHistory = useCallback(
     (path: string) => {
@@ -96,6 +100,10 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
       onOpenFile={openFile}
       media={media}
       onFileHistory={fileHistory}
+      explain={<ExplainButton place={place} />}
+      explanation={
+        <PlaceCard place={place} label="EXPLANATION" className="wide" againLabel="Explain again" closeLabel="Close the explanation" testId="commit-explanation" />
+      }
       onMore={() => {
         if (!data?.ok) return;
         const { commit } = data;

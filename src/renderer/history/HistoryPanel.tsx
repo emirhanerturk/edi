@@ -5,7 +5,9 @@ import { ArrowUp, BranchIcon, ChevronDown, ChevronRight, TagIcon, WarningIcon } 
 import { useNow } from '../components/useNow';
 import { edi } from '../bridge';
 import { canLoadMore, useApp } from '../store';
-import { type HistoryRow, type RepoGroup, type RepoLog, byRepo, historyKey, isRelease, timeline } from './model';
+import { type HistoryRow, type RepoGroup, type RepoLog, byRepo, dayCommits, historyKey, isRelease, timeline } from './model';
+import { PlaceCard, type SummaryPlace, SummarySpark } from '../summaries/places';
+import { readingCommits, summaryKey } from '../summaries/summaryStore';
 import { RepoFilter } from './RepoFilter';
 import { longAgo, shortAgo, splitSubject } from './time';
 import './history.css';
@@ -37,6 +39,8 @@ export interface HistoryPanelViewProps {
   onFilter(path: string | null): void;
   onLayout(layout: HistoryLayout): void;
   onLoadMore(): void;
+  /** Claude summaries on the day headers, for the open folder and the repository filter (`dir`, `filter`). */
+  summaries?: { dir: string; filter: string | null };
 }
 
 /**
@@ -118,17 +122,35 @@ export function HistoryPanelView(props: HistoryPanelViewProps) {
   );
 }
 
-function Timeline({ rows, now, single, loading, selected, onOpenCommit, onCommitMenu }: HistoryPanelViewProps) {
+/** A day's header; with summaries, its sparkle sums up the commits under it, and the card opens below. */
+function DayHead({ rows, index, label, first, summaries }: { rows: HistoryRow[]; index: number; label: string; first: boolean; summaries?: HistoryPanelViewProps['summaries'] }) {
+  if (!summaries) return <div className={`history-day${first ? ' first' : ''}`}>{label}</div>;
+  const commits = dayCommits(rows, index);
+  const count = commits.reduce((sum, repo) => sum + repo.oids.length, 0);
+  const place: SummaryPlace = {
+    key: summaryKey.day(summaries.dir, summaries.filter, label),
+    request: { kind: 'day', label, commits },
+    reading: readingCommits(count),
+  };
+  return (
+    <>
+      <div className={`history-day${first ? ' first' : ''}`} data-testid="history-day">
+        <span>{label}</span>
+        <div className="spacer" />
+        <SummarySpark place={place} title={label === 'THIS WEEK' ? 'Sum up these days' : 'Sum up the day'} testId="summarize-day" className="day-spark" />
+      </div>
+      <PlaceCard place={place} label={label} testId="day-summary" />
+    </>
+  );
+}
+
+function Timeline({ rows, now, single, loading, selected, onOpenCommit, onCommitMenu, summaries }: HistoryPanelViewProps) {
   if (rows.length === 0) return <p className="history-note">{loading ? 'Loading…' : 'No commits yet'}</p>;
   return (
     <>
       {rows.map((row, index) => {
         if (row.type === 'day') {
-          return (
-            <div key={`day-${index}`} className={`history-day${row.first ? ' first' : ''}`}>
-              {row.label}
-            </div>
-          );
+          return <DayHead key={`day-${index}`} rows={rows} index={index} label={row.label} first={row.first} summaries={summaries} />;
         }
         if (row.type === 'remote') {
           return (
@@ -245,6 +267,7 @@ function GroupLine({ commit, now, current, open, menu }: { commit: CommitSummary
 /** The History tab bound to app state. Reads logs when they're shown and whenever HEAD changes. */
 export function HistoryPanel() {
   const repos = useApp((s) => s.workspace.repos);
+  const dir = useApp((s) => s.workspace.dir);
   const history = useApp((s) => s.history);
   const filter = useApp((s) => s.historyFilter);
   const layout = useApp((s) => s.layout.historyLayout);
@@ -300,6 +323,7 @@ export function HistoryPanel() {
       onFilter={setHistoryFilter}
       onLayout={setHistoryLayout}
       onLoadMore={loadMoreHistory}
+      summaries={dir === null ? undefined : { dir, filter: shown.length === 1 && repos.length > 1 ? shown[0]!.path : null }}
     />
   );
 }

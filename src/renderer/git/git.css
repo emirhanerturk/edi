@@ -555,6 +555,26 @@ button.branch-chip:hover {
   gap: 8px;
 }
 
+/* The message box, with Claude Code's button in its top right corner. */
+.commit-field {
+  position: relative;
+}
+
+.commit-field.has-button .commit-message {
+  padding-right: 34px;
+}
+
+.commit-field-button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+}
+
+.commit-message[readonly] {
+  color: var(--muted);
+}
+
 /* One line to start with; it grows with the text (see CommitBox), then scrolls. */
 .commit-message {
   display: block;
@@ -907,4 +927,35 @@ button.branch-chip:hover {
   align-items: center;
   justify-content: center;
   gap: 7px;
+}
+
+/* A stash's Claude summary: its sparkle shows on hover (and while it runs or its line is open); the line opens under the row. */
+.stash-row .stash-spark[data-state='idle'] {
+  opacity: 0;
+}
+
+.stash-row:hover .stash-spark,
+.stash-row .stash-spark:focus-visible {
+  opacity: 1;
+}
+
+.stash-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 8px 12px;
+  background: var(--chip-quiet);
+  cursor: auto;
+}
+
+.stash-summary-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  user-select: text;
+}
+
+.stash-summary-actions {
+  display: flex;
+  gap: 6px;
 }

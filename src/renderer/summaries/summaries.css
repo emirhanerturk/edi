@@ -1,0 +1,255 @@
+/* Claude summaries: the Sparkles button, and the card a result opens in. */
+
+/* Muted like the other row buttons; in Claude's colour while it runs and while its result is open. */
+.spark-button[data-state='running'],
+.spark-button[data-state='on'],
+.spark-button[data-state='running']:hover:not(:disabled),
+.spark-button[data-state='on']:hover:not(:disabled) {
+  color: var(--claude);
+  background: var(--chip);
+}
+
+.spark-button[data-state='running'] svg {
+  animation: spark-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes spark-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.summary-card {
+  margin: 2px 10px 8px;
+  padding: 8px 8px 9px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  cursor: auto;
+}
+
+/* In the center panel: the commit view's explanation. */
+.summary-card.wide {
+  margin: 0 20px 14px;
+  padding: 10px 10px 11px 14px;
+  gap: 8px;
+}
+
+.summary-head {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-spark {
+  flex: none;
+  display: flex;
+  color: var(--claude);
+}
+
+.summary-card[data-state='running'] .summary-spark svg {
+  animation: spark-pulse 1.4s ease-in-out infinite;
+}
+
+.summary-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
+.summary-reading {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary-problem {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--yellow);
+}
+
+.summary-detail {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  user-select: text;
+}
+
+.summary-body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  user-select: text;
+}
+
+.summary-card.wide .summary-body {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.summary-foot {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Small text buttons: Cancel, Try again, Open on GitHub, Use as its name. */
+.summary-button {
+  flex: none;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.summary-button:hover:not(:disabled) {
+  background: var(--chip);
+}
+
+.summary-button:disabled {
+  opacity: 0.45;
+}
+
+.summary-button.quiet {
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.summary-button.quiet:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.summary-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 1px;
+}
+
+.summary-skeleton span {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--chip-quiet);
+  animation: spark-pulse 1.6s ease-in-out infinite;
+}
+
+.summary-skeleton span:nth-child(1) {
+  width: 92%;
+}
+
+.summary-skeleton span:nth-child(2) {
+  width: 78%;
+}
+
+.summary-skeleton span:nth-child(3) {
+  width: 64%;
+}
+
+/* A drafted pull request: its title, then its description as it will be pasted. */
+.summary-pr {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-pr-title {
+  font-weight: 600;
+}
+
+.summary-pr-body {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.summary-pr-body.long {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* Markdown in a summary. */
+.markdown p {
+  margin: 0 0 6px;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 6px;
+  padding-left: 16px;
+}
+
+.markdown li {
+  margin: 0 0 4px;
+}
+
+.markdown > :last-child,
+.markdown li:last-child {
+  margin-bottom: 0;
+}
+
+.markdown strong,
+.markdown-heading {
+  font-weight: 600;
+}
+
+.markdown code,
+.summary-detail code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.summary-card.wide .markdown code {
+  font-size: 12px;
+}
+
+/* The commit view's Explain button: its sparkle in Claude's colour while it runs and while the explanation is open. */
+.commit-explain svg {
+  color: var(--muted);
+}
+
+.commit-explain[data-state='running'] svg,
+.commit-explain[data-state='on'] svg {
+  color: var(--claude);
+}
+
+.commit-explain[data-state='running'] svg {
+  animation: spark-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commit-explain[data-state='running'] svg,
+  .spark-button[data-state='running'] svg,
+  .summary-card[data-state='running'] .summary-spark svg,
+  .summary-skeleton span {
+    animation: none;
+  }
+}
