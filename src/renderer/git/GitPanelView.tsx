@@ -1,7 +1,7 @@
 import { openKey } from '../components/keys';
 import { OpenInMenu } from '../components/OpenInMenu';
 import type { EditorId } from '../../shared/editors';
-import { Archive, ArchiveArrowUp, Undo2 } from 'lucide-react';
+import { Archive, ArchiveArrowUp, RotateCcw, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
 import type { BranchList, GitOp, IncomingResult, RepoOperation, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
@@ -73,6 +73,8 @@ export interface GitPanelProps {
   onOpenCommit?(repoPath: string, oid: string, pin: boolean): void;
   /** "Undo commit" on the newest unpushed commit (the caller asks first). */
   onUndoCommit?(repoPath: string, commit: CommitSummary): void;
+  /** Discard in CHANGES: one file's unstaged changes, or all of them when `file` is null (the caller asks first). */
+  onDiscard?(repoPath: string, file: FileChange | null): void;
   /** The open folder is this one repo: its stashes expand it and are all listed. */
   single?: boolean;
   /** The repo's stashes; read when an expanded repo has any. */
@@ -125,6 +127,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
     selectedKind: props.selected?.kind ?? null,
     openIn: (file: FileChange, editor: EditorId) => props.onOpenIn?.(repo.path, file.path, editor),
     repoPath: repo.path,
+    discard: props.onDiscard && ((file: FileChange | null) => props.onDiscard!(repo.path, file)),
   };
 
   if (!status) {
@@ -367,6 +370,8 @@ interface FileGroupProps {
   /** "Stage all / revert all" is disabled during a conflict: both would erase the conflict record. */
   blocked?: boolean;
   repoPath: string;
+  /** CHANGES only: discards a file, or all of them with null. No buttons without it. */
+  discard?(file: FileChange | null): void;
 }
 
 /** Sections collapsed or opened by hand, by repo and section, for the session: the panel redraws on every status poll. */
@@ -415,7 +420,8 @@ function GroupHead(props: { title: string; count: number; collapsed: boolean; on
 /** What clicking a changed file's row opens: a new file has no old version, so it opens in the file view. */
 export const opensIn = (file: FileChange) => (file.kind === 'untracked' ? 'file' : 'diff');
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath }: FileGroupProps) {
+function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath, discard: discardAny }: FileGroupProps) {
+  const discard = group === 'changes' ? discardAny : undefined;
   const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
   return (
@@ -433,6 +439,18 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openIn, sele
             <MinusIcon size={12} />
           </button>
         )}
+        {discard && (
+          <button
+            className="icon-button tiny"
+            data-testid="discard-all"
+            aria-label="Discard all changes"
+            title={blocked ? 'Resolve the conflicts first' : 'Discard all changes'}
+            disabled={busy || blocked}
+            onClick={() => discard(null)}
+          >
+            <RotateCcw size={12} />
+          </button>
+        )}
         {group === 'changes' && (
           <button
             className="icon-button tiny"
@@ -447,7 +465,7 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openIn, sele
         )}
       </GroupHead>
       {!collapsed && files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} run={run} open={open} openIn={openIn} selected={file.path === selectedPath && selectedKind === opensIn(file)} />
+        <FileRow key={file.path} file={file} group={group} busy={busy} blocked={blocked} discard={discard} run={run} open={open} openIn={openIn} selected={file.path === selectedPath && selectedKind === opensIn(file)} />
       ))}
     </div>
   );
@@ -712,10 +730,13 @@ interface FileRowProps {
   run(op: GitOp): void;
   open(file: FileChange, pin: boolean): void;
   openIn(file: FileChange, editor: EditorId): void;
+  /** There are conflicts in the repo: discarding is refused. */
+  blocked?: boolean;
+  discard?(file: FileChange): void;
 }
 
-/** Clicking a row opens the file in the center panel; the button on the right only stages or reverts. */
-function FileRow({ file, group, busy, selected, run, open, openIn }: FileRowProps) {
+/** Clicking a row opens the file in the center panel; the buttons on the right only discard, stage or unstage. */
+function FileRow({ file, group, busy, blocked, discard, selected, run, open, openIn }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
   const button = (testId: string, label: string, title: string, action: GitOp | (() => void), icon: ReactNode, disabled = busy) => (
@@ -778,6 +799,8 @@ function FileRow({ file, group, busy, selected, run, open, openIn }: FileRowProp
           )}
         />
       )}
+      {discard &&
+        button('discard-file', `Discard changes to ${name}`, blocked ? 'Resolve the conflicts first' : 'Discard changes', () => discard(file), <RotateCcw size={12} />, busy || blocked)}
       {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
   );

@@ -52,6 +52,7 @@ export function GitPanel() {
       loadUnpushed={loadUnpushed}
       loadIncoming={loadIncoming}
       onOpenCommit={(repoPath, oid, pin) => openInCenter({ kind: 'commit', repoPath, path: oid }, pin)}
+      onDiscard={(repoPath, file) => void useApp.getState().discardChanges(repoPath, file)}
       onUndoCommit={(repoPath, commit) => {
         void edi.confirmUndo(commit.subject).then((yes) => {
           if (yes) void gitOp(repoPath, { op: 'undoCommit', oid: commit.oid });
