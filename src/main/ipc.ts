@@ -129,7 +129,7 @@ export class AppCore {
     this.state = state;
     this.logoFolder = join(dirname(stateFile), 'logos');
     this.workspace = new Workspace({ onChange: (view) => this.send('workspace', view) });
-    this.gitOps = new GitOps(this.workspace);
+    this.gitOps = new GitOps(this.workspace, { trash: (target) => shell.trashItem(target) });
     this.autoFetch = new AutoFetch(
       {
         repos: () => this.workspace.view().repos,

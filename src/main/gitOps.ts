@@ -1,6 +1,7 @@
 import { commit, createBranch, fetchInBackground, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
 import { type IncomingResult, type UnpushedResult, readIncoming, readUnpushed, undoLastCommit } from '../git/unpushed.js';
 import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash } from '../git/stash.js';
+import { type Trash, discardAll, discardFile } from '../git/discard.js';
 import { revertCommit } from '../git/revert.js';
 import { getStatus } from '../git/status.js';
 import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
@@ -23,6 +24,9 @@ export function busyLabel(op: GitOp): string {
       return 'Undoing commit…';
     case 'revertCommit':
       return 'Reverting…';
+    case 'discard':
+    case 'discardAll':
+      return 'Discarding…';
     case 'stash':
       return 'Stashing…';
     case 'stashPop':
@@ -58,12 +62,14 @@ function isValidOp(op: unknown): op is GitOp {
   switch (o.op) {
     case 'stageAll':
     case 'unstageAll':
+    case 'discardAll':
     case 'push':
     case 'pull':
     case 'fetch':
       return true;
     case 'stage':
     case 'unstage':
+    case 'discard':
       return typeof o.file === 'object' && o.file !== null && typeof (o.file as Record<string, unknown>).path === 'string';
     case 'commit':
       return typeof o.message === 'string' && typeof o.all === 'boolean' && typeof o.push === 'boolean';
@@ -97,7 +103,13 @@ export class GitOps {
   /** Automatic fetches that failed in a row, by repo. */
   private readonly failures = new Map<string, number>();
 
-  constructor(private readonly ws: Workspace) {}
+  constructor(
+    private readonly ws: Workspace,
+    private readonly deps?: { trash: Trash },
+  ) {}
+
+  /** Discarding a new file moves it to the Trash; without one (tests) that fails instead. */
+  private readonly trash: Trash = (path) => (this.deps ? this.deps.trash(path) : Promise.reject(new Error('Moving to the Trash is not available')));
 
   async run(repoPath: string, op: GitOp): Promise<OpResult> {
     const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
@@ -226,6 +238,10 @@ export class GitOps {
         return undoLastCommit(repo, op.oid);
       case 'revertCommit':
         return revertCommit(repo, op.oid);
+      case 'discard':
+        return discardFile(repo, op.file.path, this.trash);
+      case 'discardAll':
+        return discardAll(repo, this.trash);
       case 'stash': {
         const stashed = await pushStash(repo, { message: op.message, staged: op.staged });
         if (!stashed.ok || !op.then) return stashed;
