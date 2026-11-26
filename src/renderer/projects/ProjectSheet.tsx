@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import type { LogoCandidate, ProjectInput } from '../../shared/api';
-import { LOGO_COLORS, type LogoColor, MAX_LABEL, MAX_LINKS, MAX_NAME, colorFor, normalizeLink } from '../../shared/projects';
+import { LOGO_COLORS, type LogoColor, MAX_LABEL, MAX_LINKS, MAX_NAME, NO_REPO_SETTINGS, colorFor, normalizeLink } from '../../shared/projects';
 import { edi } from '../bridge';
 import { CloseIcon, FolderIcon, PlusIcon, StarIcon } from '../components/icons';
 import { plural, tildify } from '../format';
@@ -184,6 +184,7 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
       name: trimmed,
       logo: chosenPick.kind === 'letter' ? { kind: 'letter', color } : chosenPick,
       links: ordered.map(({ row }) => ({ url: normalizeLink(row.url)!, label: row.label.trim() })),
+      repos: start?.repos ?? NO_REPO_SETTINGS,
     };
     setBusy(true);
     setError(null);

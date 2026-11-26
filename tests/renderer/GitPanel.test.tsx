@@ -540,7 +540,7 @@ describe('Stash button', () => {
   afterEach(cleanup);
   function renderButton(files: FileChange[], over: Partial<RepoStatus> = {}, draft?: string) {
     const onOp = vi.fn();
-    const drafts = draft === undefined ? {} : { '/w/app': draft };
+    const drafts: Record<string, string> = draft === undefined ? {} : { '/w/app': draft };
     render(<GitPanelView repos={[repo('app', { status: status({ files, ...over }) })]} expanded={{}} onToggle={() => undefined} onOp={onOp} drafts={drafts} />);
     return { onOp };
   }

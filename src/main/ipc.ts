@@ -458,6 +458,7 @@ export class AppCore {
       dir,
       name: basename(dir) || dir,
       repoCount: repos.length,
+      repoNames: [],
       logos: found.map((path) => this.logos.add(join(dir, path), path)),
       links: web ? [web] : [],
       taken: taken ? { id: taken.id, name: taken.name } : null,
@@ -487,7 +488,7 @@ export class AppCore {
   async projectDraft(projectId: unknown): Promise<ProjectDraft | null> {
     const project = this.project(projectId);
     if (!project) return null;
-    if (!(await isDir(project.dir))) return { dir: project.dir, name: project.name, repoCount: project.repoCount, logos: [], links: [], taken: null };
+    if (!(await isDir(project.dir))) return { dir: project.dir, name: project.name, repoCount: project.repoCount, repoNames: [], logos: [], links: [], taken: null };
     return this.draftFor(project.dir, project.id);
   }
 
@@ -536,7 +537,7 @@ export class AppCore {
     const id = randomUUID();
     const logo = await this.logoFrom(clean.input.logo, id, null);
     if (!logo.ok) return logo;
-    const result = await this.openFolder(dir, { id, name: clean.input.name, logo: logo.logo, links: clean.input.links });
+    const result = await this.openFolder(dir, { id, name: clean.input.name, logo: logo.logo, links: clean.input.links, repos: clean.input.repos });
     // Not opened (cancelled, or another request for the folder came first): the copy isn't anyone's.
     if (logo.copied !== null && !this.project(id)) void dropLogo(this.logoFolder, logo.copied);
     return result;
@@ -564,8 +565,8 @@ export class AppCore {
       if (logo.copied !== null) void dropLogo(this.logoFolder, logo.copied);
       return NO_PROJECT;
     }
-    const { name, links } = clean.input;
-    this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links } : other)));
+    const { name, links, repos } = clean.input;
+    this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links, repos } : other)));
     const old = project.logo;
     if (old.kind === 'image' && (logo.logo.kind !== 'image' || logo.logo.file !== old.file)) void dropLogo(this.logoFolder, old.file);
     return { ok: true };

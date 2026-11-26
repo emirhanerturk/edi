@@ -1,5 +1,6 @@
 // Projects: a folder of git repositories with a name, a logo and links. Pure rules shared by the main
 // process and the page; nothing here touches the disk or the network.
+import type { RepoSettings } from './api.js';
 
 /** The colors a letter logo can take, in the order the sheet offers them. */
 export const LOGO_COLORS = ['purple', 'blue', 'cyan', 'green', 'orange', 'gray'] as const;
@@ -85,3 +86,22 @@ export function linkText(url: string): string {
 
 /** What a link is called in the menus: its label, or its address without one. */
 export const linkName = (link: { url: string; label: string }): string => (link.label.trim() !== '' ? link.label.trim() : linkText(link.url));
+
+/** No order set and nothing ignored: the repos alphabetically, all of them. */
+export const NO_REPO_SETTINGS: RepoSettings = { order: [], ignored: [] };
+/** At most this many names are kept in each list of a project's repo settings. */
+export const MAX_REPO_NAMES = 500;
+
+/** Every repo found: the ones named in `order` first, in that order (names gone are skipped), then the others alphabetically. */
+export function orderRepos<T extends { name: string }>(found: T[], order: string[]): T[] {
+  const rank = new Map(order.map((name, index) => [name, index]));
+  const ranked = found.filter((repo) => rank.has(repo.name)).sort((a, b) => rank.get(a.name)! - rank.get(b.name)!);
+  const rest = found.filter((repo) => !rank.has(repo.name)).sort((a, b) => a.name.localeCompare(b.name));
+  return [...ranked, ...rest];
+}
+
+/** The repos a project shows: in its order, without the ignored ones. */
+export function arrangeRepos<T extends { name: string }>(found: T[], settings: RepoSettings): T[] {
+  const ignored = new Set(settings.ignored);
+  return orderRepos(found, settings.order).filter((repo) => !ignored.has(repo.name));
+}

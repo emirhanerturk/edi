@@ -29,13 +29,14 @@ const view = (id: string, over: Partial<ProjectView> = {}): ProjectView => ({
   links: [],
   openedAt: Date.now(),
   repoCount: 1,
+  repos: { order: [], ignored: [] },
   logoUrl: null,
   exists: true,
   open: false,
   ...over,
 });
 
-const draft: ProjectDraft = { dir: '/Users/me/studios/new', name: 'new', repoCount: 2, logos: [], links: [], taken: null };
+const draft: ProjectDraft = { dir: '/Users/me/studios/new', name: 'new', repoCount: 2, repoNames: [], logos: [], links: [], taken: null };
 
 const initial = useApp.getState();
 beforeEach(() => {
@@ -46,6 +47,7 @@ beforeEach(() => {
     projects: [
       view('quizei', {
         repoCount: 8,
+        repos: { order: [], ignored: [] },
         links: [
           { url: 'https://quizei.com/', label: 'Site' },
           { url: 'https://admin.quizei.com/', label: 'Admin' },

@@ -22,6 +22,7 @@ const draft: ProjectDraft = {
   dir: '/Users/me/studios/edi',
   name: 'edi',
   repoCount: 1,
+  repoNames: [],
   logos: [
     { id: 'w', path: 'docs/design/icon/wordmark.svg', url: 'edi-logo://found/w' },
     { id: 'i', path: 'build/icon-1024.png', url: 'edi-logo://found/i' },
@@ -41,6 +42,7 @@ const project: ProjectView = {
   ],
   openedAt: 1,
   repoCount: 8,
+  repos: { order: [], ignored: [] },
   logoUrl: 'edi-logo://logo/quizei-00000000.png',
   exists: true,
   open: false,
@@ -100,6 +102,7 @@ describe('ProjectSheet, new', () => {
         { url: 'https://github.com/emirhanerturk/edi/pulls', label: 'Pull requests' },
         { url: 'https://github.com/emirhanerturk/edi', label: 'GitHub' },
       ],
+      repos: { order: [], ignored: [] },
     });
     expect(useApp.getState().sheet).toBeNull();
   });
@@ -187,6 +190,7 @@ describe('ProjectSheet, edit', () => {
       name: 'Quizei Web',
       logo: { kind: 'keep' },
       links: project.links,
+      repos: project.repos,
     });
     expect(useApp.getState().sheet).toBeNull();
   });
