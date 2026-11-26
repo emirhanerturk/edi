@@ -27,6 +27,7 @@ const view = (id: string, over: Partial<ProjectView> = {}): ProjectView => ({
   openedAt: 1,
   repoCount: 1,
   repos: { order: [], ignored: [] },
+  snippets: [],
   logoUrl: null,
   exists: true,
   open: false,
@@ -38,6 +39,7 @@ const quizei = view('quizei', {
   open: true,
   repoCount: 8,
   repos: { order: [], ignored: [] },
+  snippets: [],
   links: [
     { url: 'https://quizei.com/', label: 'Site' },
     { url: 'https://admin.quizei.com/', label: 'Admin' },

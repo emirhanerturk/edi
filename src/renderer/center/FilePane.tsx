@@ -2,7 +2,8 @@ import type { EditorId } from '../../shared/editors';
 import { type ReactNode, memo, useMemo, useState } from 'react';
 import type { FileContent } from '../../shared/api';
 import { mediaUrl } from '../../shared/media';
-import { LockIcon } from '../components/icons';
+import { fileSize } from '../format';
+import { HistoryIcon, LockIcon } from '../components/icons';
 import type { Token } from '../highlight/highlight';
 import { languageOf } from '../highlight/languages';
 import { Code } from './DiffPane';
@@ -12,11 +13,7 @@ import { ViewHeader, ViewNote } from './ViewHeader';
 
 export { splitLines };
 
-function size(bytes: number): string {
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${bytes} B`;
-}
+const size = fileSize;
 
 /** Short status bar info for the open file: language and line count, or size. */
 export function fileInfo(path: string, content: FileContent | null): string | null {
@@ -52,6 +49,8 @@ export interface FilePaneProps {
   onLoadDisk?(): void;
   /** Closes the tab (offered when the file was deleted under unsaved edits). */
   onClose?(): void;
+  /** The History button: the file's history in a tab. */
+  onHistory?(): void;
 }
 
 /** The file view: an editor for text files, a preview for images and videos, a note otherwise. */
@@ -79,6 +78,12 @@ export function FilePane(props: FilePaneProps) {
             <LockIcon size={12} />
             Read-only
           </span>
+        )}
+        {props.onHistory && !isNew && (
+          <button className="view-button" data-testid="file-history-button" title="The commits that changed this file" onClick={props.onHistory}>
+            <HistoryIcon size={12} />
+            <span>History</span>
+          </button>
         )}
       </ViewHeader>
       {editing && <EditBar {...props} edit={edit} />}

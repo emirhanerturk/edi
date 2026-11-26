@@ -224,3 +224,48 @@ export const MoreIcon = (p: IconProps) => (
     <circle cx="12.5" cy="8" r="1.3" />
   </Icon>
 );
+
+/** A file's history: a clock with an arrow going back. */
+export const HistoryIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8L2.6 5.8" />
+    <path d="M2.6 2.6v3.2h3.2" />
+    <path d="M8 5.2v3l2.1 1.3" />
+  </Icon>
+);
+/** Search: a magnifier. */
+export const SearchIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.6} {...p}>
+    <circle cx="7" cy="7" r="4.5" />
+    <path d="M10.4 10.4L14 14" />
+  </Icon>
+);
+/** A snippet: lines with a play mark (Lucide's list-video, ISC license). */
+export const SnippetIcon = ({ size = 14, label, ...rest }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    role={label ? 'img' : undefined}
+    aria-label={label}
+    aria-hidden={label ? undefined : true}
+    style={{ flex: 'none' }}
+    {...rest}
+  >
+    <path d="M12 12H3" />
+    <path d="M16 6H3" />
+    <path d="M12 18H3" />
+    <path d="m16 12 5 3-5 3v-6Z" />
+  </svg>
+);
+/** Run: a filled triangle. */
+export const PlayIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.4} fill="currentColor" {...p}>
+    <path d="M4.5 2.8v10.4L13 8z" />
+  </Icon>
+);

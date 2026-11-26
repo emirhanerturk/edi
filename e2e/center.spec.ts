@@ -83,6 +83,43 @@ test('clicking a changed file opens its diff', async () => {
   }
 });
 
+test('Cmd+W closes the tab of the panel in use: a file or diff in the center panel, the terminal in the terminals', async () => {
+  const dir = await tmpDir();
+  await repoWithChanges(dir);
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    const terminals = page.getByTestId('tab');
+    await expect(terminals).toHaveCount(1);
+    await page.locator('.term-host.active').click();
+
+    // A diff opened from the Git tab: Cmd+W closes it, not the terminal typed in before.
+    await fileRow(page, 'README.md').click();
+    await expect(centerTabs(page)).toHaveCount(1);
+    await page.keyboard.press('Meta+w');
+    await expect(centerTabs(page)).toHaveCount(0);
+    await expect(terminals).toHaveCount(1);
+
+    // A click in the center panel counts as working there.
+    await fileRow(page, 'README.md').dblclick();
+    await fileRow(page, 'src/app.ts').dblclick();
+    await expect(centerTabs(page)).toHaveCount(2);
+    await page.locator('.term-host.active').click();
+    await page.getByTestId('center-view').click({ position: { x: 30, y: 120 } });
+    await page.keyboard.press('Meta+w');
+    await expect(centerTabs(page)).toHaveCount(1);
+    await expect(terminals).toHaveCount(1);
+
+    // Back in the terminals, Cmd+W closes the terminal and leaves the file open.
+    await page.keyboard.press('Meta+t');
+    await expect(terminals).toHaveCount(2);
+    await page.keyboard.press('Meta+w');
+    await expect(terminals).toHaveCount(1);
+    await expect(centerTabs(page)).toHaveCount(1);
+  } finally {
+    await app.close();
+  }
+});
+
 test('the diff layout and the left panel width persist across relaunches', async () => {
   const dir = await tmpDir();
   await repoWithChanges(dir);
@@ -557,6 +594,40 @@ test('a new untitled file: ⌘N or +, typed, saved through the Save panel into a
     await centerTabs(page).first().click();
     await centerTabs(page).first().getByRole('button', { name: 'Close tab' }).click();
     await expect(centerTabs(page)).toHaveText(['?notes.md']);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Quick open (⌘P) finds a file by name in any repository, opens it, and lists it as recent', async () => {
+  const dir = await tmpDir();
+  await repoWithChanges(dir);
+  const beta = await makeRepo(dir, 'beta');
+  await mkdir(join(beta, 'lib'));
+  await writeFile(join(beta, 'lib', 'models.ts'), 'export {};\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await page.keyboard.press('Meta+p');
+    const input = page.getByTestId('quick-open-input');
+    await expect(input).toBeFocused();
+    await input.fill('model');
+    await expect(page.getByTestId('quick-open-group')).toHaveCount(1);
+    await expect(page.getByTestId('quick-open-file')).toHaveText([/models\.ts/]);
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('quick-open')).toHaveCount(0);
+    await expect(centerTabs(page).filter({ hasText: 'models.ts' })).toHaveCount(1);
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
+
+    // Opened again with nothing typed, it lists the recent files; Escape closes it.
+    await page.keyboard.press('Meta+p');
+    await expect(page.getByText('RECENTLY OPENED')).toBeVisible();
+    await expect(page.getByTestId('quick-open-file').first()).toContainText('models.ts');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('quick-open')).toHaveCount(0);
+
+    // The file opened from it is in the panel in use: ⌘W closes it.
+    await page.keyboard.press('Meta+w');
+    await expect(centerTabs(page)).toHaveCount(0);
   } finally {
     await app.close();
   }

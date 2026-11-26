@@ -6,12 +6,40 @@ import type { EditorId } from './editors.js';
 import type { LogoColor } from './projects.js';
 import type { ParsedDiff } from '../git/diffParse.js';
 import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult } from '../git/types.js';
-import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
+import type {
+  CommitDetail,
+  CommitFile,
+  CommitResult,
+  CommitSummary,
+  DirList,
+  FileChange,
+  FileContent,
+  FileList,
+  LogResult,
+  ReplaceResult,
+  RepoStatus,
+  TextFile,
+  TextLine,
+  TextQuery,
+  TextSearchResult,
+  WriteResult,
+} from '../git/types.js';
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
+import type { FileChangeResult, FileHistoryEntry, FileHistoryResult } from '../git/types.js';
 
 export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult };
-export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, WriteResult };
+export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, ReplaceResult, TextFile, TextLine, TextQuery, TextSearchResult, WriteResult };
+
+/** What Replace All is about to do, for its question. */
+export interface ReplaceAllSummary {
+  count: number;
+  pattern: string;
+  replacement: string;
+  files: number;
+  repos: number;
+}
 export type { StashDetail, StashEntry, StashList, StashResult };
+export type { FileChangeResult, FileHistoryEntry, FileHistoryResult };
 
 export interface RepoView {
   name: string;
@@ -62,6 +90,30 @@ export interface RepoSettings {
 export type ProjectLogo = { kind: 'image'; file: string } | { kind: 'letter'; color: LogoColor };
 
 /** A folder of git repositories with a name, a logo and links. */
+/** A saved command of a project, run from the snippets menu in the terminal tab bar. */
+export interface Snippet {
+  id: string;
+  name: string;
+  /** The name of its group in the menu; '' for none (those come first). */
+  group: string;
+  /** The repository it runs in, by folder name; '' for the project folder. */
+  where: string;
+  /** One or more lines, typed into the new terminal one by one. */
+  command: string;
+  /** Asks before running: for commands that deploy, publish or delete. */
+  ask: boolean;
+}
+
+/** A new snippet (no `id`) or the edited one. */
+export type SnippetInput = Omit<Snippet, 'id'> & { id?: string };
+
+export type SnippetResult = { ok: true; id: string } | { ok: false; error: string; cancelled?: true };
+
+/** A snippet run: the terminal it opened, named after it. */
+export type SnippetRun = { ok: true; terminal: TerminalCreated } | { ok: false; error: string; cancelled?: true };
+
+export type SnippetMenuAction = 'run' | 'type' | 'edit' | 'duplicate' | 'delete';
+
 export interface Project {
   id: string;
   /** The folder (its real path); its git repositories are what the project shows. */
@@ -75,6 +127,8 @@ export interface Project {
   /** The git repositories shown when it was last opened (the ignored ones aren't counted). */
   repoCount: number;
   repos: RepoSettings;
+  /** Its snippets, in the order they were made. */
+  snippets: Snippet[];
 }
 
 /** A project as the page shows it. */
@@ -206,7 +260,44 @@ export type EntryOpResult = { ok: true; path: string } | { ok: false; error: str
 export type SaveNewResult = { ok: true; repoPath: string; path: string } | { ok: false; error: string; cancelled?: true };
 /** The kind of Files tab row that was right-clicked, and what was picked from its menu. */
 export type FilesMenuKind = 'repo' | 'dir' | 'file';
-export type FilesMenuAction = 'newFile' | 'newFolder' | 'rename' | 'trash' | 'reveal';
+export type FilesMenuAction =
+  | 'newFile'
+  | 'newFolder'
+  | 'rename'
+  | 'trash'
+  | 'reveal'
+  | 'copy'
+  | 'paste'
+  | 'duplicate'
+  | 'copyPath'
+  | 'copyRelativePath'
+  | 'newTerminal'
+  | 'history'
+  | 'find'
+  | `openIn:${EditorId}`;
+
+/** A Git tab file row, for its right-click menu: what applies to it. */
+export interface GitFileMenuState {
+  group: 'staged' | 'changes' | 'conflicts';
+  /** Deleted in the working tree: there is no file to open or show in Finder. */
+  deleted: boolean;
+  /** Not tracked yet: a click opens its content, and it has no history. */
+  untracked: boolean;
+  /** Whether Discard Changes can run now. */
+  canDiscard: boolean;
+}
+
+export type GitFileMenuAction =
+  | 'openChanges'
+  | 'openFile'
+  | 'stage'
+  | 'unstage'
+  | 'discard'
+  | 'copyPath'
+  | 'copyRelativePath'
+  | 'history'
+  | 'reveal'
+  | `openIn:${EditorId}`;
 
 /** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
@@ -216,6 +307,8 @@ export interface NewTerminal {
   rows: number;
   /** If given, the terminal opens in this repo; otherwise in the open folder. Must be a discovered repo path. */
   repoPath?: string;
+  /** A folder inside `repoPath` (relative to it) to open in instead of the repo's own folder. */
+  dir?: string;
   /** Starts Claude Code in the terminal. */
   claude?: boolean;
 }
@@ -252,6 +345,7 @@ export interface UsageWindow {
 
 /** Claude usage limits, from Claude Code's status line bridge. */
 export interface ClaudeUsage {
+  /** Null while no window is running: it hasn't started yet, or its reset time has passed (0% used). */
   fiveHour: UsageWindow | null;
   week: UsageWindow | null;
   /** When the data was written (ms). */
@@ -269,7 +363,7 @@ export interface EdiEvents {
   'pty:exit': [id: number];
   tabs: [tabs: TabState[]];
   servers: [servers: ServerInfo[]];
-  /** Claude usage limits changed (or no valid window is left: null). */
+  /** Claude usage limits changed (null: the bridge isn't set up, or its file is broken). */
   usage: [usage: ClaudeUsage | null];
   /** The layout changed from the menu (View > Layout). */
   layout: [layout: Layout];
@@ -328,6 +422,8 @@ export interface EdiApi {
   stashes(repoPath: string): Promise<StashList>;
   /** One stash and its changes, for the stash view; `oid` is the stash commit's full id. */
   stash(repoPath: string, oid: string): Promise<StashResult>;
+  /** The native right-click menu of a changed file's row in the Git tab; the picked action, or null. */
+  gitFileMenu(state: GitFileMenuState): Promise<GitFileMenuAction | null>;
   /** The native right-click menu of a stash row; Pop and Apply are greyed out unless `canApply`. */
   stashMenu(canApply: boolean): Promise<StashMenuAction | null>;
   /** Asks (native dialog) before dropping the stash with this label; true to go ahead. */
@@ -336,6 +432,8 @@ export interface EdiApi {
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
+  /** An image or video's size in bytes, in the working tree or (`rev`: a commit id, `id^`, `id^N`) as it was in a commit. */
+  mediaSize(repoPath: string, filePath: string, rev: string | null): Promise<number | null>;
   /** Saves editor text over an existing file; `expected` is the disk text the edit started from (`null`: overwrite). */
   writeFile(repoPath: string, filePath: string, text: string, expected: string | null): Promise<WriteResult>;
   /** Files tab: an empty file or a folder at `path` (relative to the repo); never overwrites. */
@@ -346,6 +444,12 @@ export interface EdiApi {
   trashEntry(repoPath: string, path: string, unsaved: number): Promise<EntryOpResult>;
   /** Shows it in Finder; '' is the repo itself. */
   revealEntry(repoPath: string, path: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Copy: puts the file or folder on the clipboard (Finder can paste it) and keeps it for `pasteEntry`. */
+  copyEntry(repoPath: string, path: string): Promise<EntryOpResult>;
+  /** Paste: what was copied, into the folder `dir` ('' is the repo); never replaces, a name in use gets " copy". */
+  pasteEntry(repoPath: string, dir: string): Promise<EntryOpResult>;
+  /** Duplicate: a copy beside it named "… copy". */
+  duplicateEntry(repoPath: string, path: string): Promise<EntryOpResult>;
   /** Saves an untitled editor's text as a new file through the Save panel, starting in `repoPath` if given. */
   saveNew(text: string, repoPath: string | null): Promise<SaveNewResult>;
   /** The native right-click menu of a Files tab row; the picked action, or null. */
@@ -360,15 +464,40 @@ export interface EdiApi {
   confirmDiscard(name: string): Promise<boolean>;
   /** Files in the working tree; those caught by `.gitignore` are in a separate list (without folder contents). */
   listFiles(repoPath: string): Promise<FileList>;
+  /** Searches the repo's files (those git lists, not ignored ones). A newer `id` stops an older search. */
+  searchText(repoPath: string, query: TextQuery, id: number): Promise<TextSearchResult>;
+  /** Stops the searches older than `id`. */
+  stopSearch(id: number): void;
+  /** Replaces the matches on `lines` of one file, only if it still holds the text that was searched (`stamp`). */
+  replaceText(repoPath: string, path: string, query: TextQuery, replacement: string, stamp: string, lines: number[]): Promise<ReplaceResult>;
+  /** Asks before Replace All; true to go ahead. */
+  confirmReplaceAll(summary: ReplaceAllSummary): Promise<boolean>;
+  /** Adds a snippet to the open project, or saves the edited one (with its `id`). */
+  saveSnippet(input: SnippetInput): Promise<SnippetResult>;
+  /** Deletes one of the open project's snippets, after asking. */
+  deleteSnippet(id: string): Promise<SnippetResult>;
+  /** A copy of the snippet, named "… copy", right after it. */
+  duplicateSnippet(id: string): Promise<SnippetResult>;
+  /**
+   * Opens a terminal where the snippet runs and types its command there, line by line; asks first if the
+   * snippet says so. The page names the snippet: the command comes from what was saved.
+   */
+  runSnippet(id: string, size: { cols: number; rows: number }): Promise<SnippetRun>;
+  /** A snippet's right-click menu. */
+  snippetMenu(): Promise<SnippetMenuAction | null>;
   /** One level of a folder inside the repo; used to show the contents of an ignored folder. */
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
-  /** The last known Claude usage limits; null if the bridge isn't set up or the data has expired. */
+  /** The last known Claude usage limits; null if the bridge isn't set up. */
   claudeUsage(): Promise<ClaudeUsage | null>;
   /** Opens the file in an editor, or the repo folder if `filePath` is null. */
   openIn(editor: EditorId, repoPath: string, filePath: string | null): Promise<OpResult>;
   /** Opens a web link from the terminal in the default browser (http/https only). */
   openUrl(url: string): Promise<OpResult>;
   log(repoPath: string, count: number): Promise<LogResult>;
+  /** The commits that changed a file (its path now), newest first, following renames; `count` a multiple of 50. */
+  fileHistory(repoPath: string, path: string, count: number): Promise<FileHistoryResult>;
+  /** A file's change in one commit of its history; `origPath`: where it was before, if that commit renamed it. */
+  fileChange(repoPath: string, oid: string, path: string, origPath: string | null): Promise<FileChangeResult>;
   commit(repoPath: string, oid: string): Promise<CommitResult>;
   pty: {
     create(o: NewTerminal): Promise<TerminalCreated>;

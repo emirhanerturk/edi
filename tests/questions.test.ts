@@ -81,18 +81,19 @@ describe('dropStashQuestion', () => {
 });
 
 describe('trashQuestion', () => {
-  it('names the file or folder, says it can be restored, and warns about unsaved edits', () => {
+  it('asks to delete it, says it goes to the Trash, warns about uncommitted changes and unsaved edits', () => {
     expect(trashQuestion('a.ts', false, 0)).toEqual({
       type: 'warning',
-      message: 'Move "a.ts" to the Trash?',
-      detail: 'You can restore it from the Trash.',
-      buttons: ['Move to Trash', 'Cancel'],
+      message: 'Delete "a.ts"?',
+      detail: 'It goes to the Trash, and you can put it back from there.',
+      buttons: ['Delete', 'Cancel'],
       defaultId: 0,
       cancelId: 1,
     });
-    expect(trashQuestion('src', true, 0).detail).toBe('The folder and everything in it go to the Trash. You can restore them from there.');
-    expect(trashQuestion('src', true, 2).detail).toBe(
-      'The folder and everything in it go to the Trash. You can restore them from there. 2 open files have unsaved changes. They will be lost.',
+    expect(trashQuestion('a.ts', false, 0, true).detail).toBe("It goes to the Trash, and you can put it back from there. It has changes that aren't committed.");
+    expect(trashQuestion('src', true, 0).detail).toBe('The folder and everything in it go to the Trash, and you can put them back from there.');
+    expect(trashQuestion('src', true, 2, true).detail).toBe(
+      "The folder and everything in it go to the Trash, and you can put them back from there. Some of its files have changes that aren't committed. 2 open files have unsaved changes. They will be lost.",
     );
   });
 });
@@ -184,5 +185,22 @@ describe('discardTarget', () => {
     for (const bad of [null, 'all', { kind: 'file', name: 1, untracked: false }, { kind: 'file', name: 'a' }, { kind: 'all', repo: 'app', changed: -1, untracked: 0 }, { kind: 'all', repo: 'app', changed: 1.5, untracked: 0 }, { kind: 'x' }]) {
       expect(discardTarget(bad), JSON.stringify(bad)).toBeNull();
     }
+  });
+});
+
+describe('replaceAllQuestion', () => {
+  it('says how many, of what, with what and where; refuses anything else', async () => {
+    const { replaceAllQuestion } = await import('../src/main/questions.js');
+    expect(replaceAllQuestion({ count: 19, pattern: 'weeklyRank', replacement: 'weekRank', files: 7, repos: 3 })).toEqual({
+      type: 'warning',
+      message: 'Replace 19 occurrences of “weeklyRank” with “weekRank”?',
+      detail:
+        'In 7 files across 3 repositories. A file is written only if it still holds the text this search found. Tabs with unsaved edits are left alone.',
+      buttons: ['Replace All', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    expect(replaceAllQuestion({ count: 0, pattern: 'a', replacement: 'b', files: 1, repos: 1 })).toBeNull();
+    expect(replaceAllQuestion('Replace everything')).toBeNull();
   });
 });

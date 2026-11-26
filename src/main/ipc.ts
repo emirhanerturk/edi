@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { type BrowserWindow, Menu, dialog, ipcMain, net, powerSaveBlocker, protocol, shell } from 'electron';
+import { pathToFileURL } from 'node:url';
+import { type BrowserWindow, ClipboardItem, Menu, type MenuItemConstructorOptions, clipboard, dialog, ipcMain, net, powerSaveBlocker, protocol, shell } from 'electron';
 import { discoverRepos } from '../git/discover.js';
+import { locateInRepo } from '../git/files.js';
 import { remoteWebUrl } from '../git/remoteUrl.js';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
@@ -17,7 +19,10 @@ import {
   discardChangesQuestion,
   discardQuestion,
   discardTarget,
+  deleteSnippetQuestion,
   dropStashQuestion,
+  replaceAllQuestion,
+  runSnippetQuestion,
   removeProjectQuestion,
   revertCommitQuestion,
   undoCommitQuestion,
@@ -41,17 +46,23 @@ import type {
   ProjectMenuAction,
   ProjectView,
   ServerInfo,
+  SnippetMenuAction,
+  SnippetResult,
+  SnippetRun,
   StashMenuAction,
   TerminalCreated,
 } from '../shared/api.js';
 import { AutoFetch } from './autoFetch.js';
 import { KeepAwake } from './keepAwake.js';
 import { FileOps } from './fileOps.js';
+import { gitFileMenuItems, gitFileMenuState } from './gitMenu.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, loadState, mergeLayout, saveState, saveStateSync } from './store.js';
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
+import { SearchOps } from './searchOps.js';
+import { duplicateSnippet, placeOf, saveSnippet, typedCommand } from './snippets.js';
 import { openUrl } from './openUrl.js';
 import { Serial } from './serial.js';
 import { ViewOps } from './viewOps.js';
@@ -80,6 +91,16 @@ const realDir = async (path: string): Promise<string | null> => {
 };
 const takenBy = (project: Project) => ({ ok: false, error: `This folder is already the project ${project.name}` }) as const;
 
+/** An item of a native menu: a separator without an id or submenu. */
+interface PopupItem<T extends string> {
+  id: T | null;
+  label: string;
+  enabled?: boolean;
+  /** The key shown beside it. */
+  accelerator?: string;
+  submenu?: PopupItem<T>[];
+}
+
 
 /** The main process's state and everything it talks to the page about. */
 export class AppCore {
@@ -91,6 +112,7 @@ export class AppCore {
   readonly viewOps: ViewOps;
   private readonly fileOps: FileOps;
   readonly historyOps: HistoryOps;
+  readonly searchOps: SearchOps;
   private state: Persisted;
   /** Open files with unsaved edits, as the page last reported. */
   private unsavedFiles = 0;
@@ -146,6 +168,11 @@ export class AppCore {
       ask: (question) => this.ask(question),
       trash: (target) => shell.trashItem(target),
       reveal: (target) => shell.showItemInFolder(target),
+      // Finder pastes the file from its URL on the pasteboard; a terminal or an editor gets its path.
+      copyToClipboard: (target) => {
+        const item = new ClipboardItem({ 'text/plain': target, 'electron application/osclipboard;format="public.file-url"': pathToFileURL(target).href });
+        void clipboard.write([item]).catch(() => clipboard.writeText(target).catch(() => undefined));
+      },
       menu: (items) => this.popup(items),
       choosePath: async (defaultPath) => {
         const win = this.getWindow();
@@ -155,6 +182,7 @@ export class AppCore {
       },
     });
     this.historyOps = new HistoryOps(this.workspace, { menu: (items) => this.popup(items) });
+    this.searchOps = new SearchOps(this.workspace);
     this.ptys = new PtyManager({
       // A shell set through EDI_SHELL is the tests': it doesn't read the profile of whoever runs them.
       shell: process.env.EDI_SHELL,
@@ -285,24 +313,30 @@ export class AppCore {
     return busyQuestion('quit', this.busyTabs, this.unsavedFiles, this.gitRepos()) !== null;
   }
 
-  /** A native context menu at the mouse; resolves with the picked item's id, or null when it closes without one. */
-  private popup<T extends string>(items: { id: T | null; label: string; enabled?: boolean }[]): Promise<T | null> {
+  /**
+   * A native context menu at the mouse; resolves with the picked item's id, or null when it closes without
+   * one. An item with a `submenu` opens it; one without an id and submenu is a separator. `accelerator`
+   * only shows the key: the page handles it.
+   */
+  private popup<T extends string>(items: PopupItem<T>[]): Promise<T | null> {
     return new Promise((resolve) => {
       let picked = false;
-      const menu = Menu.buildFromTemplate(
-        items.map((item) =>
-          item.id === null
-            ? { type: 'separator' as const }
-            : {
-                label: item.label,
-                enabled: item.enabled !== false,
-                click: () => {
-                  picked = true;
-                  resolve(item.id);
-                },
-              },
-        ),
-      );
+      const build = (list: PopupItem<T>[]): MenuItemConstructorOptions[] =>
+        list.map((item) => {
+          if (item.submenu) return { label: item.label, enabled: item.enabled !== false, submenu: build(item.submenu) };
+          if (item.id === null) return { type: 'separator' as const };
+          const id = item.id;
+          return {
+            label: item.label,
+            enabled: item.enabled !== false,
+            ...(item.accelerator ? { accelerator: item.accelerator, registerAccelerator: false } : {}),
+            click: () => {
+              picked = true;
+              resolve(id);
+            },
+          };
+        });
+      const menu = Menu.buildFromTemplate(build(items));
       const win = this.getWindow();
       // The click handler can run just after the close callback: wait a moment before reporting "nothing".
       const callback = () => setTimeout(() => !picked && resolve(null), 100);
@@ -604,6 +638,74 @@ export class AppCore {
     return { ok: true };
   }
 
+  /** The open project as kept; null with none open. */
+  private openRecord(): Project | null {
+    const dir = this.workspace.view().dir;
+    return dir === null ? null : this.projectFor(dir);
+  }
+
+  private setSnippets(projectId: string, snippets: Project['snippets']): void {
+    this.changeProjects((projects) => projects.map((other) => (other.id === projectId ? { ...other, snippets } : other)));
+  }
+
+  /** The open project's repositories a snippet can run in, by folder name (not the project folder itself). */
+  private snippetRepos(project: Project) {
+    return this.workspace.view().repos.filter((repo) => repo.path !== project.dir);
+  }
+
+  async saveSnippet(input: unknown): Promise<SnippetResult> {
+    const project = this.openRecord();
+    if (!project) return NO_PROJECT;
+    const saved = saveSnippet(
+      project.snippets,
+      input,
+      this.snippetRepos(project).map((repo) => repo.name),
+    );
+    if (!saved.ok) return saved;
+    this.setSnippets(project.id, saved.snippets);
+    return { ok: true, id: saved.id };
+  }
+
+  async deleteSnippet(id: unknown): Promise<SnippetResult> {
+    const project = this.openRecord();
+    const snippet = project?.snippets.find((candidate) => candidate.id === id);
+    if (!project || !snippet) return { ok: false, error: 'Snippet not found' };
+    if (!(await this.ask(deleteSnippetQuestion(snippet.name)))) return CANCELLED;
+    const current = this.project(project.id);
+    if (current) this.setSnippets(current.id, current.snippets.filter((candidate) => candidate.id !== snippet.id));
+    return { ok: true, id: snippet.id };
+  }
+
+  duplicateSnippet(id: unknown): SnippetResult {
+    const project = this.openRecord();
+    if (!project || typeof id !== 'string') return { ok: false, error: 'Snippet not found' };
+    const copied = duplicateSnippet(project.snippets, id);
+    if (!copied.ok) return copied;
+    this.setSnippets(project.id, copied.snippets);
+    return { ok: true, id: copied.id };
+  }
+
+  /**
+   * Opens a terminal where the snippet runs and types its command there, line by line, as if typed: the
+   * command comes from the saved project, never from the page. A snippet marked so asks first.
+   */
+  async runSnippet(id: unknown, size: unknown): Promise<SnippetRun> {
+    const project = this.openRecord();
+    const snippet = project?.snippets.find((candidate) => candidate.id === id);
+    if (!project || !snippet) return { ok: false, error: 'Snippet not found' };
+    const place = placeOf(snippet, project.dir, this.workspace.view().repos);
+    if (!place.ok) return place;
+    if (snippet.ask && !(await this.ask(runSnippetQuestion(snippet.name, place.label, snippet.command)))) return CANCELLED;
+    // The project may have closed while the question was up.
+    if (this.workspace.view().dir !== project.dir) return { ok: false, error: 'The project is no longer open' };
+    const cwd = place.cwd;
+    if (!(await isDir(cwd))) return { ok: false, error: 'Folder not found' };
+    const s = (typeof size === 'object' && size !== null ? size : {}) as Record<string, unknown>;
+    const terminal = this.ptys.create({ cols: Number(s.cols), rows: Number(s.rows), cwd, command: typedCommand(snippet.command) });
+    setTimeout(() => void this.pollProcesses(), AFTER_CREATE_MS);
+    return { ok: true, terminal: { id: terminal, title: snippet.name } };
+  }
+
   async openProject(projectId: unknown): Promise<OpenResult> {
     const project = this.project(projectId);
     if (!project) return NO_PROJECT;
@@ -693,6 +795,10 @@ export class AppCore {
         { id: 'drop', label: 'Drop…' },
       ]);
     });
+    ipcMain.handle('git:fileMenu', (_event, state: unknown) => {
+      const valid = gitFileMenuState(state);
+      return valid ? this.popup(gitFileMenuItems(valid)) : null;
+    });
     ipcMain.handle('git:confirmDropStash', (_event, label: unknown) => this.ask(dropStashQuestion(typeof label === 'string' ? label : 'this stash')));
     // Read-only view operations: paths are validated in ViewOps.
     ipcMain.handle('view:diff', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.diff(repoPath, filePath));
@@ -707,12 +813,16 @@ export class AppCore {
     ipcMain.handle('git:confirmRevert', (_event, subject: unknown) => this.ask(revertCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
+    ipcMain.handle('view:mediaSize', (_event, repoPath: unknown, filePath: unknown, rev: unknown) => this.viewOps.mediaSize(repoPath, filePath, rev));
     ipcMain.handle('files:create', (_event, repoPath: unknown, path: unknown, kind: unknown) => this.fileOps.create(repoPath, path, kind));
     ipcMain.handle('files:rename', (_event, repoPath: unknown, path: unknown, name: unknown, unsaved: unknown) =>
       this.fileOps.rename(repoPath, path, name, unsaved),
     );
     ipcMain.handle('files:trash', (_event, repoPath: unknown, path: unknown, unsaved: unknown) => this.fileOps.trash(repoPath, path, unsaved));
     ipcMain.handle('files:reveal', (_event, repoPath: unknown, path: unknown) => this.fileOps.reveal(repoPath, path));
+    ipcMain.handle('files:copy', (_event, repoPath: unknown, path: unknown) => this.fileOps.copy(repoPath, path));
+    ipcMain.handle('files:paste', (_event, repoPath: unknown, dir: unknown) => this.fileOps.paste(repoPath, dir));
+    ipcMain.handle('files:duplicate', (_event, repoPath: unknown, path: unknown) => this.fileOps.duplicate(repoPath, path));
     ipcMain.handle('files:menu', (_event, kind: unknown) => this.fileOps.menu(kind));
     ipcMain.handle('files:saveNew', (_event, text: unknown, repoPath: unknown) => this.fileOps.saveNew(text, repoPath));
     ipcMain.handle('view:headText', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.headText(repoPath, filePath));
@@ -721,24 +831,58 @@ export class AppCore {
       this.viewOps.writeFile(repoPath, filePath, text, expected),
     );
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
+    ipcMain.handle('search:run', (_event, repoPath: unknown, query: unknown, id: unknown) => this.searchOps.search(repoPath, query, id));
+    ipcMain.on('search:stop', (_event, id: unknown) => this.searchOps.stop(id));
+    ipcMain.handle('search:replace', (_event, repoPath: unknown, path: unknown, query: unknown, replacement: unknown, stamp: unknown, lines: unknown) =>
+      this.searchOps.replace(repoPath, path, query, replacement, stamp, lines),
+    );
+    ipcMain.handle('snippet:save', (_event, input: unknown) => this.saveSnippet(input));
+    ipcMain.handle('snippet:delete', (_event, id: unknown) => this.deleteSnippet(id));
+    ipcMain.handle('snippet:duplicate', (_event, id: unknown) => this.duplicateSnippet(id));
+    ipcMain.handle('snippet:run', (_event, id: unknown, size: unknown) => this.runSnippet(id, size));
+    ipcMain.handle('snippet:menu', () =>
+      this.popup<SnippetMenuAction>([
+        { id: 'run', label: 'Run' },
+        { id: 'type', label: 'Type into the Open Terminal' },
+        { id: null, label: '-' },
+        { id: 'edit', label: 'Edit…' },
+        { id: 'duplicate', label: 'Duplicate' },
+        { id: null, label: '-' },
+        { id: 'delete', label: 'Delete…' },
+      ]),
+    );
+    ipcMain.handle('search:confirmReplaceAll', (_event, summary: unknown) => {
+      const question = replaceAllQuestion(summary);
+      return question ? this.ask(question) : false;
+    });
     ipcMain.handle('view:listDir', (_event, repoPath: unknown, dirPath: unknown) => this.viewOps.listDir(repoPath, dirPath));
     ipcMain.handle('view:openIn', (_event, editor: unknown, repoPath: unknown, filePath: unknown) => this.viewOps.openIn(editor, repoPath, filePath));
     ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));
     ipcMain.handle('history:log', (_event, repoPath: unknown, count: unknown) => this.historyOps.log(repoPath, count));
     ipcMain.handle('history:commit', (_event, repoPath: unknown, oid: unknown) => this.historyOps.commit(repoPath, oid));
+    ipcMain.handle('history:file', (_event, repoPath: unknown, path: unknown, count: unknown) => this.historyOps.fileHistory(repoPath, path, count));
+    ipcMain.handle('history:fileChange', (_event, repoPath: unknown, oid: unknown, path: unknown, origPath: unknown) =>
+      this.historyOps.fileChange(repoPath, oid, path, origPath),
+    );
     ipcMain.handle('history:commitMenu', (_event, repoPath: unknown, oid: unknown, opts: unknown) => this.historyOps.commitMenu(repoPath, oid, opts));
 
-    ipcMain.handle('pty:create', (_event, o: unknown): TerminalCreated => {
+    ipcMain.handle('pty:create', async (_event, o: unknown): Promise<TerminalCreated> => {
       const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;
       const dir = this.workspace.view().dir;
       if (dir === null) throw new Error('No folder is open');
-      // The path from the page isn't free: only a discovered repo or the open folder.
+      // The path from the page isn't free: only a discovered repo or the open folder, or a folder inside the repo.
       const repo = typeof opts.repoPath === 'string' ? this.workspace.repo(opts.repoPath) : null;
       if (typeof opts.repoPath === 'string' && !repo) throw new Error('Unknown repository');
+      let cwd = repo?.path ?? dir;
+      if (repo && typeof opts.dir === 'string' && opts.dir !== '') {
+        const folder = await locateInRepo(repo.path, opts.dir);
+        if (!folder.ok || !(await isDir(folder.target))) throw new Error('Folder not found');
+        cwd = folder.target;
+      }
       const id = this.ptys.create({
         cols: Number(opts.cols),
         rows: Number(opts.rows),
-        cwd: repo?.path ?? dir,
+        cwd,
         command: opts.claude === true ? 'claude' : undefined,
       });
       setTimeout(() => void this.pollProcesses(), AFTER_CREATE_MS);

@@ -11,6 +11,23 @@
   background: var(--panel);
 }
 
+/* Four tab names and the header's buttons need about 430 px: below that, the tabs not open show only their icon. */
+.git {
+  container-type: inline-size;
+  container-name: right-panel;
+}
+
+@container right-panel (max-width: 430px) {
+  .git-tab:not(.active) .git-tab-label {
+    display: none;
+  }
+
+  .git-tab:not(.active) {
+    gap: 5px;
+    padding: 0 10px;
+  }
+}
+
 .git-tabs {
   height: 36px;
   flex: none;

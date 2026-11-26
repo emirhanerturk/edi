@@ -14,6 +14,7 @@ export function usageFile(env: NodeJS.ProcessEnv, home: string): string {
 /** A file larger than this is not a usage file. */
 const MAX_BYTES = 64 * 1024;
 
+/** A running window; null when none is running (not started yet, or past its reset time: nothing used since). */
 function windowOf(value: unknown, now: number): UsageWindow | null {
   if (typeof value !== 'object' || value === null) return null;
   const { used_percentage: percent, resets_at: resetsAt } = value as Record<string, unknown>;
@@ -23,7 +24,10 @@ function windowOf(value: unknown, now: number): UsageWindow | null {
   return at > now ? { percent, resetsAt: at } : null;
 }
 
-/** The `rate_limits` JSON the bridge writes; null if there is no valid window. */
+/**
+ * The `rate_limits` JSON the bridge writes; null if it names neither window. A window that isn't running
+ * is null: the page shows it at 0%.
+ */
 export function parseUsage(text: string, updatedAt: number, now: number): ClaudeUsage | null {
   let data: unknown;
   try {
@@ -33,10 +37,9 @@ export function parseUsage(text: string, updatedAt: number, now: number): Claude
   }
   if (typeof data !== 'object' || data === null) return null;
   const limits = data as Record<string, unknown>;
-  const fiveHour = windowOf(limits.five_hour, now);
-  const week = windowOf(limits.seven_day, now);
-  if (!fiveHour && !week) return null;
-  return { fiveHour, week, updatedAt };
+  const named = (value: unknown) => typeof value === 'object' && value !== null;
+  if (!named(limits.five_hour) && !named(limits.seven_day)) return null;
+  return { fiveHour: windowOf(limits.five_hour, now), week: windowOf(limits.seven_day, now), updatedAt };
 }
 
 /** Reads the file; the update time is the file's modification time. Null if the file is missing or corrupt. */

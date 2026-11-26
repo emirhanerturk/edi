@@ -1,12 +1,12 @@
 import { tabKeys } from '../components/keys';
 import { Archive } from 'lucide-react';
-import { CloseIcon, CommitIcon, PlusIcon } from '../components/icons';
+import { CloseIcon, CommitIcon, HistoryIcon, PlusIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 
 /** How a tab looks in the bar. */
 export interface TabLabel {
   id: string;
-  kind: 'diff' | 'file' | 'commit' | 'stash' | 'untitled';
+  kind: 'diff' | 'file' | 'history' | 'commit' | 'stash' | 'untitled';
   name: string;
   /** The file's folder; empty if at the root. */
   dir: string;
@@ -52,8 +52,9 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
       >
         {tabs.map((tab) => {
           const isActive = tab.id === active;
-          // Folder on the active tab; "diff" on a background diff tab, to tell it apart from the same file's content tab.
-          const hint = isActive ? tab.dir : tab.kind === 'diff' ? 'diff' : '';
+          // Folder on the active tab; "diff" on a background diff tab, to tell it apart from the same file's content tab;
+          // "history" on a history tab.
+          const hint = tab.kind === 'history' ? 'history' : isActive ? tab.dir : tab.kind === 'diff' ? 'diff' : '';
           return (
             <div
               key={tab.id}
@@ -83,6 +84,7 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
             >
               {tab.kind === 'commit' && <CommitIcon size={13} className="tab-commit-icon" data-testid="commit-icon" />}
               {tab.kind === 'stash' && <Archive size={13} strokeWidth={1.7} className="tab-commit-icon" data-testid="stash-icon" aria-hidden="true" />}
+              {tab.kind === 'history' && <HistoryIcon size={13} className="tab-commit-icon" data-testid="history-icon" />}
               {tab.letter !== null && (
                 <span className="mono tab-letter" style={{ color: letterColor(tab.letter) }}>
                   {tab.letter}

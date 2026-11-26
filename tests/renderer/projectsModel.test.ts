@@ -31,6 +31,7 @@ const view = (id: string, over: Partial<ProjectView> = {}): ProjectView => ({
   openedAt: 10,
   repoCount: 1,
   repos: { order: [], ignored: [] },
+  snippets: [],
   logoUrl: null,
   exists: true,
   open: false,

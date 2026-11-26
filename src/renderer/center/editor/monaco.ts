@@ -91,6 +91,8 @@ export interface EditorHandle {
   setChanges(changes: LineChange[]): void;
   /** Muted text at the end of a line (who changed it); null hides it. `link`: clicking it calls `onNoteClick`. */
   setNote(note: { line: number; text: string; link: boolean } | null): void;
+  /** Scrolls the place into the middle and selects it (1-based line and column). */
+  reveal(line: number, column: number, length: number): void;
 }
 
 export interface EditorOptions {
@@ -189,6 +191,11 @@ export function mountEditor(element: HTMLElement, doc: EditorDocument, options: 
           },
         },
       ]);
+    },
+    reveal(line, column, length) {
+      const range = new monaco.Range(line, column, line, column + length);
+      editor.setSelection(range);
+      editor.revealRangeInCenter(range, monaco.editor.ScrollType.Immediate);
     },
     dispose() {
       subscriptions.forEach((subscription) => subscription.dispose());

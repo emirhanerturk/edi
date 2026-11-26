@@ -52,7 +52,7 @@ describe('ViewErrorBar', () => {
   it('shows a project that could not be opened while another one is open, and it can be dismissed', async () => {
     connect();
     bridge.handlers.workspace!(workspace('/w'));
-    const gone = { id: 'p2', dir: '/gone', name: 'Gone', logo: { kind: 'letter' as const, color: 'blue' as const }, links: [], openedAt: 0, repoCount: 0, repos: { order: [], ignored: [] } };
+    const gone = { id: 'p2', dir: '/gone', name: 'Gone', logo: { kind: 'letter' as const, color: 'blue' as const }, links: [], openedAt: 0, repoCount: 0, repos: { order: [], ignored: [] }, snippets: [] };
     bridge.handlers.projects!([{ ...gone, logoUrl: null, exists: true, open: false }]);
     render(<ViewErrorBar />);
     await useApp.getState().openProject('p2');

@@ -1,8 +1,9 @@
 // The Files tab's changes to the working tree: new files and folders, rename, Trash, Finder, and its context menu.
 import { lstat, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { createEntry, entryPath, renameEntry } from '../git/entries.js';
+import { copyEntry, createEntry, entryPath, renameEntry } from '../git/entries.js';
 import { MAX_WRITE_BYTES, OUTSIDE } from '../git/files.js';
+import { EDITORS } from '../shared/editors.js';
 import type { EntryOpResult, FilesMenuAction, FilesMenuKind, SaveNewResult } from '../shared/api.js';
 import { type Question, renameQuestion, trashQuestion } from './questions.js';
 import type { Workspace } from './workspace.js';
@@ -11,6 +12,8 @@ export interface FileOpsDeps {
   ask(question: Question): Promise<boolean>;
   trash(target: string): Promise<void>;
   reveal(target: string): void;
+  /** Puts the file or folder on the system clipboard, as Finder's Copy does. */
+  copyToClipboard(target: string): void;
   /** Shows the native menu; `-` labels are separators. Resolves with the chosen item's id, or null. */
   menu(items: MenuItem[]): Promise<FilesMenuAction | null>;
   /** The Save panel, starting at `defaultPath`; the chosen absolute path, or null if cancelled. */
@@ -20,6 +23,10 @@ export interface FileOpsDeps {
 export interface MenuItem {
   id: FilesMenuAction | null;
   label: string;
+  enabled?: boolean;
+  /** The key shown beside it; the menu doesn't take the key, the Files tab does. */
+  accelerator?: string;
+  submenu?: MenuItem[];
 }
 
 const UNKNOWN_REPO = { ok: false, error: 'Unknown repository' } as const;
@@ -31,13 +38,40 @@ const KINDS: readonly FilesMenuKind[] = ['repo', 'dir', 'file'];
 const nameOf = (relPath: string) => relPath.slice(relPath.lastIndexOf('/') + 1);
 const count = (value: unknown) => (typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0);
 
-/** The right-click menu of a row in the Files tab. */
-export function menuItems(kind: FilesMenuKind): MenuItem[] {
-  const items: MenuItem[] = [];
-  if (kind !== 'file') items.push({ id: 'newFile', label: 'New File…' }, { id: 'newFolder', label: 'New Folder…' }, SEPARATOR);
-  if (kind !== 'repo') items.push({ id: 'rename', label: 'Rename…' }, { id: 'trash', label: 'Move to Trash' }, SEPARATOR);
-  items.push({ id: 'reveal', label: 'Reveal in Finder' });
-  return items;
+/**
+ * The right-click menu of a row in the Files tab. `canPaste`: something was copied in the Files tab.
+ * The keys shown are the Files tab's own.
+ */
+export function menuItems(kind: FilesMenuKind, canPaste = false): MenuItem[] {
+  const copyPath: MenuItem = { id: 'copyPath', label: 'Copy Path', accelerator: 'Alt+Command+C' };
+  const copyRelative: MenuItem = { id: 'copyRelativePath', label: 'Copy Relative Path', accelerator: 'Shift+Alt+Command+C' };
+  const copy: MenuItem = { id: 'copy', label: 'Copy', accelerator: 'Command+C' };
+  const paste: MenuItem = { id: 'paste', label: 'Paste', accelerator: 'Command+V', enabled: canPaste };
+  const rename: MenuItem = { id: 'rename', label: 'Rename…', accelerator: 'F2' };
+  const remove: MenuItem = { id: 'trash', label: 'Delete', accelerator: 'Command+Backspace' };
+  const reveal: MenuItem = { id: 'reveal', label: 'Reveal in Finder', accelerator: 'Alt+Command+R' };
+  const newItems: MenuItem[] = [{ id: 'newFile', label: 'New File…' }, { id: 'newFolder', label: 'New Folder…' }, SEPARATOR];
+  const terminal: MenuItem = { id: 'newTerminal', label: 'New Terminal Here' };
+  const find: MenuItem = { id: 'find', label: kind === 'repo' ? 'Find in Repository…' : 'Find in Folder…', accelerator: 'Shift+Command+F' };
+  if (kind === 'file') {
+    const openIn: MenuItem = { id: null, label: 'Open in', submenu: EDITORS.map((editor) => ({ id: `openIn:${editor.id}` as const, label: editor.name })) };
+    return [
+      openIn,
+      { id: 'history', label: 'File History' },
+      SEPARATOR,
+      copy,
+      copyPath,
+      copyRelative,
+      SEPARATOR,
+      rename,
+      { id: 'duplicate', label: 'Duplicate', accelerator: 'Command+D' },
+      remove,
+      SEPARATOR,
+      reveal,
+    ];
+  }
+  if (kind === 'dir') return [...newItems, find, terminal, SEPARATOR, copy, paste, copyPath, copyRelative, SEPARATOR, rename, remove, SEPARATOR, reveal];
+  return [...newItems, find, terminal, SEPARATOR, paste, copyPath, SEPARATOR, reveal];
 }
 
 /**
@@ -45,6 +79,9 @@ export function menuItems(kind: FilesMenuKind): MenuItem[] {
  * (see `entries.ts`). After every change the repo's status is read again.
  */
 export class FileOps {
+  /** What Copy put aside for Paste: a file or folder in a discovered repo, checked again when pasted. */
+  private copied: { repoPath: string; relPath: string } | null = null;
+
   constructor(
     private readonly ws: Workspace,
     private readonly deps: FileOpsDeps,
@@ -87,7 +124,8 @@ export class FileOps {
       (info) => info.isDirectory(),
       () => false,
     );
-    if (!(await this.deps.ask(trashQuestion(nameOf(relPath), isDir, count(unsaved))))) return CANCELLED;
+    const changed = (repo.status?.files ?? []).some((file) => file.path === relPath || file.path.startsWith(`${relPath}/`));
+    if (!(await this.deps.ask(trashQuestion(nameOf(relPath), isDir, count(unsaved), changed)))) return CANCELLED;
     try {
       await this.deps.trash(entry.target);
     } catch {
@@ -149,6 +187,42 @@ export class FileOps {
 
   async menu(kind: unknown): Promise<FilesMenuAction | null> {
     if (!KINDS.includes(kind as FilesMenuKind)) return null;
-    return this.deps.menu(menuItems(kind as FilesMenuKind));
+    return this.deps.menu(menuItems(kind as FilesMenuKind, this.copied !== null));
+  }
+
+  /** Copy: the file or folder goes on the clipboard (Finder can paste it) and is kept for Paste. */
+  async copy(repoPath: unknown, relPath: unknown): Promise<EntryOpResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    const entry = await entryPath(repo.path, relPath);
+    if (!entry.ok) return entry;
+    this.copied = { repoPath: repo.path, relPath: relPath as string };
+    this.deps.copyToClipboard(entry.target);
+    return { ok: true, path: relPath as string };
+  }
+
+  /** Paste: what was copied goes into the folder `relDir` ('' is the repo); a name in use gets " copy". */
+  async paste(repoPath: unknown, relDir: unknown): Promise<EntryOpResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    const source = this.copied && this.repo(this.copied.repoPath);
+    if (!this.copied || !source) return { ok: false, error: 'Copy a file or folder first' };
+    const from = await entryPath(source.path, this.copied.relPath);
+    if (!from.ok) return from;
+    const result = await copyEntry(repo.path, from.target, relDir);
+    if (result.ok) await this.ws.refresh(repo.path);
+    return result;
+  }
+
+  /** Duplicate: a copy beside it, "name copy". */
+  async duplicate(repoPath: unknown, relPath: unknown): Promise<EntryOpResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    const entry = await entryPath(repo.path, relPath);
+    if (!entry.ok) return entry;
+    const path = relPath as string;
+    const result = await copyEntry(repo.path, entry.target, path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
+    if (result.ok) await this.ws.refresh(repo.path);
+    return result;
   }
 }

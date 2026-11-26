@@ -91,11 +91,17 @@ export function dropStashQuestion(label: string): Question {
 
 const unsavedLine = (count: number) => `${plural(count, 'open file has', 'open files have')} unsaved changes. They will be lost.`;
 
-/** Before moving a file or folder from the Files tab to the Trash. */
-export function trashQuestion(name: string, isDir: boolean, unsavedFiles: number): Question {
-  const lines = [isDir ? 'The folder and everything in it go to the Trash. You can restore them from there.' : 'You can restore it from the Trash.'];
+/**
+ * Before deleting a file or folder from the Files tab: it goes to the Trash. `uncommitted`: it (or a file
+ * in the folder) has changes git doesn't have yet.
+ */
+export function trashQuestion(name: string, isDir: boolean, unsavedFiles: number, uncommitted = false): Question {
+  const lines = [
+    isDir ? 'The folder and everything in it go to the Trash, and you can put them back from there.' : 'It goes to the Trash, and you can put it back from there.',
+  ];
+  if (uncommitted) lines.push(isDir ? "Some of its files have changes that aren't committed." : "It has changes that aren't committed.");
   if (unsavedFiles > 0) lines.push(unsavedLine(unsavedFiles));
-  return { type: 'warning', message: `Move "${name}" to the Trash?`, detail: lines.join(' '), buttons: ['Move to Trash', 'Cancel'], defaultId: 0, cancelId: 1 };
+  return { type: 'warning', message: `Delete "${name}"?`, detail: lines.join(' '), buttons: ['Delete', 'Cancel'], defaultId: 0, cancelId: 1 };
 }
 
 /** Before renaming a file or folder whose open tabs have unsaved edits (the tabs reload from disk). */
@@ -154,4 +160,48 @@ export function discardTarget(value: unknown): DiscardTarget | null {
     return { kind: 'all', repo: v.repo, changed: v.changed as number, untracked: v.untracked as number };
   }
   return null;
+}
+
+const quoted = (text: string) => `“${text.length > 40 ? `${text.slice(0, 39)}…` : text}”`;
+
+/** Before Replace All. Null if `value` isn't a summary of one. */
+export function replaceAllQuestion(value: unknown): Question | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const counts = [v.count, v.files, v.repos];
+  if (!counts.every((n) => typeof n === 'number' && Number.isInteger(n) && n > 0)) return null;
+  if (typeof v.pattern !== 'string' || typeof v.replacement !== 'string') return null;
+  const [count, files, repos] = counts as number[];
+  return {
+    type: 'warning',
+    message: `Replace ${plural(count!, 'occurrence', 'occurrences')} of ${quoted(v.pattern)} with ${quoted(v.replacement)}?`,
+    detail: `In ${plural(files!, 'file', 'files')} across ${plural(repos!, 'repository', 'repositories')}. A file is written only if it still holds the text this search found. Tabs with unsaved edits are left alone.`,
+    buttons: ['Replace All', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}
+
+/** Before running a snippet marked "Ask before running". `where`: the repository's name, or "the project folder". */
+export function runSnippetQuestion(name: string, where: string, command: string): Question {
+  const oneLine = command.split('\n').join('; ');
+  return {
+    type: 'warning',
+    message: `Run ${quoted(name)}?`,
+    detail: `In ${where}: ${oneLine.length > 300 ? `${oneLine.slice(0, 299)}…` : oneLine}`,
+    buttons: ['Run', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}
+
+export function deleteSnippetQuestion(name: string): Question {
+  return {
+    type: 'warning',
+    message: `Delete the snippet ${quoted(name)}?`,
+    detail: 'Its command is deleted from the project. This cannot be undone.',
+    buttons: ['Delete', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
 }

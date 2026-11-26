@@ -64,8 +64,17 @@ function fitActive(): void {
 }
 
 /** Opens a new terminal and the shell behind it. */
-export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Promise<TerminalCreated> {
+export function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Promise<TerminalCreated> {
+  return openTerminalWith((size) => edi.pty.create({ ...opts, ...size }));
+}
+
+/**
+ * Opens a new terminal whose shell `create` starts, at the terminal's size (a snippet's terminal is
+ * started by the main process). If `create` fails, the terminal goes and the one in front before comes back.
+ */
+export async function openTerminalWith(create: (size: { cols: number; rows: number }) => Promise<TerminalCreated>): Promise<TerminalCreated> {
   if (!container) throw new Error('Terminal area is not ready');
+  const before = activeId;
   const host = document.createElement('div');
   host.className = 'term-host active';
   for (const entry of entries.values()) entry.host.classList.remove('active');
@@ -100,10 +109,11 @@ export async function openTerminal(opts: Omit<NewTerminal, 'cols' | 'rows'>): Pr
 
   let created: TerminalCreated;
   try {
-    created = await edi.pty.create({ ...opts, cols: term.cols, rows: term.rows });
+    created = await create({ cols: term.cols, rows: term.rows });
   } catch (error) {
     term.dispose();
     host.remove();
+    showTerminal(before);
     throw error;
   }
   const { id } = created;
@@ -134,6 +144,18 @@ export function showTerminal(id: number | null): void {
 
 export function writeTerminal(id: number, data: string): void {
   entries.get(id)?.term.write(data);
+}
+
+/**
+ * Puts the text at the terminal's prompt as a paste would, without running it: a shell that takes
+ * bracketed paste keeps several lines together until Return. False if there is no such terminal.
+ */
+export function pasteTerminal(id: number, text: string): boolean {
+  const entry = entries.get(id);
+  if (!entry) return false;
+  entry.term.paste(text);
+  entry.term.focus();
+  return true;
 }
 
 export function disposeTerminal(id: number): void {

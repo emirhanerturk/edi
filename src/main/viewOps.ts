@@ -1,5 +1,7 @@
+import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { diffFile } from '../git/actions.js';
+import { blobSize } from '../git/blob.js';
 import { parseDiff } from '../git/diffParse.js';
 import { OUTPUT_TOO_LARGE } from '../git/exec.js';
 import { type DirList, type FileContent, type FileList, OUTSIDE, listDir, listFiles, locateInRepo, readRepoFile, writeRepoFile, MAX_WRITE_BYTES } from '../git/files.js';
@@ -9,6 +11,7 @@ import { getStatus } from '../git/status.js';
 import type { DiffView, OpResult } from '../shared/api.js';
 import { openIn } from './openIn.js';
 import { type EditorId, isEditorId } from '../shared/editors.js';
+import { mediaOf } from '../shared/media.js';
 import type { Workspace } from './workspace.js';
 
 const UNKNOWN_REPO = { ok: false, error: 'Unknown repository' } as const;
@@ -34,6 +37,19 @@ export class ViewOps {
 
   private repo(repoPath: unknown) {
     return typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
+  }
+
+  /** An image or video's size in bytes: in the working tree, or with `rev` as it was in that commit. Null if it isn't there. */
+  async mediaSize(repoPath: unknown, filePath: unknown, rev: unknown): Promise<number | null> {
+    const repo = this.repo(repoPath);
+    if (!repo || typeof filePath !== 'string' || !mediaOf(filePath)) return null;
+    if (rev !== null) return blobSize(repo.path, rev, filePath);
+    const located = await locateInRepo(repo.path, filePath);
+    if (!located.ok) return null;
+    return stat(located.target).then(
+      (info) => (info.isFile() ? info.size : null),
+      () => null,
+    );
   }
 
   /** The file's full change against HEAD. The path must be in the repo's current list of changes. */

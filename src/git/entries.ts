@@ -1,6 +1,6 @@
 // Making, renaming and finding files and folders for the Files tab. Every path stays inside the repo and out of .git.
-import { link, lstat, mkdir, realpath, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { cp, link, lstat, mkdir, realpath, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import { OUTSIDE, isGitDir, locateInRepo, staysInside } from './files.js';
 
 export type EntryResult = { ok: true; path: string } | { ok: false; error: string };
@@ -133,4 +133,43 @@ export async function renameEntry(repo: string, relPath: unknown, newName: unkno
     return { ok: false, error: 'Could not rename' };
   }
   return { ok: true, path: parent === '' ? newName : `${parent}/${newName}` };
+}
+
+/** The name a copy takes in `folder`: its own if free, else "name copy.ext", "name copy 2.ext"… */
+export async function freeCopyName(folder: string, name: string, isDir: boolean): Promise<string> {
+  if (!(await exists(join(folder, name)))) return name;
+  const dot = isDir ? -1 : name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension = dot > 0 ? name.slice(dot) : '';
+  for (let n = 1; n < 1000; n++) {
+    const candidate = `${stem} copy${n === 1 ? '' : ` ${n}`}${extension}`;
+    if (!(await exists(join(folder, candidate)))) return candidate;
+  }
+  throw new Error('No free name');
+}
+
+/**
+ * Copies a file or folder (`from`: a path found with `entryPath`) into the repo's folder `relDir` ('' is
+ * the repo itself), under its own name or, when that is taken, "name copy": nothing is ever replaced. A
+ * folder isn't copied into itself. The copy's path in the repo is returned.
+ */
+export async function copyEntry(repo: string, from: string, relDir: unknown): Promise<EntryResult> {
+  if (typeof relDir !== 'string' || (relDir !== '' && !staysInside(relDir))) return { ok: false, error: OUTSIDE };
+  const folder = await folderIn(repo, relDir, NO_FOLDER);
+  if (!folder.ok) return folder;
+  const info = await lstat(from).catch(() => null);
+  if (!info) return { ok: false, error: GONE };
+  if (info.isDirectory()) {
+    const inside = relative(await realpath(from), folder.target);
+    if (inside === '' || (!inside.startsWith('..') && !isAbsolute(inside))) return { ok: false, error: 'A folder cannot be copied into itself' };
+  }
+  let target: string;
+  try {
+    target = join(folder.target, await freeCopyName(folder.target, basename(from), info.isDirectory()));
+    // errorOnExist with force off: if the name is taken meanwhile, the copy stops instead of replacing.
+    await cp(from, target, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
+  } catch {
+    return { ok: false, error: 'Could not copy it' };
+  }
+  return { ok: true, path: relative(await realpath(repo), target).split(sep).join('/') };
 }

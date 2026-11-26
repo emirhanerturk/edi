@@ -1,11 +1,12 @@
 import { ArchiveArrowUp, ArchiveX, Pencil } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { StashMenuAction, StashResult } from '../../shared/api';
+import type { CommitFile, StashMenuAction, StashResult } from '../../shared/api';
 import { BranchIcon, CheckIcon, CopyIcon } from '../components/icons';
 import { stashTitle } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo } from '../history/time';
 import { AllFilesButton, CommitFiles, initiallyCollapsed } from './CommitPane';
+import type { MediaPair } from './media';
 import { ViewNote } from './ViewHeader';
 
 export interface StashPaneProps {
@@ -23,10 +24,12 @@ export interface StashPaneProps {
   /** A new message was typed for the stash. */
   onRename(message: string): void;
   onCopy(): void;
+  /** A changed image or video's versions, shown in place of "Binary file". Must be stable. */
+  media?(file: CommitFile): MediaPair | null;
 }
 
 /** A stash: its message, where it was made, Pop / Apply / Rename / Drop, and the diff of every file in it. */
-export function StashPane({ repoName, result, now, tokens, busy, canApply, onAction, onRename, onCopy }: StashPaneProps) {
+export function StashPane({ repoName, result, now, tokens, busy, canApply, onAction, onRename, onCopy, media }: StashPaneProps) {
   const stash = result?.ok ? result.stash : null;
   // As in the commit view: large files start collapsed, and the header button folds or unfolds them all.
   const initial = useMemo(() => (stash ? initiallyCollapsed(stash.files) : new Set<string>()), [stash]);
@@ -153,6 +156,7 @@ export function StashPane({ repoName, result, now, tokens, busy, canApply, onAct
       <CommitFiles
         files={files}
         tokens={tokens}
+        media={media}
         countsOnly={result.stash.tooLarge}
         collapsed={collapsed}
         onToggle={(path) =>

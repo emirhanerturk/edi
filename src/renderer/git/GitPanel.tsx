@@ -1,8 +1,11 @@
+import type { FileChange, GitFileMenuAction } from '../../shared/api';
+import type { EditorId } from '../../shared/editors';
+import { discardHow } from '../../git/discardKind';
 import { edi } from '../bridge';
 import { useApp } from '../store';
 import { useEditOpenProject } from '../components/NoRepos';
 import { GitPanelView, opensIn } from './GitPanelView';
-import { stashTitle } from './model';
+import { type Group, groupFiles, isDeletion, stashTitle } from './model';
 
 /** Stable, so the Unpushed and Incoming sections read only when HEAD or the count moves. */
 const loadUnpushed = (repoPath: string) => edi.unpushed(repoPath);
@@ -10,6 +13,34 @@ const loadIncoming = (repoPath: string) => edi.incoming(repoPath);
 /** Stable, so the Stashes section reads only when the count moves. */
 const loadStashes = (repoPath: string) => edi.stashes(repoPath);
 const stashMenu = (canApply: boolean) => edi.stashMenu(canApply);
+
+/** What was picked from a changed file's menu, or one of the keys it shows. */
+function fileAction(repoPath: string, file: FileChange, action: GitFileMenuAction): void {
+  const state = useApp.getState();
+  if (action === 'openChanges') state.openInCenter({ kind: opensIn(file), repoPath, path: file.path }, false);
+  else if (action === 'openFile') state.openInCenter({ kind: 'file', repoPath, path: file.path }, false);
+  else if (action === 'stage') void state.gitOp(repoPath, { op: 'stage', file });
+  else if (action === 'unstage') void state.gitOp(repoPath, { op: 'unstage', file });
+  else if (action === 'discard') void state.discardChanges(repoPath, file);
+  else if (action === 'copyPath') void navigator.clipboard.writeText(`${repoPath}/${file.path}`).catch(() => undefined);
+  else if (action === 'copyRelativePath') void navigator.clipboard.writeText(file.path).catch(() => undefined);
+  else if (action === 'reveal') void edi.revealEntry(repoPath, file.path);
+  else if (action === 'history') state.openInCenter({ kind: 'history', repoPath, path: file.path }, false);
+  else if (action.startsWith('openIn:')) void state.openIn(action.slice('openIn:'.length) as EditorId, repoPath, file.path);
+}
+
+/** A changed file's native menu, with what applies to it greyed out or left out. */
+async function fileMenu(repoPath: string, file: FileChange, group: Group): Promise<void> {
+  const repo = useApp.getState().workspace.repos.find((candidate) => candidate.path === repoPath);
+  const conflicts = repo?.status ? groupFiles(repo.status).conflicts.length > 0 : false;
+  const action = await edi.gitFileMenu({
+    group,
+    deleted: isDeletion(file, group),
+    untracked: file.kind === 'untracked',
+    canDiscard: group === 'changes' && !conflicts && repo?.busy === null && discardHow(file).how !== 'refuse',
+  });
+  if (action !== null) fileAction(repoPath, file, action);
+}
 
 /** The Git tab bound to app state. */
 export function GitPanel() {
@@ -53,6 +84,8 @@ export function GitPanel() {
       loadIncoming={loadIncoming}
       onOpenCommit={(repoPath, oid, pin) => openInCenter({ kind: 'commit', repoPath, path: oid }, pin)}
       onDiscard={(repoPath, file) => void useApp.getState().discardChanges(repoPath, file)}
+      onFileMenu={(repoPath, file, group) => void fileMenu(repoPath, file, group)}
+      onFileKey={fileAction}
       onUndoCommit={(repoPath, commit) => {
         void edi.confirmUndo(commit.subject).then((yes) => {
           if (yes) void gitOp(repoPath, { op: 'undoCommit', oid: commit.oid });

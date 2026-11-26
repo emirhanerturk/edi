@@ -1,5 +1,7 @@
 import { readCommit } from '../git/commit.js';
 import { runGit } from '../git/exec.js';
+import { staysInside } from '../git/files.js';
+import { type FileChangeResult, type FileHistoryResult, readFileChange, readFileHistory } from '../git/fileHistory.js';
 import { PAGE, readLog } from '../git/log.js';
 import { commitWebUrl } from '../git/remoteUrl.js';
 import type { CommitResult, LogResult } from '../git/types.js';
@@ -42,6 +44,26 @@ export class HistoryOps {
       return { ok: false, error: 'Invalid count' };
     }
     return readLog(repo.path, count);
+  }
+
+  /** The commits that changed the file (its path now), newest first, following renames; `count` as for `log`. */
+  async fileHistory(repoPath: unknown, path: unknown, count: unknown): Promise<FileHistoryResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    if (!staysInside(path)) return { ok: false, error: 'Invalid file path' };
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < PAGE || count > MAX_COUNT || count % PAGE !== 0) {
+      return { ok: false, error: 'Invalid count' };
+    }
+    return readFileHistory(repo.path, path, count);
+  }
+
+  /** The file's change in one commit (a full id from its history); `origPath`: where it was before, if renamed there. */
+  async fileChange(repoPath: unknown, oid: unknown, path: unknown, origPath: unknown): Promise<FileChangeResult> {
+    const repo = this.repo(repoPath);
+    if (!repo) return UNKNOWN_REPO;
+    if (typeof oid !== 'string' || !FULL_OID.test(oid)) return { ok: false, error: 'Invalid commit' };
+    if (!staysInside(path) || (origPath !== null && !staysInside(origPath))) return { ok: false, error: 'Invalid file path' };
+    return readFileChange(repo.path, oid, path, origPath);
   }
 
   async commit(repoPath: unknown, oid: unknown): Promise<CommitResult> {

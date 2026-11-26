@@ -45,6 +45,7 @@ const project: ProjectView = {
   openedAt: 1,
   repoCount: 8,
   repos: { order: [], ignored: [] },
+  snippets: [],
   logoUrl: 'edi-logo://logo/quizei-00000000.png',
   exists: true,
   open: false,

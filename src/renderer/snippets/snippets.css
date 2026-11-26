@@ -1,0 +1,336 @@
+/* Snippets: the button in the terminal tab bar, its menu, and the sheet. */
+.snippets {
+  position: relative;
+  flex: none;
+  display: flex;
+}
+
+.tabbar-snippets {
+  width: 44px;
+  gap: 3px;
+}
+
+.tabbar-snippets.open {
+  background: var(--panel-open);
+  color: var(--text);
+}
+
+.snippets-menu {
+  z-index: 40;
+}
+
+.snippets-filter {
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 2px 4px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.snippets-filter input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.snippets-filter input::placeholder {
+  color: var(--muted);
+}
+
+.snippets-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.snippets-list .menu-label {
+  padding: 8px 9px 3px;
+}
+
+.snippet-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.snippet-row:hover {
+  background: var(--selected);
+}
+
+.snippet-item {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+}
+
+.snippet-row:hover .snippet-item {
+  background: transparent;
+}
+
+.snippet-play {
+  flex: none;
+  width: 16px;
+  display: flex;
+  justify-content: center;
+  color: #7f848e;
+}
+
+.snippet-row:hover .snippet-play {
+  color: var(--text);
+}
+
+.snippet-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.snippet-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.snippet-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.snippet-ask {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.snippet-command {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.snippet-where {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.snippet-edit {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--text-2);
+  background: var(--chip-strong);
+}
+
+.snippet-row:hover .snippet-edit,
+.snippet-edit:focus-visible {
+  display: flex;
+}
+
+.snippet-row:hover .snippet-where {
+  display: none;
+}
+
+.snippets-empty {
+  padding: 12px 9px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.snippets-hint {
+  padding: 6px 9px 3px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* A snippet's tab carries its mark. */
+.tab-snippet-icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.tab.active .tab-snippet-icon {
+  color: var(--text-2);
+}
+
+/* The sheet */
+.snippet-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.snippet-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.snippet-group.on {
+  border-color: var(--accent);
+  background: var(--chip);
+  color: var(--text);
+}
+
+.snippet-group.new {
+  gap: 5px;
+  padding: 0 10px 0 8px;
+  border-style: dashed;
+}
+
+.snippet-group:hover {
+  color: var(--text);
+}
+
+.snippet-group-input {
+  width: 140px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: var(--input);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.snippet-place {
+  position: relative;
+}
+
+.snippet-place-button {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 12px;
+  border-radius: 8px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  text-align: left;
+}
+
+.snippet-place-button:hover {
+  border-color: var(--muted);
+}
+
+.snippet-place-name {
+  flex: none;
+  color: var(--text);
+}
+
+.snippet-place-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.snippet-place-menu {
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.snippet-command-field {
+  min-height: 96px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  user-select: text;
+}
+
+.snippet-command-field:focus {
+  border-color: var(--accent);
+}
+
+.snippet-ask-field {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.snippet-ask-field input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.snippet-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--on-accent);
+}
+
+.snippet-ask-field input:checked + .snippet-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.snippet-ask-field input:focus-visible + .snippet-check {
+  outline: 1px solid var(--muted);
+  outline-offset: 2px;
+}
+
+.snippet-ask-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

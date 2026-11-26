@@ -1,15 +1,17 @@
 import { openKey, treeKeys } from '../components/keys';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { DirEntry, DirList, FileList } from '../../git/types';
-import type { FilesMenuKind, RepoView } from '../../shared/api';
+import type { FilesMenuAction, FilesMenuKind, RepoView } from '../../shared/api';
+import type { EditorId } from '../../shared/editors';
 import { edi } from '../bridge';
 import { FilePlus, Folder, FolderOpen, FolderPlus } from 'lucide-react';
 import { ChevronDown, ChevronRight } from '../components/icons';
 import { FileTypeIcon } from './fileIcons';
 import { type FilesEdit, unsavedUnder } from './filesEdit';
 import { letterColor } from '../git/model';
+import { useSearch } from '../search/searchStore';
 import { useApp } from '../store';
-import { type TreeRow, cachedTree, flattenTree, insideIgnored } from './tree';
+import { type TreeRow, cachedTree, changeSignature, flattenTree, insideIgnored } from './tree';
 import './files.css';
 import { NoRepos, useEditOpenProject } from '../components/NoRepos';
 
@@ -46,6 +48,8 @@ export interface FilesPanelViewProps {
   onTrash?(repoPath: string, path: string): void;
   /** F2 on a file or folder row. */
   onRename?(repoPath: string, path: string): void;
+  /** One of the keys the right-click menu shows (⌘C, ⌘V, ⌘D, ⌥⌘C, ⇧⌥⌘C, ⌥⌘R) on a row ('' is the repo itself). */
+  onAction?(repoPath: string, path: string, kind: FilesMenuKind, action: FilesMenuAction): void;
   /** The last failed file operation (moving to the Trash, Finder); clicking it dismisses it. */
   notice?: string | null;
   onDismissNotice?(): void;
@@ -168,6 +172,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
           onClick={() => onToggle(dirKey(repo.path, ''), !line.open)}
           onNew={props.onNew && ((kind) => props.onNew!(repo.path, '', kind))}
           onMenu={props.onRowMenu && (() => props.onRowMenu!(repo.path, '', 'repo'))}
+          onAction={props.onAction && ((action) => props.onAction!(repo.path, '', 'repo', action))}
         />
       );
     }
@@ -189,6 +194,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
           onMenu={props.onRowMenu && (() => props.onRowMenu!(repo.path, node.path, 'file'))}
           onTrash={props.onTrash && (() => props.onTrash!(repo.path, node.path))}
           onRename={props.onRename && (() => props.onRename!(repo.path, node.path))}
+          onAction={props.onAction && ((action) => props.onAction!(repo.path, node.path, 'file', action))}
           nameEditor={renaming(repo, node.path) ? renameInput(node.name) : undefined}
         />
       );
@@ -208,6 +214,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
           onMenu={props.onRowMenu && (() => props.onRowMenu!(repo.path, node.path, 'dir'))}
           onTrash={props.onTrash && (() => props.onTrash!(repo.path, node.path))}
           onRename={props.onRename && (() => props.onRename!(repo.path, node.path))}
+          onAction={props.onAction && ((action) => props.onAction!(repo.path, node.path, 'dir', action))}
           nameEditor={renaming(repo, node.path) ? renameInput(node.name) : undefined}
         />
       );
@@ -227,6 +234,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
         onMenu={props.onRowMenu && (() => props.onRowMenu!(repo.path, node.path, 'file'))}
         onTrash={props.onTrash && (() => props.onTrash!(repo.path, node.path))}
         onRename={props.onRename && (() => props.onRename!(repo.path, node.path))}
+        onAction={props.onAction && ((action) => props.onAction!(repo.path, node.path, 'file', action))}
         nameEditor={renaming(repo, node.path) ? renameInput(node.name) : undefined}
       />
     );
@@ -260,6 +268,25 @@ export function FilesPanelView(props: FilesPanelViewProps) {
 
 const indent = (depth: number) => 12 + depth * 16;
 
+type KeyEventLike = Pick<KeyboardEvent, 'metaKey' | 'altKey' | 'shiftKey' | 'ctrlKey' | 'code'>;
+
+/**
+ * The action of a key on a row: those its right-click menu shows beside its items. By key position
+ * (`code`), as Option changes the character typed. Null for any other key.
+ */
+export function keyAction(event: KeyEventLike, kind: FilesMenuKind): FilesMenuAction | null {
+  if (!event.metaKey || event.ctrlKey) return null;
+  const { altKey: alt, shiftKey: shift, code } = event;
+  if (code === 'KeyC' && alt) return shift ? (kind === 'repo' ? null : 'copyRelativePath') : 'copyPath';
+  if (code === 'KeyR' && alt && !shift) return 'reveal';
+  if (code === 'KeyF' && shift && !alt) return kind === 'file' ? null : 'find';
+  if (alt || shift) return null;
+  if (code === 'KeyC') return kind === 'repo' ? null : 'copy';
+  if (code === 'KeyV') return 'paste';
+  if (code === 'KeyD') return kind === 'file' ? 'duplicate' : null;
+  return null;
+}
+
 interface TreeItemProps {
   name: string;
   title?: string;
@@ -280,6 +307,8 @@ interface TreeItemProps {
   onMenu?(): void;
   onTrash?(): void;
   onRename?(): void;
+  /** The row's keys besides ⌘⌫ and F2 (see `keyAction`). */
+  onAction?(action: FilesMenuAction): void;
   /** Shown in place of the name while renaming. */
   nameEditor?: ReactNode;
 }
@@ -322,6 +351,11 @@ function TreeItem(props: TreeItemProps) {
         } else if (event.key === 'F2' && props.onRename) {
           event.preventDefault();
           props.onRename();
+        } else if (props.onAction) {
+          const action = keyAction(event, props.nested ? 'file' : kind);
+          if (action === null) return;
+          event.preventDefault();
+          props.onAction(action);
         }
       }}
     >
@@ -425,13 +459,6 @@ function NameInput({ label, initial, selectTo, onSubmit, onCancel }: NameInputPr
     />
   );
 }
-
-/**
- * When it changes, the file list is reread: branch and HEAD (a branch switch, pull or commit changes
- * files even in a clean repo) and the paths of changed files (there may be new or deleted files).
- */
-const changeSignature = (repo: RepoView) =>
-  [repo.status?.head ?? '', repo.status?.headOid ?? '', ...(repo.status?.files ?? []).map((file) => `${file.x}${file.y} ${file.path}`)].join('\n');
 
 /**
  * The Files tab bound to app state. A repo's file list loads the first time its folder is
@@ -564,15 +591,37 @@ export function FilesPanel() {
     } else if (!result.cancelled) setNotice(result.error);
   };
 
-  const rowMenu = async (repoPath: string, path: string, kind: FilesMenuKind) => {
-    const action = await edi.filesMenu(kind);
+  /** A row's action, from its right-click menu or a key. `path` '' is the repo itself. */
+  const act = async (repoPath: string, path: string, kind: FilesMenuKind, action: FilesMenuAction) => {
+    setNotice(null);
     if (action === 'newFile' || action === 'newFolder') startFilesEdit({ mode: 'new', kind: action === 'newFile' ? 'file' : 'dir', repoPath, parent: path });
     else if (action === 'rename') startFilesEdit({ mode: 'rename', repoPath, path });
     else if (action === 'trash') await trash(repoPath, path);
     else if (action === 'reveal') {
       const result = await edi.revealEntry(repoPath, path);
       if (!result.ok) setNotice(result.error);
-    }
+    } else if (action === 'copy') {
+      const result = await edi.copyEntry(repoPath, path);
+      if (!result.ok) setNotice(result.error);
+    } else if (action === 'paste' || action === 'duplicate') {
+      // Pasted into the folder of the row (a file's own folder); a duplicate goes beside it.
+      const folder = kind === 'file' ? path.slice(0, Math.max(0, path.lastIndexOf('/'))) : path;
+      const result = action === 'paste' ? await edi.pasteEntry(repoPath, folder) : await edi.duplicateEntry(repoPath, path);
+      if (!result.ok) return setNotice(result.error);
+      toggleFilesDir(dirKey(repoPath, folder), true);
+      reload(repoPath);
+    } else if (action === 'copyPath') void navigator.clipboard.writeText(path === '' ? repoPath : `${repoPath}/${path}`).catch(() => undefined);
+    else if (action === 'copyRelativePath') void navigator.clipboard.writeText(path).catch(() => undefined);
+    else if (action === 'newTerminal') void useApp.getState().newTab({ repoPath, dir: path });
+    else if (action === 'history') openInCenter({ kind: 'history', repoPath, path }, false);
+    // Find in Folder… / Find in Repository…: the Search tab, limited to that place.
+    else if (action === 'find') useSearch.getState().focusSearch({ repo: repoPath, include: path === '' ? '' : `${path}/**` });
+    else if (action.startsWith('openIn:')) void useApp.getState().openIn(action.slice('openIn:'.length) as EditorId, repoPath, path);
+  };
+
+  const rowMenu = async (repoPath: string, path: string, kind: FilesMenuKind) => {
+    const action = await edi.filesMenu(kind);
+    if (action !== null) await act(repoPath, path, kind, action);
   };
 
   return (
@@ -598,6 +647,7 @@ export function FilesPanel() {
       }}
       onTrash={(repoPath, path) => void trash(repoPath, path)}
       onRename={(repoPath, path) => startFilesEdit({ mode: 'rename', repoPath, path })}
+      onAction={(repoPath, path, kind, action) => void act(repoPath, path, kind, action)}
       notice={notice}
       onDismissNotice={() => setNotice(null)}
     />
