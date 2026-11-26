@@ -83,6 +83,13 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
       }}
       onOpenUrl={(url) => void useApp.getState().openUrl(url)}
       onOpenFile={openFile}
+      onMore={() => {
+        if (!data?.ok) return;
+        const { commit } = data;
+        void edi.commitMenu(repo.path, commit.oid, { links: false, canRevert: commit.parents === 1 }).then((choice) => {
+          if (choice) void useApp.getState().commitAction(repo.path, commit, choice);
+        });
+      }}
     />
   );
 }

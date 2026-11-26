@@ -115,6 +115,19 @@ describe('CommitPane', () => {
     expect(screen.queryByRole('button', { name: 'Open on GitHub' })).toBeNull();
   });
 
+  it('the ⋯ button comes last and calls onMore; without onMore there is none', () => {
+    const url = `https://github.com/quizei/app/commit/${'3ed0fc5'.padEnd(40, 'a')}`;
+    const onMore = vi.fn();
+    renderPane({ ok: true, commit: detail(), webUrl: url }, { onMore });
+    const more = within(screen.getByTestId('commit-meta')).getByRole('button', { name: 'More actions' });
+    expect(more.parentElement!.lastElementChild).toBe(more);
+    fireEvent.click(more);
+    expect(onMore).toHaveBeenCalledTimes(1);
+    cleanup();
+    renderPane({ ok: true, commit: detail() });
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+  });
+
   it('one button collapses every file, and expands them all once all are collapsed', () => {
     renderPane({ ok: true, commit: detail() });
     const expanded = () => screen.getAllByTestId('commit-file-head').map((head) => head.getAttribute('aria-expanded'));

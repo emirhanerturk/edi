@@ -241,3 +241,29 @@ describe('HistoryPanelView: By repo', () => {
     expect(onOpenCommit).toHaveBeenCalledWith('/w/quizei-app-next-quiz', banner.oid, false);
   });
 });
+
+describe('HistoryPanelView: commit menu', () => {
+  it('right-clicking a commit row, a release row or a By repo line asks for its menu', () => {
+    const onCommitMenu = vi.fn();
+    const { onOpenCommit } = renderView({ onCommitMenu });
+    fireEvent.contextMenu(commitRows()[0]!);
+    expect(onCommitMenu).toHaveBeenLastCalledWith('/w/quizei-app', fix);
+    fireEvent.contextMenu(screen.getByTestId('history-release'));
+    expect(onCommitMenu).toHaveBeenLastCalledWith('/w/quizei-app-next-quiz', release);
+    expect(onOpenCommit).not.toHaveBeenCalled();
+    cleanup();
+
+    const byRepo = renderView({ layout: 'byRepo', onCommitMenu });
+    fireEvent.contextMenu(screen.getAllByTestId('history-line')[1]!);
+    expect(onCommitMenu).toHaveBeenLastCalledWith('/w/quizei-app-next-quiz', banner);
+    expect(byRepo.onOpenCommit).not.toHaveBeenCalled();
+  });
+
+  it('a plain click still opens the commit and shows no menu', () => {
+    const onCommitMenu = vi.fn();
+    const { onOpenCommit } = renderView({ onCommitMenu });
+    fireEvent.click(commitRows()[0]!);
+    expect(onOpenCommit).toHaveBeenCalledWith('/w/quizei-app', fix.oid, false);
+    expect(onCommitMenu).not.toHaveBeenCalled();
+  });
+});
