@@ -886,3 +886,16 @@ button.branch-chip:hover {
 .no-repos p {
   margin: 0;
 }
+
+/* A closed repository's terminal and Claude Code buttons show on hover. */
+.repo-launch {
+  flex: none;
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.repo-head:hover .repo-launch,
+.repo-launch:focus-within {
+  display: flex;
+}

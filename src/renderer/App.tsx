@@ -9,6 +9,7 @@ import { ProjectSheet } from './projects/ProjectSheet';
 import { ProjectsScreen } from './projects/ProjectsScreen';
 import { QuickOpen } from './quickOpen/QuickOpen';
 import { RightPanel } from './right/RightPanel';
+import { placeMenuKey, tabPlaces } from './terminals/places';
 import { SnippetSheet } from './snippets/SnippetSheet';
 import { useSearch } from './search/searchStore';
 import { connect, useApp } from './store';
@@ -39,11 +40,24 @@ export function App() {
     };
     // Listened to in the capture phase: the shortcut is handled before it reaches the terminal, even when the terminal has focus.
     const onKey = (event: KeyboardEvent) => {
-      if (!event.metaKey || event.ctrlKey || event.altKey) return;
+      const placeKind = placeMenuKey(event);
+      if (placeKind === null && (!event.metaKey || event.ctrlKey || event.altKey)) return;
       const state = useApp.getState();
       const { tabs, activeTab, newTab, closeTab, activate } = state;
       // The project's terminals and files are behind the Projects screen or a sheet: their shortcuts wait.
       const covered = state.sheet !== null || state.snippetSheet !== null || state.projectsShown || state.workspace.dir === null;
+      if (placeKind !== null) {
+        // ⌥⌘T, ⌥⇧⌘T: where the new terminal or Claude Code session starts. With only the project folder, it just opens there.
+        if (!covered) {
+          state.showQuickOpen(false);
+          area.current = 'terminals';
+          if (tabPlaces(state.workspace, '').length > 1) state.showPlaceMenu(placeKind);
+          else void newTab({ claude: placeKind === 'claude' });
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const key = event.key.toLowerCase();
       let handled = true;
       // Any other shortcut leaves Quick open, and ⌘W only that: what the others do happens behind it.

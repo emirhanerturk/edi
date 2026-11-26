@@ -190,3 +190,79 @@
   border-radius: 5px;
   border: 2px solid var(--bg);
 }
+
+/* The ▾ beside + and ✳+: where the new tab starts. */
+.tabbar-more {
+  flex: none;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.tabbar-more:hover,
+.tabbar-more.open {
+  background: var(--panel-open);
+  color: var(--text);
+}
+
+.place-menu {
+  z-index: 40;
+  overflow-y: auto;
+}
+
+.place-item {
+  height: 32px;
+  flex: none;
+}
+
+.place-icon {
+  flex: none;
+  width: 16px;
+  display: flex;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.place-name {
+  flex: none;
+  color: var(--text);
+}
+
+.place-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.place-sessions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.place-keys {
+  letter-spacing: 1px;
+}
+
+.place-footer {
+  padding: 3px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: normal;
+}
+
+/* The repository a tab started in, after its name. */
+.tab-place {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--muted);
+}

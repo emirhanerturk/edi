@@ -1,6 +1,7 @@
-import { BellIcon, ClaudeMark, CloseIcon, PlusIcon, SnippetIcon, TerminalIcon } from '../components/icons';
+import { BellIcon, ClaudeMark, CloseIcon, SnippetIcon, TerminalIcon } from '../components/icons';
 import { tabPorts } from '../servers/model';
 import { SnippetsMenu } from '../snippets/SnippetsMenu';
+import { NewTabButtons } from './NewTabButtons';
 import { type Tab, useApp } from '../store';
 
 export function TabBar() {
@@ -12,8 +13,8 @@ export function TabBar() {
     <div
       className="tabbar"
       onDoubleClick={(event) => {
-        // Only the empty part: not a tab or a button.
-        if (!(event.target as HTMLElement).closest('.tab, button')) void newTab();
+        // Only the empty part: not a tab, a button or a menu opened from the bar.
+        if (!(event.target as HTMLElement).closest('.tab, button, [role="menu"]')) void newTab();
       }}
     >
       <div className="tabbar-tabs" role="tablist" aria-label="Terminals">
@@ -23,19 +24,7 @@ export function TabBar() {
       </div>
       <div className="spacer" />
       <SnippetsMenu />
-      <button className="tabbar-add" data-testid="new-terminal" aria-label="New terminal" title="New terminal (⌘T)" onClick={() => void newTab()}>
-        <PlusIcon size={14} />
-      </button>
-      <button
-        className="tabbar-add tabbar-add-claude"
-        data-testid="new-claude"
-        aria-label="New Claude Code session"
-        title="New Claude Code session (⇧⌘T)"
-        onClick={() => void newTab({ claude: true })}
-      >
-        <ClaudeMark size={13} />
-        <PlusIcon size={9} strokeWidth={2.4} />
-      </button>
+      <NewTabButtons />
     </div>
   );
 }
@@ -54,7 +43,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       role="tab"
       aria-selected={active}
       tabIndex={-1}
-      title={tab.title}
+      title={tab.place ? `${tab.title} — ${tab.place}` : tab.title}
       onMouseDown={(event) => {
         // Middle click closes the tab.
         if (event.button === 1) {
@@ -65,6 +54,11 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
     >
       {tab.claude ? <ClaudeMark size={13} /> : tab.snippet ? <SnippetIcon size={13} className="tab-snippet-icon" /> : <TerminalIcon size={13} />}
       <span className="tab-title">{tab.title}</span>
+      {tab.place && (
+        <span className="tab-place" data-testid="tab-place">
+          {tab.place}
+        </span>
+      )}
       {ports !== null && (
         <span className="tab-port mono" data-testid="tab-port" title="Listening on localhost">
           {ports}

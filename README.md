@@ -29,7 +29,10 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   hasn't started yet shows 0% (see [Install](#install) for the one-line setup).
 - **Terminals.** Real login shells (`$SHELL -l`) in tabs. A tab is named after the process
   running in front; Claude Code tabs carry a mark, and a bell when a background session
-  stops working and waits for you.
+  stops working and waits for you. + and ✳+ open in the project folder; the ▾ beside each (or
+  ⌥⌘T and ⌥⇧⌘T) lists the project folder and its repositories, with the Claude Code sessions open
+  in each, to start the terminal or session in one of them. A repository's row in the Git tab has
+  the same two buttons. A tab started in a repository shows its name after the tab's.
 - **Snippets.** A project keeps commands you run often, each with a name, an optional group, the
   folder it runs in (the project folder or one of its repositories) and one or more lines. The
   button left of + in the terminal tab bar lists them by group; a click runs one in a new tab named
@@ -137,7 +140,8 @@ npm start        # run the built app
 The development copy keeps its settings in a folder of its own (`edi-dev`), apart from the
 installed app.
 
-`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘P` opens a file by name, `⇧⌘F` searches the files, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab
+`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘P` opens a file by name, `⇧⌘F` searches the files, `⌘T` a terminal, `⇧⌘T` a Claude Code session (`⌥⌘T` and `⌥⇧⌘T` ask in which
+repository), `⌘W` closes the tab
 of the panel in use (the terminal, or the file or diff in the center panel), `⌘1`–`⌘9` switch tabs.
 
 ## Install
