@@ -14,7 +14,9 @@ import {
   type BusyKind,
   type Question,
   busyQuestion,
+  discardChangesQuestion,
   discardQuestion,
+  discardTarget,
   dropStashQuestion,
   removeProjectQuestion,
   revertCommitQuestion,
@@ -698,6 +700,10 @@ export class AppCore {
       this.unsavedFiles = typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : 0;
     });
     ipcMain.handle('git:confirmUndo', (_event, subject: unknown) => this.ask(undoCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
+    ipcMain.handle('git:confirmDiscardChanges', (_event, target: unknown) => {
+      const valid = discardTarget(target);
+      return valid ? this.ask(discardChangesQuestion(valid)) : false;
+    });
     ipcMain.handle('git:confirmRevert', (_event, subject: unknown) => this.ask(revertCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));

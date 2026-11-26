@@ -10,7 +10,7 @@ import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, Fi
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
 
 export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult };
-export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileContent, FileList, LogResult, WriteResult };
+export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, WriteResult };
 export type { StashDetail, StashEntry, StashList, StashResult };
 
 export interface RepoView {
@@ -189,6 +189,9 @@ export type StashRetry = { op: 'switch'; branch: string } | { op: 'pull' };
 export type StashMenuAction = 'pop' | 'apply' | 'drop';
 
 /** A commit's menu (History's right-click, the commit view's ⋯): what was picked. */
+/** What a discard question is about: one file, or every change in a repo (with what happens to them). */
+export type DiscardTarget = { kind: 'file'; name: string; untracked: boolean } | { kind: 'all'; repo: string; changed: number; untracked: number };
+
 export type CommitMenuAction = 'copy' | 'github' | 'revert';
 export type CommitMenuChoice = { action: 'copy' } | { action: 'github'; url: string } | { action: 'revert' };
 
@@ -314,6 +317,8 @@ export interface EdiApi {
   confirmUndo(subject: string): Promise<boolean>;
   /** Asks (native dialog) before reverting the commit with this subject; true to go ahead. */
   confirmRevert(subject: string): Promise<boolean>;
+  /** Asks (native dialog) before discarding changes; true to go ahead. */
+  confirmDiscardChanges(target: DiscardTarget): Promise<boolean>;
   /**
    * A commit's native menu. `links`: Copy SHA and Open on GitHub too (History); without, only Revert
    * (the commit view's ⋯). `canRevert`: false greys Revert out (merge commits). Null if nothing was picked.

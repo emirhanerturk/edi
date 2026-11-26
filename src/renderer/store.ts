@@ -3,6 +3,8 @@ import { create } from 'zustand';
 import type {
   ClaudeUsage,
   CommitMenuChoice,
+  DiscardTarget,
+  FileChange,
   GitOp,
   Layout,
   LogResult,
@@ -35,7 +37,7 @@ import {
   tabId,
 } from './center/tabs';
 import { clampWidths } from './components/Splitter';
-import { isBlockedByLocalChanges, stashTitle } from './git/model';
+import { groupFiles, isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
 import { disposeAllTerminals, disposeTerminal, onTerminalLink, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
@@ -266,6 +268,8 @@ interface AppStore {
   stashAction(repoPath: string, stash: StashEntry, action: StashMenuAction): Promise<void>;
   /** Asks, then reverts the commit; if it fails, the Git tab shows with the repo expanded, so the error is seen. */
   revertCommit(repoPath: string, commit: { oid: string; subject: string }): Promise<void>;
+  /** Asks, then discards the file's unstaged changes, or every change in CHANGES when `file` is null. */
+  discardChanges(repoPath: string, file: FileChange | null): Promise<void>;
   /** What was picked in a commit's menu: copy its hash, open its GitHub page, or revert it. */
   commitAction(repoPath: string, commit: { oid: string; subject: string }, choice: CommitMenuChoice): Promise<void>;
   /** Gives a stash a new message; its tab takes the new name. */
@@ -551,6 +555,19 @@ export const useApp = create<AppStore>((set, get) => ({
     if (get().errors[repoPath] === undefined) return;
     get().setRightTab('git');
     get().toggleRepo(repoPath, true);
+  },
+  async discardChanges(repoPath, file) {
+    const repo = get().workspace.repos.find((candidate) => candidate.path === repoPath);
+    if (!repo?.status) return;
+    let target: DiscardTarget;
+    if (file) target = { kind: 'file', name: file.path.slice(file.path.lastIndexOf('/') + 1), untracked: file.kind === 'untracked' };
+    else {
+      const { changes } = groupFiles(repo.status);
+      const untracked = changes.filter((f) => f.kind === 'untracked').length;
+      target = { kind: 'all', repo: repo.name, changed: changes.length - untracked, untracked };
+    }
+    if (!(await edi.confirmDiscardChanges(target))) return;
+    await get().gitOp(repoPath, file ? { op: 'discard', file } : { op: 'discardAll' });
   },
   async commitAction(repoPath, commit, choice) {
     if (choice.action === 'copy') await navigator.clipboard.writeText(commit.oid).catch(() => undefined);
