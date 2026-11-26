@@ -165,6 +165,8 @@ export type GitOp =
   | { op: 'createBranch'; branch: string }
   /** `git reset --soft HEAD~1`, only if HEAD is still `oid` and isn't pushed. */
   | { op: 'undoCommit'; oid: string }
+  /** `git revert --no-edit`; aborted again at once if it stops on conflicts. */
+  | { op: 'revertCommit'; oid: string }
   /**
    * Every change, new files included, or only the staged ones; `message` may be empty. `then`: a switch
    * or pull that git refused because of the local changes, run again once they are stashed.

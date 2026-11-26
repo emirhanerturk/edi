@@ -1,6 +1,7 @@
 import { commit, createBranch, fetchInBackground, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
 import { type IncomingResult, type UnpushedResult, readIncoming, readUnpushed, undoLastCommit } from '../git/unpushed.js';
 import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash } from '../git/stash.js';
+import { revertCommit } from '../git/revert.js';
 import { getStatus } from '../git/status.js';
 import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
 import type { Workspace } from './workspace.js';
@@ -20,6 +21,8 @@ export function busyLabel(op: GitOp): string {
       return 'Switching…';
     case 'undoCommit':
       return 'Undoing commit…';
+    case 'revertCommit':
+      return 'Reverting…';
     case 'stash':
       return 'Stashing…';
     case 'stashPop':
@@ -68,6 +71,7 @@ function isValidOp(op: unknown): op is GitOp {
     case 'createBranch':
       return typeof o.branch === 'string';
     case 'undoCommit':
+    case 'revertCommit':
     case 'stashPop':
     case 'stashApply':
     case 'stashDrop':
@@ -220,6 +224,8 @@ export class GitOps {
         return createBranch(repo, op.branch);
       case 'undoCommit':
         return undoLastCommit(repo, op.oid);
+      case 'revertCommit':
+        return revertCommit(repo, op.oid);
       case 'stash': {
         const stashed = await pushStash(repo, { message: op.message, staged: op.staged });
         if (!stashed.ok || !op.then) return stashed;
