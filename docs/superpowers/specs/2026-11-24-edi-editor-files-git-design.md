@@ -104,4 +104,5 @@ The file view's editor shows Monaco's minimap, on the right.
 
 - Inline diff peeking from the gutter bars, or staging hunks from the editor.
 - Blame for the whole file at once.
-- Undoing any unpushed commit other than the newest one, or reverting pushed commits.
+- Undoing any unpushed commit other than the newest one. (Reverting commits came later: see
+  `2026-11-26-edi-revert-commit-design.md`.)

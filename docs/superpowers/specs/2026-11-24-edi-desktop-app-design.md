@@ -329,6 +329,11 @@ all loaded don't set the cutoff. (My call.)
   its last three commits, one line each; repos with no recent commits are collapsed
   and show their last commit time. The choice is remembered.
 - Clicking a commit opens the commit view in the center panel.
+- **Right-click menu** on a commit: Copy SHA, Open on GitHub (when it has a page) and Revert
+  Commit…. The commit view's header has the same Revert behind a ⋯ button. Revert asks first,
+  runs `git revert --no-edit`, and aborts again at once if it stops on conflicts; merge commits
+  can't be reverted (2026-11-26, requested by the user; see
+  `2026-11-26-edi-revert-commit-design.md`).
 - The list updates when a commit, pull or fetch is made in that repo, when HEAD
   changes, and with the refresh button.
 

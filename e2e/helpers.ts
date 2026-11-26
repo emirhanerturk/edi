@@ -108,3 +108,13 @@ export async function answerDialogs(app: ElectronApplication, response: number):
 export function askedDialogs(app: ElectronApplication): Promise<Asked[]> {
   return app.evaluate(() => (globalThis as unknown as { __ediDialogs?: Asked[] }).__ediDialogs ?? []);
 }
+
+/** A native menu can't be clicked: the next one picks the item labelled `label` (or nothing if there is none). */
+export async function nextMenuPicks(app: ElectronApplication, label: string): Promise<void> {
+  await app.evaluate(({ Menu }, pick) => {
+    Menu.prototype.popup = function (this: Electron.Menu, options?: Electron.PopupOptions) {
+      this.items.find((item) => item.label === pick)?.click();
+      options?.callback?.();
+    };
+  }, label);
+}

@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { type Page, expect, test } from '@playwright/test';
-import { addRemote, git, launch, makeRepo, tmpDir } from './helpers.js';
+import { addRemote, git, launch, makeRepo, nextMenuPicks, tmpDir } from './helpers.js';
 
 const run = promisify(execFile);
 const GIT_ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
@@ -135,6 +135,49 @@ test('a long commit body shows its first lines until clicked', async () => {
     expect((await message.boundingBox())!.height).toBeGreaterThan(folded * 2);
     await page.getByRole('button', { name: 'Show less' }).click();
     await expect(message).toHaveAttribute('data-folded', 'true');
+  } finally {
+    await app.close();
+  }
+});
+
+test("a commit is reverted from History's menu and from the commit view's ⋯; a conflicting one is aborted", async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  const commit = async (file: string, text: string, message: string) => {
+    await writeFile(join(alpha, file), text);
+    await git(alpha, 'add', '-A');
+    await git(alpha, 'commit', '-q', '-m', message);
+  };
+  await commit('f.txt', 'a\n', 'feat: one');
+  await commit('f.txt', 'b\n', 'feat: two');
+  await commit('g.txt', 'x\n', 'feat: three');
+  const last = async () => (await git(alpha, 'log', '-1', '--format=%s')).trim();
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    // Every question is answered with its first button: Revert commit.
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as typeof dialog.showMessageBox;
+    });
+    await page.getByRole('tab', { name: /History/ }).click();
+    const rows = page.getByTestId('history-commit');
+    await expect(rows.first()).toContainText('feat: three');
+
+    await nextMenuPicks(app, 'Revert Commit…');
+    await rows.filter({ hasText: 'feat: three' }).click({ button: 'right' });
+    await expect(rows.first()).toContainText('Revert "feat: three"');
+    expect(await last()).toBe('Revert "feat: three"');
+    await expect(page.getByRole('tab', { name: /History/ })).toHaveAttribute('aria-selected', 'true');
+
+    // feat: one's line was changed again by feat: two: reverting it conflicts and is aborted.
+    await rows.filter({ hasText: 'feat: one' }).click();
+    await expect(page.locator('.commit-title')).toContainText('feat: one');
+    await nextMenuPicks(app, 'Revert Commit…');
+    await page.getByTestId('commit-more').click();
+    await expect(page.getByTestId('error-box')).toContainText("can't be reverted cleanly");
+    await expect(page.getByRole('tab', { name: /^Git/ })).toHaveAttribute('aria-selected', 'true');
+    expect(await last()).toBe('Revert "feat: three"');
+    expect(await readFile(join(alpha, 'f.txt'), 'utf8')).toBe('b\n');
+    expect(await stat(join(alpha, '.git', 'REVERT_HEAD')).then(() => true, () => false)).toBe(false);
   } finally {
     await app.close();
   }

@@ -512,7 +512,8 @@
   font-size: 11.5px;
 }
 
-.commit-fold {
+.commit-fold,
+.commit-more {
   width: 26px;
   padding: 0;
   justify-content: center;
