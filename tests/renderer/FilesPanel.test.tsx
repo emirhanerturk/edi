@@ -52,6 +52,14 @@ const rows = () => screen.getAllByTestId('tree-row');
 const brief = () => rows().map((row) => `${'-'.repeat(Number(row.dataset.depth))}${row.dataset.name}${row.dataset.badge ? ` ${row.dataset.badge}` : ''}`);
 
 describe('FilesPanelView', () => {
+  it('with every repo ignored, says so and offers Edit project…', () => {
+    const onEditProject = vi.fn();
+    renderView({ repos: [], ignored: 2, onEditProject });
+    expect(screen.getByText('All 2 repositories are ignored')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project…' }));
+    expect(onEditProject).toHaveBeenCalledTimes(1);
+  });
+
   it('each repo is a collapsed top-level folder; a repo with changes is marked', () => {
     renderView();
     expect(brief()).toEqual(['quizei-app ●', 'quizei-api']);

@@ -273,7 +273,7 @@ const without = <T,>(record: Record<string, T>, key: string): Record<string, T> 
   return rest;
 };
 
-const EMPTY: WorkspaceView = { dir: null, repos: [], rootSessions: 0, refreshedAt: 0 };
+const EMPTY: WorkspaceView = { dir: null, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 };
 
 export const useApp = create<AppStore>((set, get) => ({
   ready: false,

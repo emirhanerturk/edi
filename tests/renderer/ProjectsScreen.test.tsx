@@ -43,7 +43,7 @@ beforeEach(() => {
   useApp.setState(initial, true);
   useApp.setState({
     home: '/Users/me',
-    workspace: { dir: null, repos: [], rootSessions: 0, refreshedAt: 0 },
+    workspace: { dir: null, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 },
     projects: [
       view('quizei', {
         repoCount: 8,

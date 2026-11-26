@@ -23,6 +23,7 @@ import {
 import { BranchMenu } from './BranchMenu';
 import { CommitBox } from './CommitBox';
 import { ErrorBox } from './ErrorBox';
+import { NoRepos } from '../components/NoRepos';
 import { StashMenu } from './StashMenu';
 import {
   type Group,
@@ -43,6 +44,9 @@ import {
 
 export interface GitPanelProps {
   repos: RepoView[];
+  /** Repos the project ignores: with none shown, the empty tab says so and offers Edit project…. */
+  ignored?: number;
+  onEditProject?(): void;
   /** Repos the user expanded or collapsed by hand (path → expanded?). */
   expanded: Record<string, boolean>;
   onToggle(repoPath: string, open: boolean): void;
@@ -90,7 +94,7 @@ export function GitPanelView(props: GitPanelProps) {
   const { repos } = props;
   return (
     <div className="git-list">
-      {repos.length === 0 && <p className="git-empty">No git repositories in this folder</p>}
+      {repos.length === 0 && <NoRepos ignored={props.ignored} onEditProject={props.onEditProject} />}
       {repos.map((repo) => (
         <Repo key={repo.path} repo={repo} {...props} />
       ))}

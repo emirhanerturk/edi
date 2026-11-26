@@ -50,7 +50,7 @@ beforeEach(() => {
   useApp.setState(initial, true);
   useApp.setState({
     home: '/Users/me',
-    workspace: { dir: quizei.dir, repos: [], rootSessions: 0, refreshedAt: 0 },
+    workspace: { dir: quizei.dir, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 },
     projects: [quizei, view('edi'), view('gone', { exists: false })],
   });
   for (const fn of Object.values(bridge.edi)) if (vi.isMockFunction(fn)) fn.mockClear();
@@ -59,7 +59,7 @@ afterEach(cleanup);
 
 describe('TitleBar', () => {
   it('shows the app name while no project is open', () => {
-    useApp.setState({ workspace: { dir: null, repos: [], rootSessions: 0, refreshedAt: 0 } });
+    useApp.setState({ workspace: { dir: null, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 } });
     render(<TitleBar />);
     expect(screen.getByTestId('titlebar').textContent).toContain('edi');
     expect(screen.queryByTestId('project-button')).toBeNull();

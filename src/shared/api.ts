@@ -35,6 +35,8 @@ export interface WorkspaceView {
   /** The open folder; null if none. */
   dir: string | null;
   repos: RepoView[];
+  /** Repos found in the folder but ignored by the project (left out of `repos`). */
+  ignored: number;
   /** Claude Code sessions inside the folder but in no repo. */
   rootSessions: number;
   /** When the statuses were last read (epoch ms). */

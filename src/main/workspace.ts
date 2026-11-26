@@ -24,6 +24,8 @@ export class Workspace {
   private repos: RepoView[] = [];
   /** The open project's repo order and ignored repos. */
   private repoSettings: RepoSettings = NO_REPO_SETTINGS;
+  /** Repos found in the folder but left out by the settings. */
+  private ignored = 0;
   private rootSessions = 0;
   private sessionCwds: string[] = [];
   private refreshedAt = 0;
@@ -58,10 +60,11 @@ export class Workspace {
     const generation = ++this.generation;
     this.dir = real;
     this.repoSettings = repos;
-    const found = await this.find(real);
+    const { repos: found, ignored } = await this.find(real);
     // Another folder was opened, or the workspace closed, meanwhile: this one is no longer wanted.
     if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
     this.repos = found.map(emptyView);
+    this.ignored = ignored;
     this.applySessions();
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
     if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
@@ -73,10 +76,11 @@ export class Workspace {
   async rescan(): Promise<void> {
     if (this.dir === null) return;
     const generation = this.generation;
-    const found = await this.find(this.dir);
+    const { repos: found, ignored } = await this.find(this.dir);
     if (generation !== this.generation) return;
     const known = new Map(this.repos.map((repo) => [repo.path, repo]));
     this.repos = found.map((repo) => known.get(repo.path) ?? emptyView(repo));
+    this.ignored = ignored;
     this.applySessions();
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
   }
@@ -95,13 +99,15 @@ export class Workspace {
   }
 
   /** The repos in `dir` as the settings list them. A folder that is itself a repo is shown as is: there is nothing to order. */
-  private async find(dir: string): Promise<Repo[]> {
+  private async find(dir: string): Promise<{ repos: Repo[]; ignored: number }> {
     const found = await discoverRepos(dir);
-    return found.length === 1 && found[0]!.path === dir ? found : arrangeRepos(found, this.repoSettings);
+    if (found.length === 1 && found[0]!.path === dir) return { repos: found, ignored: 0 };
+    const repos = arrangeRepos(found, this.repoSettings);
+    return { repos, ignored: found.length - repos.length };
   }
 
   view(): WorkspaceView {
-    return { dir: this.dir, repos: this.repos, rootSessions: this.rootSessions, refreshedAt: this.refreshedAt };
+    return { dir: this.dir, repos: this.repos, ignored: this.ignored, rootSessions: this.rootSessions, refreshedAt: this.refreshedAt };
   }
 
   /** Only the exact path of a discovered repo matches: paths from the page are validated with this. */
@@ -135,6 +141,7 @@ export class Workspace {
     this.generation++;
     this.dir = null;
     this.repos = [];
+    this.ignored = 0;
     this.rootSessions = 0;
   }
 

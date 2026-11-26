@@ -204,8 +204,10 @@ describe('Workspace', () => {
     it('lists the repos in the project order without the ignored ones, and counts only those', async () => {
       const dir = await fourRepos();
       const { ws } = makeWorkspace();
-      expect(await ws.open(dir, { order: ['c'], ignored: ['b'] })).toEqual({ ok: true, repoCount: 3 });
+      expect(await ws.open(dir, { order: ['c'], ignored: ['b', 'gone'] })).toEqual({ ok: true, repoCount: 3 });
       expect(names(ws)).toEqual(['c', 'a', 'd']);
+      // Only repos that are there count as ignored.
+      expect(ws.view().ignored).toBe(1);
       expect(ws.repo(join(dir, 'b'))).toBeNull();
     });
 
@@ -238,6 +240,7 @@ describe('Workspace', () => {
       const { ws } = makeWorkspace();
       expect(await ws.open(dir, { order: [], ignored: ['solo'] })).toEqual({ ok: true, repoCount: 1 });
       expect(names(ws)).toEqual(['solo']);
+      expect(ws.view().ignored).toBe(0);
     });
 
     it('with every repo ignored, the folder opens with none', async () => {
@@ -245,6 +248,7 @@ describe('Workspace', () => {
       const { ws } = makeWorkspace();
       expect(await ws.open(dir, { order: [], ignored: ['a', 'b', 'c', 'd'] })).toEqual({ ok: true, repoCount: 0 });
       expect(ws.view().repos).toEqual([]);
+      expect(ws.view().ignored).toBe(4);
     });
 
     it('new settings give the count kept, or null when another folder opened meanwhile', async () => {
