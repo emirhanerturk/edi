@@ -52,10 +52,12 @@ test('staging and committing brings the repo back to clean', async () => {
     expect(await git(alpha, 'log', '-1', '--format=%B')).toBe('docs: update the readme\n\nSecond paragraph.\n\n');
     expect(await git(alpha, 'status', '--porcelain')).toBe('?? new.txt\n');
 
-    // Cmd+Enter commits the remaining file as "Commit all"; the repo turns clean and collapses.
+    // Cmd+Enter commits the remaining file as "Commit all"; the repo turns clean and stays open.
     await page.getByTestId('commit-message').fill('feat: add the new file');
     await page.getByTestId('commit-message').press('Meta+Enter');
-    await expect(row).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('file-row')).toHaveCount(0);
+    await expect(row).toHaveAttribute('aria-expanded', 'true');
+    await page.getByTestId('repo-toggle').click();
     await expect(row.getByLabel('Clean')).toBeVisible();
     expect(await git(alpha, 'log', '-1', '--format=%s')).toBe('feat: add the new file\n');
   } finally {
@@ -73,8 +75,11 @@ test('Commit and push sends to the local remote; the button on the collapsed row
     await page.getByTestId('commit-message').fill('feat: first');
     await page.getByLabel('Commit options').click();
     await page.getByRole('menuitem', { name: 'Commit and push' }).click();
-    await expect(page.getByTestId('repo-row')).toHaveAttribute('aria-expanded', 'false');
     await expect.poll(() => git(bare, 'log', '-1', '--format=%s', 'main').catch(() => '')).toBe('feat: first\n');
+    // The repo stays open after the commit; closed by hand, its row has the sync button.
+    await expect(page.getByTestId('repo-row')).toHaveAttribute('aria-expanded', 'true');
+    await page.getByTestId('repo-toggle').click();
+    await expect(page.getByTestId('repo-row')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('sync-button')).toHaveCount(0);
 
     // A new commit, as if made from the terminal: the row shows "Push 1", and pressing it pushes.

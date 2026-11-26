@@ -88,3 +88,30 @@ describe('discarding changes from the store', () => {
     expect(bridge.edi.git).not.toHaveBeenCalled();
   });
 });
+
+describe('keeping the repo open', () => {
+  it('discard, commit and stash pin a repo that opened by itself; other operations do not', async () => {
+    bridge.edi.git.mockResolvedValue({ ok: true, message: '' });
+    const ops: GitOp[] = [
+      { op: 'discard', file: modified },
+      { op: 'discardAll', files: [modified] },
+      { op: 'commit', message: 'feat: x', all: true, push: false },
+      { op: 'stash', message: '', staged: false },
+    ];
+    for (const op of ops) {
+      useApp.setState({ expanded: {} });
+      await useApp.getState().gitOp('/w/app', op);
+      expect(useApp.getState().expanded, op.op).toEqual({ '/w/app': true });
+    }
+    useApp.setState({ expanded: {} });
+    await useApp.getState().gitOp('/w/app', { op: 'push' });
+    expect(useApp.getState().expanded).toEqual({});
+  });
+
+  it('a repo the user closed stays closed', async () => {
+    bridge.edi.git.mockResolvedValue({ ok: true, message: '' });
+    useApp.setState({ expanded: { '/w/app': false } });
+    await useApp.getState().gitOp('/w/app', { op: 'commit', message: 'feat: x', all: true, push: false });
+    expect(useApp.getState().expanded).toEqual({ '/w/app': false });
+  });
+});

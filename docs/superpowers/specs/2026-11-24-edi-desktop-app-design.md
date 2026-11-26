@@ -239,6 +239,8 @@ Three tabs: **Git** (with a badge for the number of changed files), **History**,
 
 All repos one under another. Repos with changes start expanded, clean ones collapsed;
 if the user expanded or collapsed one by hand, that preference holds for the session.
+A repo that opened by itself stays open after a commit, stash or discard empties it
+(2026-11-26, requested by the user).
 
 **Collapsed repo row** (left to right): the name (truncated when space runs short);
 the Claude mark if a Claude Code session is inside it; a gap; the branch; the status

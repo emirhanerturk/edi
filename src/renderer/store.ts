@@ -524,6 +524,10 @@ export const useApp = create<AppStore>((set, get) => ({
   setDraft: (repoPath, message) => set((state) => ({ drafts: { ...state.drafts, [repoPath]: message } })),
   dismissError: (repoPath) => set((state) => ({ errors: without(state.errors, repoPath), retries: without(state.retries, repoPath) })),
   async gitOp(repoPath, op) {
+    // These can leave the repo without changes, which would close a repo that opened by itself because it
+    // had some: it stays open. A repo opened or closed by hand keeps that.
+    const keepsOpen = op.op === 'discard' || op.op === 'discardAll' || op.op === 'commit' || op.op === 'stash';
+    if (keepsOpen && get().expanded[repoPath] === undefined) get().toggleRepo(repoPath, true);
     set((state) => ({ errors: without(state.errors, repoPath), retries: without(state.retries, repoPath) }));
     const result = await edi.git(repoPath, op);
     // A switch or pull refused because of local changes can be run again once they are stashed.
