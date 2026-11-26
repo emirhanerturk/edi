@@ -4,6 +4,7 @@ import { linkText } from '../../shared/projects';
 import { edi } from '../bridge';
 import { GlobeIcon, MoreIcon, PlusIcon, WarningIcon } from '../components/icons';
 import { useNow } from '../components/useNow';
+import { Wordmark } from '../components/Wordmark';
 import { plural, tildify } from '../format';
 import { useApp } from '../store';
 import { ProjectLogo } from './ProjectLogo';
@@ -64,6 +65,7 @@ export function ProjectsScreen({ overlay }: { overlay: boolean }) {
   return (
     <main className={overlay ? 'projects overlay' : 'projects'} data-testid="projects" aria-label="Projects">
       <div className="projects-box">
+        <Wordmark />
         <div className="projects-head">
           <h1>Projects</h1>
           <div className="spacer" />

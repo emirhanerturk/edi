@@ -119,6 +119,7 @@ test('All projects (⇧⌘O) shows the Projects screen over the open project, wh
     await page.keyboard.press('Meta+Shift+o');
     const projects = page.getByTestId('projects');
     await expect(projects).toBeVisible();
+    await expect(projects.getByRole('img', { name: 'edi' })).toBeVisible();
     const cards = page.getByTestId('project-card');
     await expect(cards.nth(0)).toContainText(basename(one));
     await expect(cards.nth(0)).toContainText('Open');

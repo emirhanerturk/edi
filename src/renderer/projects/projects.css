@@ -79,6 +79,27 @@
   gap: 24px;
 }
 
+/* The wordmark above the heading: the name in mono and the green cursor block, as on the icon. */
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-bottom: -8px;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.wordmark-cursor {
+  width: 7px;
+  height: 18px;
+  border-radius: 1px;
+  background: var(--green);
+}
+
 .projects-head {
   display: flex;
   align-items: center;
