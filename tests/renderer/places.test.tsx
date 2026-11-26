@@ -51,7 +51,7 @@ describe('tabPlaces and placeMenuKey', () => {
   });
 });
 
-describe('the ▾ beside + and ✳+', () => {
+describe('+ and ✳+ with repositories to choose from', () => {
   beforeEach(() => {
     useApp.setState({ tabs: [], activeTab: null, placeMenu: null, home: '/Users/me', workspace: QUIZEI });
   });
@@ -60,7 +60,7 @@ describe('the ▾ beside + and ✳+', () => {
     const newTab = vi.fn(async () => undefined);
     useApp.setState({ newTab });
     render(<TabBar />);
-    fireEvent.click(screen.getByTestId('new-claude-in'));
+    fireEvent.click(screen.getByTestId('new-claude'));
     expect(screen.getByText('START CLAUDE CODE IN')).toBeTruthy();
     const items = screen.getAllByTestId('place-item');
     expect(items.map((item) => item.querySelector('.place-name')!.textContent)).toEqual(['Project folder', 'quizei-app', 'quizei-admin']);
@@ -77,20 +77,24 @@ describe('the ▾ beside + and ✳+', () => {
     const newTab = vi.fn(async () => undefined);
     useApp.setState({ newTab });
     render(<TabBar />);
-    fireEvent.click(screen.getByTestId('new-terminal-in'));
+    fireEvent.click(screen.getByTestId('new-terminal'));
     expect(screen.getByText('OPEN A TERMINAL IN')).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByTestId('place-menu')).toBeNull();
-    fireEvent.click(screen.getByTestId('new-terminal-in'));
+    fireEvent.click(screen.getByTestId('new-terminal'));
     fireEvent.click(screen.getAllByTestId('place-item')[0]!);
     expect(newTab).toHaveBeenCalledWith({ claude: false });
   });
 
-  it('has nothing to choose in a project that is one repository', () => {
-    useApp.setState({ workspace: workspace([repo('edi', '/s/edi')], '/s/edi') });
+  it('opens the tab at once in a project that is one repository: there is nothing to choose', () => {
+    const newTab = vi.fn(async () => undefined);
+    useApp.setState({ newTab, workspace: workspace([repo('edi', '/s/edi')], '/s/edi') });
     render(<TabBar />);
-    expect(screen.queryByTestId('new-terminal-in')).toBeNull();
-    expect(screen.queryByTestId('new-claude-in')).toBeNull();
+    expect(screen.getByTestId('new-terminal').getAttribute('aria-haspopup')).toBeNull();
+    fireEvent.click(screen.getByTestId('new-terminal'));
+    fireEvent.click(screen.getByTestId('new-claude'));
+    expect(newTab.mock.calls).toEqual([[], [{ claude: true }]]);
+    expect(screen.queryByTestId('place-menu')).toBeNull();
   });
 });
 
