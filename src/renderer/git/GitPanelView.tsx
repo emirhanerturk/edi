@@ -30,6 +30,7 @@ import {
   type Group,
   type SyncAction,
   changeCount,
+  cleanNote,
   commitTarget,
   groupFiles,
   isDeletion,
@@ -37,6 +38,7 @@ import {
   isPartlyStaged,
   letter,
   letterColor,
+  nextAction,
   splitPath,
   stashLabel,
   stashTitle,
@@ -256,6 +258,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
             canPush={repo.hasRemote}
             onChange={(message) => props.onDraft?.(repo.path, message)}
             onCommit={({ all, push }) => run({ op: 'commit', message: props.drafts?.[repo.path] ?? '', all, push })}
+            next={nextAction(status, repo.hasRemote)}
+            onNext={() => run({ op: nextAction(status, repo.hasRemote)?.kind === 'pull' ? 'pull' : 'push' })}
             aside={
               // git can't stash before the first commit.
               !status.unborn && (
@@ -282,7 +286,7 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
           <FileGroup title="CONFLICTS" group="conflicts" files={groups.conflicts} busy={busy} run={run} {...fileProps} />
           <FileGroup title="STAGED" group="staged" files={groups.staged} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
           <FileGroup title="CHANGES" group="changes" files={groups.changes} busy={busy} run={run} blocked={groups.conflicts.length > 0} {...fileProps} />
-          {count === 0 && <p className="repo-clean">No changes</p>}
+          {count === 0 && <p className="repo-clean">{cleanNote(status, repo.hasRemote)}</p>}
           {repo.status && repo.status.upstream !== null && (repo.status.behind ?? 0) > 0 && (
             <IncomingGroup
               repoPath={repo.path}

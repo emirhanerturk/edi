@@ -14,6 +14,35 @@ export function syncAction(s: RepoStatus, hasRemote = true): SyncAction {
   return null;
 }
 
+/** What the commit button does instead when there is nothing to commit: what the sync button would. */
+export interface NextAction {
+  kind: 'pull' | 'push' | 'publish';
+  /** "Pull · 4 commits", "Push · 1 commit", "Publish branch". */
+  label: string;
+  title: string;
+}
+
+const commits = (n: number) => `${n} ${n === 1 ? 'commit' : 'commits'}`;
+
+/** With nothing to commit: pull, push or publish, as the sync button does (pull first when both). Null when up to date. */
+export function nextAction(s: RepoStatus, hasRemote = true): NextAction | null {
+  if (s.files.length > 0) return null;
+  const action = syncAction(s, hasRemote);
+  if (!action) return null;
+  const upstream = s.upstream ?? 'the remote';
+  if (action.kind === 'pull') return { kind: 'pull', label: `Pull · ${commits(s.behind ?? 0)}`, title: `Pull ${commits(s.behind ?? 0)} from ${upstream}` };
+  if (action.kind === 'push') return { kind: 'push', label: `Push · ${commits(s.ahead ?? 0)}`, title: `Push ${commits(s.ahead ?? 0)} to ${upstream}` };
+  return { kind: 'publish', label: 'Publish branch', title: `Put ${s.head} on the remote and push it` };
+}
+
+/** The line under a repo with nothing to commit: what comes after the button's pull, or why it publishes. */
+export function cleanNote(s: RepoStatus, hasRemote = true): string {
+  const next = nextAction(s, hasRemote);
+  if (next?.kind === 'pull' && (s.ahead ?? 0) > 0) return `No changes · ${s.ahead} to push after the pull`;
+  if (next?.kind === 'publish') return `No changes · ${s.head} isn't on the remote yet`;
+  return 'No changes';
+}
+
 export type Group = 'conflicts' | 'staged' | 'changes';
 
 export interface FileGroups {

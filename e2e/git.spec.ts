@@ -259,3 +259,25 @@ test('a change is discarded from its row; Discard all resets the rest and trashe
     await app.close();
   }
 });
+
+test('with nothing to commit, the main button pushes what is not pushed yet, then waits for a change', async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  const origin = await addRemote(alpha);
+  await git(alpha, 'push', '-q', '-u', 'origin', 'main');
+  await writeFile(join(alpha, 'x.txt'), 'x\n');
+  await git(alpha, 'add', '-A');
+  await git(alpha, 'commit', '-q', '-m', 'feat: x');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    // A clean repo starts closed.
+    await page.getByTestId('repo-toggle').click();
+    await expect(page.getByTestId('next-action')).toHaveText('Push · 1 commit');
+    await page.getByTestId('next-action').click();
+    await expect.poll(async () => (await git(origin, 'log', '-1', '--format=%s', 'main')).trim()).toBe('feat: x');
+    await expect(page.getByTestId('next-action')).toHaveCount(0);
+    await expect(page.getByTestId('commit-button')).toBeDisabled();
+  } finally {
+    await app.close();
+  }
+});

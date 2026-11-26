@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { FileChange, RepoStatus } from '../../src/git/types';
 import {
   changeCount,
+  cleanNote,
   commitTarget,
   fileLetter,
   groupFiles,
@@ -10,6 +11,7 @@ import {
   isExpanded,
   isPartlyStaged,
   letter,
+  nextAction,
   letterColor,
   splitPath,
   stashLabel,
@@ -198,5 +200,44 @@ describe('isBlockedByLocalChanges', () => {
     expect(isBlockedByLocalChanges('error: Your local changes to the following files would be overwritten by checkout:')).toBe(true);
     expect(isBlockedByLocalChanges('error: The following untracked working tree files would be overwritten by merge:')).toBe(true);
     expect(isBlockedByLocalChanges('fatal: Not possible to fast-forward, aborting.')).toBe(false);
+  });
+});
+
+describe('nextAction and cleanNote', () => {
+  const clean = (over: Partial<RepoStatus> = {}): RepoStatus => ({
+    head: 'main',
+    headOid: 'a'.repeat(40),
+    detached: false,
+    unborn: false,
+    upstream: 'origin/main',
+    ahead: 0,
+    behind: 0,
+    stashes: 0,
+    files: [],
+    ...over,
+  });
+
+  it('pulls, pushes or publishes when there is nothing to commit; pulls first when both', () => {
+    expect(nextAction(clean({ behind: 4 }))).toEqual({ kind: 'pull', label: 'Pull · 4 commits', title: 'Pull 4 commits from origin/main' });
+    expect(nextAction(clean({ ahead: 1 }))).toEqual({ kind: 'push', label: 'Push · 1 commit', title: 'Push 1 commit to origin/main' });
+    expect(nextAction(clean({ behind: 4, ahead: 2 }))?.kind).toBe('pull');
+    expect(nextAction(clean({ head: 'feat/badge', upstream: null, ahead: null, behind: null }))).toEqual({
+      kind: 'publish',
+      label: 'Publish branch',
+      title: 'Put feat/badge on the remote and push it',
+    });
+  });
+
+  it('has nothing to do when up to date, when there are changes, without a remote or on a detached HEAD', () => {
+    expect(nextAction(clean())).toBeNull();
+    expect(nextAction(clean({ behind: 4, files: [{ path: 'a.ts', origPath: null, x: '.', y: 'M', kind: 'changed' }] }))).toBeNull();
+    expect(nextAction(clean({ upstream: null, ahead: null, behind: null }), false)).toBeNull();
+    expect(nextAction(clean({ detached: true, behind: 4 }))).toBeNull();
+  });
+
+  it('says what comes after the pull, or why the branch is published', () => {
+    expect(cleanNote(clean({ behind: 4, ahead: 2 }))).toBe('No changes · 2 to push after the pull');
+    expect(cleanNote(clean({ head: 'feat/badge', upstream: null, ahead: null, behind: null }))).toBe("No changes · feat/badge isn't on the remote yet");
+    expect(cleanNote(clean({ behind: 4 }))).toBe('No changes');
   });
 });
