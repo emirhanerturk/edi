@@ -65,6 +65,9 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   line shows who changed it last; clicking that opens the commit. If an agent changes the file under
   unsaved edits, a bar offers "Load disk version" or "Keep mine"; closing an edited tab, quitting
   or switching folders asks first. Images and videos open as a preview. Other files over 1 MB and binary files are not shown.
+- **Quick open.** ⌘P finds a file by its name or path in every repository of the project, grouped by
+  repository with the best match first; files ignored by git are left out. The arrow keys move, Enter
+  opens the file (⌘Enter keeps it in a tab); with nothing typed it lists the files opened last.
 - **History tab.** The recent commits of every repository's current branch in one timeline,
   under day headers, newest first; or grouped by repository. Commits not pushed yet carry an
   arrow, a version commit shows as a tag line, merges are dimmed. Filter to one repository to
@@ -120,7 +123,7 @@ npm start        # run the built app
 The development copy keeps its settings in a folder of its own (`edi-dev`), apart from the
 installed app.
 
-`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab
+`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘P` opens a file by name, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab
 of the panel in use (the terminal, or the file or diff in the center panel), `⌘1`–`⌘9` switch tabs.
 
 ## Install

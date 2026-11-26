@@ -1,5 +1,6 @@
 // Pure logic of the Files tab: a tree from the file list, and on-screen rows from the tree.
 import type { DirEntry, FileChange } from '../../git/types';
+import type { RepoView } from '../../shared/api';
 import { fileLetter } from '../git/model';
 
 export interface TreeNode {
@@ -17,6 +18,13 @@ export interface TreeNode {
   /** A nested repo or a submodule: a folder that stays closed, its files belonging to the other repo. */
   nested: boolean;
 }
+
+/**
+ * When it changes, a repo's file list is reread: branch and HEAD (a branch switch, pull or commit changes
+ * files even in a clean repo) and the paths of changed files (there may be new or deleted files).
+ */
+export const changeSignature = (repo: RepoView) =>
+  [repo.status?.head ?? '', repo.status?.headOid ?? '', ...(repo.status?.files ?? []).map((file) => `${file.x}${file.y} ${file.path}`)].join('\n');
 
 /** A file gone from the working tree: not shown in the list. */
 const isGone = (f: FileChange) => f.kind === 'changed' && (f.y === 'D' || (f.y === '.' && f.x === 'D'));

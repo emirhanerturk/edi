@@ -598,3 +598,37 @@ test('a new untitled file: ⌘N or +, typed, saved through the Save panel into a
     await app.close();
   }
 });
+
+test('Quick open (⌘P) finds a file by name in any repository, opens it, and lists it as recent', async () => {
+  const dir = await tmpDir();
+  await repoWithChanges(dir);
+  const beta = await makeRepo(dir, 'beta');
+  await mkdir(join(beta, 'lib'));
+  await writeFile(join(beta, 'lib', 'models.ts'), 'export {};\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    await page.keyboard.press('Meta+p');
+    const input = page.getByTestId('quick-open-input');
+    await expect(input).toBeFocused();
+    await input.fill('model');
+    await expect(page.getByTestId('quick-open-group')).toHaveCount(1);
+    await expect(page.getByTestId('quick-open-file')).toHaveText([/models\.ts/]);
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('quick-open')).toHaveCount(0);
+    await expect(centerTabs(page).filter({ hasText: 'models.ts' })).toHaveCount(1);
+    await expect(page.getByTestId('center-view')).toHaveAttribute('data-kind', 'file');
+
+    // Opened again with nothing typed, it lists the recent files; Escape closes it.
+    await page.keyboard.press('Meta+p');
+    await expect(page.getByText('RECENTLY OPENED')).toBeVisible();
+    await expect(page.getByTestId('quick-open-file').first()).toContainText('models.ts');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('quick-open')).toHaveCount(0);
+
+    // The file opened from it is in the panel in use: ⌘W closes it.
+    await page.keyboard.press('Meta+w');
+    await expect(centerTabs(page)).toHaveCount(0);
+  } finally {
+    await app.close();
+  }
+});

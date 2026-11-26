@@ -233,3 +233,10 @@ export const HistoryIcon = (p: IconProps) => (
     <path d="M8 5.2v3l2.1 1.3" />
   </Icon>
 );
+/** Search: a magnifier. */
+export const SearchIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.6} {...p}>
+    <circle cx="7" cy="7" r="4.5" />
+    <path d="M10.4 10.4L14 14" />
+  </Icon>
+);

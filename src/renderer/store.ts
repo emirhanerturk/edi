@@ -138,6 +138,20 @@ export interface SheetState {
   serial: number;
 }
 
+/** A file opened in the center panel, for Quick open's recent list. */
+export interface RecentFile {
+  repoPath: string;
+  path: string;
+}
+
+const RECENT_KEPT = 30;
+
+/** Puts the file first in the recent list (newest first), once. */
+export function addRecent(recent: RecentFile[], file: RecentFile): RecentFile[] {
+  if (recent[0]?.repoPath === file.repoPath && recent[0].path === file.path) return recent;
+  return [file, ...recent.filter((other) => other.repoPath !== file.repoPath || other.path !== file.path)].slice(0, RECENT_KEPT);
+}
+
 let sheetSerial = 0;
 const newSheet = (draft: ProjectDraft): SheetState => ({ mode: 'new', projectId: null, draft, serial: ++sheetSerial });
 
@@ -206,6 +220,12 @@ interface AppStore {
   /** Selected tab in the right panel. */
   rightTab: 'git' | 'history' | 'files';
   setRightTab(tab: 'git' | 'history' | 'files'): void;
+
+  /** Quick open (⌘P) is showing. */
+  quickOpen: boolean;
+  showQuickOpen(open: boolean): void;
+  /** Files opened in the center panel, newest first (for Quick open). */
+  recent: RecentFile[];
 
   /** History: repo path → the log read, how many commits were requested and which state it was read for. */
   history: Record<string, HistoryEntry>;
@@ -393,6 +413,10 @@ export const useApp = create<AppStore>((set, get) => ({
 
   rightTab: 'git',
   setRightTab: (tab) => set({ rightTab: tab }),
+
+  quickOpen: false,
+  showQuickOpen: (open) => set({ quickOpen: open && get().workspace.dir !== null }),
+  recent: [],
 
   history: {},
   historyFilter: null,
@@ -629,6 +653,15 @@ useApp.subscribe((state, prev) => {
   if (count !== Object.keys(prev.unsaved).length) edi.setUnsaved(count);
 });
 
+// A file or diff tab that comes to the front goes first in Quick open's recent list.
+useApp.subscribe((state, prev) => {
+  if (state.center.active === prev.center.active || state.center.active === null) return;
+  const tab = state.center.tabs.find((other) => other.id === state.center.active);
+  if (!tab || (tab.kind !== 'file' && tab.kind !== 'diff')) return;
+  const recent = addRecent(state.recent, { repoPath: tab.repoPath, path: tab.path });
+  if (recent !== state.recent) useApp.setState({ recent });
+});
+
 /** Gets the initial state from the main process and subscribes to changes. The returned function unsubscribes. */
 export function connect(): () => void {
   onTerminalLink((url) => void useApp.getState().openUrl(url));
@@ -649,6 +682,9 @@ export function connect(): () => void {
         servers: workspace.dir === state.workspace.dir ? state.servers : [],
         // Another project opened, or none is open: the Projects screen isn't over one any more.
         projectsShown: workspace.dir === state.workspace.dir ? state.projectsShown : false,
+        // Quick open and its recent files belong to the folder.
+        quickOpen: workspace.dir === state.workspace.dir ? state.quickOpen : false,
+        recent: workspace.dir === state.workspace.dir ? state.recent : [],
       })),
     ),
     edi.on('projects', (projects) =>

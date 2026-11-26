@@ -10,7 +10,7 @@ import { FileTypeIcon } from './fileIcons';
 import { type FilesEdit, unsavedUnder } from './filesEdit';
 import { letterColor } from '../git/model';
 import { useApp } from '../store';
-import { type TreeRow, cachedTree, flattenTree, insideIgnored } from './tree';
+import { type TreeRow, cachedTree, changeSignature, flattenTree, insideIgnored } from './tree';
 import './files.css';
 import { NoRepos, useEditOpenProject } from '../components/NoRepos';
 
@@ -457,13 +457,6 @@ function NameInput({ label, initial, selectTo, onSubmit, onCancel }: NameInputPr
     />
   );
 }
-
-/**
- * When it changes, the file list is reread: branch and HEAD (a branch switch, pull or commit changes
- * files even in a clean repo) and the paths of changed files (there may be new or deleted files).
- */
-const changeSignature = (repo: RepoView) =>
-  [repo.status?.head ?? '', repo.status?.headOid ?? '', ...(repo.status?.files ?? []).map((file) => `${file.x}${file.y} ${file.path}`)].join('\n');
 
 /**
  * The Files tab bound to app state. A repo's file list loads the first time its folder is
