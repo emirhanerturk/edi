@@ -115,3 +115,6 @@ export function treeKeys(event: KeyboardEvent<HTMLElement>): void {
   event.preventDefault();
   next?.focus();
 }
+
+/** The app's ⌘ shortcuts that close Quick open (`key`: lower case); ⌘P and its own keys, such as ⌘↵, don't. */
+export const leavesQuickOpen = (key: string) => /^(?:[otnwf1-9])$/.test(key);

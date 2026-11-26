@@ -1,4 +1,5 @@
 // The center panel's tab logic: pure functions that don't change the state but return a new one.
+import { moveItem } from '../components/tabDrag';
 
 /**
  * What can be opened in the center panel: a file's diff, its content, its history, a commit, a stash, or a
@@ -120,6 +121,16 @@ export function replaceCenterTab(s: CenterState, id: string, target: CenterTarge
 export function relabelCenterTab(s: CenterState, id: string, label: string): CenterState {
   if (!s.tabs.some((tab) => tab.id === id && tab.label !== label)) return s;
   return { ...s, tabs: s.tabs.map((tab) => (tab.id === id ? { ...tab, label } : tab)) };
+}
+
+/** Moves tab `id` to `index`, its place once moved (dragged in the tab bar); the active tab stays active. */
+export function moveCenterTab(s: CenterState, id: string, index: number): CenterState {
+  const tabs = moveItem(
+    s.tabs,
+    s.tabs.findIndex((tab) => tab.id === id),
+    index,
+  );
+  return tabs === s.tabs ? s : { ...s, tabs };
 }
 
 export function activateCenterTab(s: CenterState, id: string): CenterState {

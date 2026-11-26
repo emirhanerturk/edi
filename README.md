@@ -65,7 +65,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   with syntax colors; a new file opens with its content. A single click opens a preview tab
   that the next click reuses, a double click keeps the tab. The open view follows the file
   as it changes on disk. Open file shows the whole file next to its diff. ⌘N (or the + in
-  the tab bar) opens a new untitled file; the first ⌘S asks where to save it.
+  the tab bar) opens a new untitled file; the first ⌘S asks where to save it. Its tabs can be
+  dragged into another order, as the terminal tabs can.
 - **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
   (an ignored folder is read from disk one level at a time when you open it). Changed files carry
   their status letter, folders that contain changes a dot; files carry an icon by type. Right-click

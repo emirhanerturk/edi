@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { areaOf, closeTarget } from '../../src/renderer/components/keys';
+import { areaOf, closeTarget, leavesQuickOpen } from '../../src/renderer/components/keys';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -40,5 +40,12 @@ describe('closeTarget', () => {
   it('closes nothing, never a terminal, when the center panel is closed', () => {
     expect(closeTarget('center', { open: false, active: 'file-1' }, 2)).toBeNull();
     expect(closeTarget('side', { open: false, active: null }, 2)).toBeNull();
+  });
+});
+
+describe('leavesQuickOpen', () => {
+  it("closes Quick open for the app's other shortcuts, not for ⌘P or its own ⌘↵", () => {
+    expect(['t', 'n', 'w', 'o', 'f', '1', '9'].every(leavesQuickOpen)).toBe(true);
+    expect(['p', 'enter', 'arrowdown', 'a', 'c', 'v'].some(leavesQuickOpen)).toBe(false);
   });
 });

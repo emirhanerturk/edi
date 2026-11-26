@@ -29,6 +29,7 @@ import {
   EMPTY_CENTER,
   activateCenterTab,
   closeCenterTab,
+  moveCenterTab,
   moveFileTabs,
   openTarget,
   openUntitled,
@@ -40,6 +41,7 @@ import {
   tabId,
 } from './center/tabs';
 import { clampWidths } from './components/Splitter';
+import { moveItem } from './components/tabDrag';
 import { discardHow, goesToTrash } from '../git/discardKind';
 import { groupFiles, isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
@@ -134,21 +136,11 @@ export function removeTab(tabs: Tab[], activeTab: number | null, id: number): { 
 
 /** Moves tab `id` to `index`, its place once moved; the others keep their order. */
 export function moveTab(tabs: Tab[], id: number, index: number): Tab[] {
-  const from = tabs.findIndex((tab) => tab.id === id);
-  if (from === -1) return tabs;
-  const to = Math.max(0, Math.min(index, tabs.length - 1));
-  if (to === from) return tabs;
-  const rest = tabs.filter((tab) => tab.id !== id);
-  return [...rest.slice(0, to), tabs[from]!, ...rest.slice(to)];
-}
-
-/** Where tab `id` lands when dropped before or after tab `target`: its index once moved. */
-export function dropIndex(tabs: Tab[], id: number, target: number, side: 'before' | 'after'): number {
-  const from = tabs.findIndex((tab) => tab.id === id);
-  const at = tabs.findIndex((tab) => tab.id === target);
-  if (from === -1 || at === -1) return from;
-  const to = at + (side === 'after' ? 1 : 0);
-  return from < to ? to - 1 : to;
+  return moveItem(
+    tabs,
+    tabs.findIndex((tab) => tab.id === id),
+    index,
+  );
 }
 
 export interface HistoryEntry {
@@ -257,6 +249,8 @@ interface AppStore {
   replaceCenterTab(id: string, target: CenterTarget): void;
   activateCenterTab(id: string): void;
   pinCenterTab(id: string): void;
+  /** Puts tab `id` at `index` (dragged in the tab bar). */
+  reorderCenterTab(id: string, index: number): void;
   setCenterOpen(open: boolean): void;
   /** Tab ids of files with unsaved edits. */
   unsaved: Record<string, true>;
@@ -493,6 +487,7 @@ export const useApp = create<AppStore>((set, get) => ({
   replaceCenterTab: (id, target) => set((state) => ({ center: replaceCenterTab(state.center, id, target) })),
   activateCenterTab: (id) => set((state) => ({ center: activateCenterTab(state.center, id) })),
   pinCenterTab: (id) => set((state) => ({ center: pinCenterTab(state.center, id) })),
+  reorderCenterTab: (id, index) => set((state) => ({ center: moveCenterTab(state.center, id, index) })),
   setCenterOpen: (open) => set((state) => ({ center: setPanelOpen(state.center, open) })),
   unsaved: {},
   setUnsaved(id, unsaved) {

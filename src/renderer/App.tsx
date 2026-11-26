@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useRef } from 'react';
 import { CenterPanel } from './center/CenterPanel';
-import { type Area, areaOf, closeTarget } from './components/keys';
+import { type Area, areaOf, closeTarget, leavesQuickOpen } from './components/keys';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { ViewErrorBar } from './components/ViewErrorBar';
@@ -60,8 +60,9 @@ export function App() {
       }
       const key = event.key.toLowerCase();
       let handled = true;
-      // Any other shortcut leaves Quick open, and ⌘W only that: what the others do happens behind it.
-      if (state.quickOpen && key !== 'p') {
+      // Another of the app's shortcuts leaves Quick open, and ⌘W only that: what the others do happens behind
+      // it. Its own keys (⌘↵ keeps the file in a tab) are its own.
+      if (state.quickOpen && leavesQuickOpen(key)) {
         state.showQuickOpen(false);
         if (key === 'w' && !event.shiftKey) {
           event.preventDefault();

@@ -1,4 +1,5 @@
 import { tabKeys } from '../components/keys';
+import { useTabDrag } from '../components/tabDrag';
 import { Archive } from 'lucide-react';
 import { CloseIcon, CommitIcon, HistoryIcon, PlusIcon } from '../components/icons';
 import { letterColor } from '../git/model';
@@ -26,10 +27,18 @@ export interface CenterTabsProps {
   onClosePanel(): void;
   /** The + button, or a double click on the empty part of the bar: a new untitled file. */
   onNew?(): void;
+  /** A tab dragged to another place: `index` is its place once moved. */
+  onMove?(id: string, index: number): void;
 }
 
 /** The center panel's tab bar. The button at the right end closes the panel; the tabs stay put. */
-export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePanel, onNew }: CenterTabsProps) {
+export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePanel, onNew, onMove }: CenterTabsProps) {
+  // Drag a tab to reorder, as in the terminal bar; this bar takes only its own tabs.
+  const drag = useTabDrag(
+    tabs.map((tab) => tab.id),
+    'application/x-edi-center-tab',
+    (id, index) => onMove?.(id, index),
+  );
   return (
     <div
       className="tabbar center-tabbar"
@@ -37,6 +46,7 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
         // Only the empty part: not a tab or a button.
         if (!(event.target as HTMLElement).closest('.center-tab, button')) onNew?.();
       }}
+      {...(onMove ? drag.bar : {})}
     >
       <div
         className="tabbar-tabs"
@@ -58,7 +68,8 @@ export function CenterTabs({ tabs, active, onActivate, onPin, onClose, onClosePa
           return (
             <div
               key={tab.id}
-              className={`tab center-tab${isActive ? ' active' : ''}`}
+              className={`tab center-tab${isActive ? ' active' : ''}${onMove ? drag.classes(tab.id) : ''}`}
+              {...(onMove ? drag.tab(tab.id) : {})}
               data-testid="center-tab"
               data-preview={!tab.pinned}
               data-unsaved={tab.unsaved ? 'true' : undefined}

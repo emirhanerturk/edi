@@ -16,7 +16,7 @@ export function CenterPanel() {
   const center = useApp((s) => s.center);
   const repos = useApp((s) => s.workspace.repos);
   const unsaved = useApp((s) => s.unsaved);
-  const { activateCenterTab, pinCenterTab, closeCenterTab, setCenterOpen, newUntitled } = useApp.getState();
+  const { activateCenterTab, pinCenterTab, closeCenterTab, setCenterOpen, newUntitled, reorderCenterTab } = useApp.getState();
 
   if (!center.open) return null;
   const labels: TabLabel[] = center.tabs.map((tab) => {
@@ -59,6 +59,7 @@ export function CenterPanel() {
         onClose={(id) => void closeCenterTab(id)}
         onClosePanel={() => setCenterOpen(false)}
         onNew={newUntitled}
+        onMove={reorderCenterTab}
       />
       {active && <CenterView key={active.id} tab={active} repo={repos.find((repo) => repo.path === active.repoPath) ?? null} />}
     </section>
