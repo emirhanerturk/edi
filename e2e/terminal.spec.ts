@@ -168,7 +168,7 @@ test('an inactive tab\'s close button shows on hover and closes that tab', async
   }
 });
 
-test('the ▾ beside + opens a terminal in a repository, and the tab says which', async () => {
+test('+ lists the repositories to open a terminal in, and the tab says which', async () => {
   const dir = await tmpDir();
   const alpha = await makeRepo(dir, 'alpha');
   await makeRepo(dir, 'beta');
@@ -176,7 +176,7 @@ test('the ▾ beside + opens a terminal in a repository, and the tab says which'
   try {
     const tabs = page.getByTestId('tab');
     await expect(tabs).toHaveCount(1);
-    await page.getByTestId('new-terminal-in').click();
+    await page.getByTestId('new-terminal').click();
     await page.getByTestId('place-item').filter({ hasText: 'alpha' }).click();
     await expect(tabs).toHaveCount(2);
     await expect(tabs.nth(1).getByTestId('tab-place')).toHaveText('alpha');

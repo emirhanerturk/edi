@@ -22,8 +22,8 @@ const TEXT = {
 };
 
 /**
- * + and ✳+ in the terminal tab bar open in the project folder; the ▾ beside each lists the project folder
- * and its repositories, to start the terminal or Claude Code session in one of them.
+ * + and ✳+ in the terminal tab bar: a click lists the project folder and its repositories, to start the
+ * terminal or Claude Code session in one of them. ⌘T and ⇧⌘T still open in the project folder at once.
  */
 export function NewTabButtons() {
   const kind = useApp((s) => s.placeMenu);
@@ -33,8 +33,8 @@ export function NewTabButtons() {
   const places = useMemo(() => tabPlaces(workspace, tildify(workspace.dir ?? '', home)), [workspace, home]);
   // A project that is one repository has only its folder: nothing to choose.
   const choice = places.length > 1;
-  const shellMore = useRef<HTMLButtonElement>(null);
-  const claudeMore = useRef<HTMLButtonElement>(null);
+  const shellButton = useRef<HTMLButtonElement>(null);
+  const claudeButton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const [place, setPlace] = useState<Placement | null>(null);
@@ -45,7 +45,7 @@ export function NewTabButtons() {
       setPlace(null);
       return;
     }
-    const anchor = (kind === 'claude' ? claudeMore : shellMore).current?.getBoundingClientRect();
+    const anchor = (kind === 'claude' ? claudeButton : shellButton).current?.getBoundingClientRect();
     if (anchor) setPlace(placeMenu(anchor, { width: window.innerWidth, height: window.innerHeight }, MENU_SIZE));
   }, [kind]);
 
@@ -55,7 +55,7 @@ export function NewTabButtons() {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const onDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (menu.current?.contains(target) || shellMore.current?.contains(target) || claudeMore.current?.contains(target)) return;
+      if (menu.current?.contains(target) || shellButton.current?.contains(target) || claudeButton.current?.contains(target)) return;
       showPlaceMenu(null);
     };
     const onKey = (event: KeyboardEvent) => {
@@ -90,47 +90,34 @@ export function NewTabButtons() {
 
   return (
     <>
-      <button className="tabbar-add" data-testid="new-terminal" aria-label="New terminal" title="New terminal (⌘T)" onClick={() => void newTab()}>
-        <PlusIcon size={14} />
-      </button>
-      {choice && (
-        <button
-          ref={shellMore}
-          className={`tabbar-more${kind === 'shell' ? ' open' : ''}`}
-          data-testid="new-terminal-in"
-          aria-label="New terminal in…"
-          aria-haspopup="menu"
-          aria-expanded={kind === 'shell'}
-          title="New terminal in… (⌥⌘T)"
-          onClick={() => showPlaceMenu(kind === 'shell' ? null : 'shell')}
-        >
-          <ChevronDown size={9} strokeWidth={2} />
-        </button>
-      )}
+      {/* One click area each: with somewhere to choose, it opens the list; otherwise the tab opens at once. */}
       <button
-        className="tabbar-add tabbar-add-claude"
+        ref={shellButton}
+        className={`tabbar-add${choice ? ' tabbar-pick' : ''}${kind === 'shell' ? ' open' : ''}`}
+        data-testid="new-terminal"
+        aria-label={choice ? 'New terminal in…' : 'New terminal'}
+        aria-haspopup={choice ? 'menu' : undefined}
+        aria-expanded={choice ? kind === 'shell' : undefined}
+        title={choice ? 'New terminal in… (⌘T opens one in the project folder)' : 'New terminal (⌘T)'}
+        onClick={() => (choice ? showPlaceMenu(kind === 'shell' ? null : 'shell') : void newTab())}
+      >
+        <PlusIcon size={14} />
+        {choice && <ChevronDown size={9} strokeWidth={2} />}
+      </button>
+      <button
+        ref={claudeButton}
+        className={`tabbar-add tabbar-add-claude${choice ? ' tabbar-pick' : ''}${kind === 'claude' ? ' open' : ''}`}
         data-testid="new-claude"
-        aria-label="New Claude Code session"
-        title="New Claude Code session (⇧⌘T)"
-        onClick={() => void newTab({ claude: true })}
+        aria-label={choice ? 'New Claude Code session in…' : 'New Claude Code session'}
+        aria-haspopup={choice ? 'menu' : undefined}
+        aria-expanded={choice ? kind === 'claude' : undefined}
+        title={choice ? 'New Claude Code session in… (⇧⌘T starts one in the project folder)' : 'New Claude Code session (⇧⌘T)'}
+        onClick={() => (choice ? showPlaceMenu(kind === 'claude' ? null : 'claude') : void newTab({ claude: true }))}
       >
         <ClaudeMark size={13} />
         <PlusIcon size={9} strokeWidth={2.4} />
+        {choice && <ChevronDown size={9} strokeWidth={2} />}
       </button>
-      {choice && (
-        <button
-          ref={claudeMore}
-          className={`tabbar-more${kind === 'claude' ? ' open' : ''}`}
-          data-testid="new-claude-in"
-          aria-label="New Claude Code session in…"
-          aria-haspopup="menu"
-          aria-expanded={kind === 'claude'}
-          title="New Claude Code session in… (⌥⇧⌘T)"
-          onClick={() => showPlaceMenu(kind === 'claude' ? null : 'claude')}
-        >
-          <ChevronDown size={9} strokeWidth={2} />
-        </button>
-      )}
       {kind !== null && choice && place && (
         <div
           ref={menu}

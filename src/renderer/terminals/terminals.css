@@ -191,18 +191,18 @@
   border: 2px solid var(--bg);
 }
 
-/* The ▾ beside + and ✳+: where the new tab starts. */
-.tabbar-more {
-  flex: none;
-  width: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
+/* + and ✳+ when there is a repository to choose: the ▾ is part of the button, and a click opens the list. */
+.tabbar-add.tabbar-pick {
+  width: auto;
+  gap: 3px;
+  padding: 0 9px;
 }
 
-.tabbar-more:hover,
-.tabbar-more.open {
+.tabbar-add-claude.tabbar-pick {
+  gap: 2px;
+}
+
+.tabbar-add.open {
   background: var(--panel-open);
   color: var(--text);
 }
