@@ -132,6 +132,25 @@ export function removeTab(tabs: Tab[], activeTab: number | null, id: number): { 
   return { tabs: rest.map((tab) => (tab.id === next && tab.waiting ? { ...tab, waiting: false } : tab)), activeTab: next };
 }
 
+/** Moves tab `id` to `index`, its place once moved; the others keep their order. */
+export function moveTab(tabs: Tab[], id: number, index: number): Tab[] {
+  const from = tabs.findIndex((tab) => tab.id === id);
+  if (from === -1) return tabs;
+  const to = Math.max(0, Math.min(index, tabs.length - 1));
+  if (to === from) return tabs;
+  const rest = tabs.filter((tab) => tab.id !== id);
+  return [...rest.slice(0, to), tabs[from]!, ...rest.slice(to)];
+}
+
+/** Where tab `id` lands when dropped before or after tab `target`: its index once moved. */
+export function dropIndex(tabs: Tab[], id: number, target: number, side: 'before' | 'after'): number {
+  const from = tabs.findIndex((tab) => tab.id === id);
+  const at = tabs.findIndex((tab) => tab.id === target);
+  if (from === -1 || at === -1) return from;
+  const to = at + (side === 'after' ? 1 : 0);
+  return from < to ? to - 1 : to;
+}
+
 export interface HistoryEntry {
   limit: number;
   /** The `historyKey` value: the log is reread when it changes. */
@@ -305,6 +324,8 @@ interface AppStore {
   newTab(opts?: { claude?: boolean; repoPath?: string; dir?: string }): Promise<void>;
   closeTab(id: number): void;
   activate(id: number): void;
+  /** Puts tab `id` at `index` (dragged in the tab bar); ⌘1–⌘9 follow the new order. */
+  reorderTab(id: number, index: number): void;
   /** Closes all tabs (when the folder changes). */
   resetTabs(): void;
   /** The list of places a new terminal (`shell`) or Claude Code session starts in, beside + and ✳+; null when closed. */
@@ -608,6 +629,7 @@ export const useApp = create<AppStore>((set, get) => ({
     set((state) => ({ activeTab: id, tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, waiting: false } : tab)) }));
     showTerminal(id);
   },
+  reorderTab: (id, index) => set((state) => ({ tabs: moveTab(state.tabs, id, index) })),
   resetTabs() {
     disposeAllTerminals();
     set({ tabs: [], activeTab: null });

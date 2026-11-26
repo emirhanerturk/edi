@@ -33,7 +33,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   repositories, with the Claude Code sessions open in each, to start the terminal or session in one
   of them (⌥⌘T and ⌥⇧⌘T open the lists from the keyboard; ⌘T and ⇧⌘T open in the project folder at
   once). A repository's row in the Git tab has the same two buttons. A tab started in a repository
-  shows its name after the tab's.
+  shows its name after the tab's. Drag a tab to put it in another place: a line shows where it will
+  land, before or after the tab under the pointer; ⌘1–⌘9 follow the new order.
 - **Snippets.** A project keeps commands you run often, each with a name, an optional group, the
   folder it runs in (the project folder or one of its repositories) and one or more lines. The
   button left of + in the terminal tab bar lists them by group; a click runs one in a new tab named
