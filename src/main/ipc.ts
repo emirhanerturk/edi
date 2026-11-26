@@ -17,6 +17,7 @@ import {
   discardQuestion,
   dropStashQuestion,
   removeProjectQuestion,
+  revertCommitQuestion,
   undoCommitQuestion,
 } from './questions.js';
 import { MEDIA_SCHEME } from '../shared/media.js';
@@ -151,7 +152,7 @@ export class AppCore {
         return result.canceled || !result.filePath ? null : result.filePath;
       },
     });
-    this.historyOps = new HistoryOps(this.workspace);
+    this.historyOps = new HistoryOps(this.workspace, { menu: (items) => this.popup(items) });
     this.ptys = new PtyManager({
       // A shell set through EDI_SHELL is the tests': it doesn't read the profile of whoever runs them.
       shell: process.env.EDI_SHELL,
@@ -697,6 +698,7 @@ export class AppCore {
       this.unsavedFiles = typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : 0;
     });
     ipcMain.handle('git:confirmUndo', (_event, subject: unknown) => this.ask(undoCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
+    ipcMain.handle('git:confirmRevert', (_event, subject: unknown) => this.ask(revertCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
     ipcMain.handle('files:create', (_event, repoPath: unknown, path: unknown, kind: unknown) => this.fileOps.create(repoPath, path, kind));
@@ -718,6 +720,7 @@ export class AppCore {
     ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));
     ipcMain.handle('history:log', (_event, repoPath: unknown, count: unknown) => this.historyOps.log(repoPath, count));
     ipcMain.handle('history:commit', (_event, repoPath: unknown, oid: unknown) => this.historyOps.commit(repoPath, oid));
+    ipcMain.handle('history:commitMenu', (_event, repoPath: unknown, oid: unknown, opts: unknown) => this.historyOps.commitMenu(repoPath, oid, opts));
 
     ipcMain.handle('pty:create', (_event, o: unknown): TerminalCreated => {
       const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;

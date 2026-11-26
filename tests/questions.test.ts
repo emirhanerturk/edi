@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyQuestion, discardQuestion, dropStashQuestion, removeProjectQuestion, renameQuestion, trashQuestion, undoCommitQuestion } from '../src/main/questions.js';
+import { busyQuestion, discardQuestion, dropStashQuestion, removeProjectQuestion, renameQuestion, trashQuestion, revertCommitQuestion, undoCommitQuestion } from '../src/main/questions.js';
 
 describe('busyQuestion', () => {
   it('asks nothing when no terminal is busy and no file has unsaved changes', () => {
@@ -130,5 +130,19 @@ describe('closing and removing a project', () => {
       cancelId: 1,
     });
     expect(removeProjectQuestion('x'.repeat(80)).message).toBe(`Remove "${'x'.repeat(59)}…" from the list?`);
+  });
+});
+
+describe('revertCommitQuestion', () => {
+  it('names the commit and says a new commit undoes it; long subjects are shortened', () => {
+    expect(revertCommitQuestion('feat: a')).toEqual({
+      type: 'warning',
+      message: 'Revert the commit "feat: a"?',
+      detail: 'A new commit is made that undoes its changes. The original commit stays in the history.',
+      buttons: ['Revert commit', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    expect(revertCommitQuestion('x'.repeat(100)).message).toBe(`Revert the commit "${'x'.repeat(59)}…"?`);
   });
 });

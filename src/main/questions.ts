@@ -114,3 +114,16 @@ export function removeProjectQuestion(name: string): Question {
     cancelId: 1,
   };
 }
+
+/** Before reverting a commit: a new commit undoes it. */
+export function revertCommitQuestion(subject: string): Question {
+  const short = subject.length > 60 ? `${subject.slice(0, 59)}…` : subject;
+  return {
+    type: 'warning',
+    message: `Revert the commit "${short}"?`,
+    detail: 'A new commit is made that undoes its changes. The original commit stays in the history.',
+    buttons: ['Revert commit', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}

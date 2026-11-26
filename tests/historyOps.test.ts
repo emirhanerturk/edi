@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HistoryOps } from '../src/main/historyOps.js';
 import { Workspace } from '../src/main/workspace.js';
-import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+import type { CommitMenuAction } from '../src/shared/api.js';
+import { addBareRemote, git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 const open: Workspace[] = [];
 afterEach(() => {
@@ -63,5 +64,62 @@ describe('HistoryOps', () => {
     expect(await ops.commit(repo, oid.slice(0, 7))).toMatchObject({ ok: true, commit: { oid, subject: 'feat: b', files: [{ path: 'b.txt' }] } });
     // No remote, so no GitHub link either.
     expect(await ops.commit(repo, oid)).toMatchObject({ ok: true, webUrl: null });
+  });
+
+  describe('commitMenu', () => {
+    type Item = { id: CommitMenuAction | null; label: string; enabled?: boolean };
+
+    /** A menu that records what it was shown and picks `pick`. */
+    async function withMenu(pick: CommitMenuAction | null) {
+      const dir = await makeTmpDir();
+      const repo = await initRepo(dir, 'a', { commit: true });
+      const ws = new Workspace({ onChange: () => undefined, statusMs: 60_000 });
+      open.push(ws);
+      await ws.open(dir);
+      const shown: Item[][] = [];
+      const ops = new HistoryOps(ws, {
+        menu: async (items) => {
+          shown.push(items);
+          return pick;
+        },
+      });
+      const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
+      return { dir, repo, ops, shown, oid };
+    }
+
+    it('History: Copy SHA and Revert, without Open on GitHub when there is no GitHub remote', async () => {
+      const { repo, ops, shown, oid } = await withMenu('copy');
+      expect(await ops.commitMenu(repo, oid, { links: true, canRevert: true })).toEqual({ action: 'copy' });
+      expect(shown[0]!.map((item) => item.label)).toEqual(['Copy SHA', '-', 'Revert Commit…']);
+      expect(shown[0]!.find((item) => item.id === 'revert')?.enabled).toBe(true);
+    });
+
+    it('a pushed commit on a GitHub remote gets Open on GitHub with its page', async () => {
+      const { repo, ops, shown, oid } = await withMenu('github');
+      await addBareRemote(repo);
+      await git(repo, 'push', '-q', '-u', 'origin', 'main');
+      await git(repo, 'remote', 'set-url', 'origin', 'https://github.com/o/r.git');
+      expect(await ops.commitMenu(repo, oid, { links: true, canRevert: true })).toEqual({ action: 'github', url: `https://github.com/o/r/commit/${oid}` });
+      expect(shown[0]!.map((item) => item.label)).toEqual(['Copy SHA', 'Open on GitHub', '-', 'Revert Commit…']);
+    });
+
+    it('commit view: only Revert, disabled for a merge', async () => {
+      const { repo, ops, shown, oid } = await withMenu('revert');
+      expect(await ops.commitMenu(repo, oid, { links: false, canRevert: false })).toEqual({ action: 'revert' });
+      expect(shown[0]).toEqual([{ id: 'revert', label: 'Revert Commit…', enabled: false }]);
+    });
+
+    it('a bad repo, oid or options shows no menu; closing it picks nothing', async () => {
+      const { dir, repo, ops, shown, oid } = await withMenu(null);
+      const opts = { links: true, canRevert: true };
+      expect(await ops.commitMenu(dir, oid, opts)).toBeNull();
+      expect(await ops.commitMenu(repo, oid.slice(0, 7), opts)).toBeNull();
+      expect(await ops.commitMenu(repo, '--output=x', opts)).toBeNull();
+      expect(await ops.commitMenu(repo, oid, null)).toBeNull();
+      expect(await ops.commitMenu(repo, oid, 'links')).toBeNull();
+      expect(shown).toHaveLength(0);
+      expect(await ops.commitMenu(repo, oid, opts)).toBeNull();
+      expect(shown).toHaveLength(1);
+    });
   });
 });
