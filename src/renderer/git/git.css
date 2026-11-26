@@ -899,3 +899,11 @@ button.branch-chip:hover {
 .repo-launch:focus-within {
   display: flex;
 }
+
+/* With nothing to commit, the commit button pulls, pushes or publishes: filled, with its arrow. */
+.commit-button.commit-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}

@@ -77,3 +77,29 @@ describe('CommitBox', () => {
     expect(onChange).toHaveBeenCalledWith('fix: y');
   });
 });
+
+describe('CommitBox with nothing to commit', () => {
+  const nothing: CommitTarget = { all: false, count: 0, label: 'Commit', enabled: false };
+  const pull = { kind: 'pull' as const, label: 'Pull · 4 commits', title: 'Pull 4 commits from origin/main' };
+
+  it('pulls, pushes or publishes in place of committing, without the commit options', () => {
+    const onNext = vi.fn();
+    render(<CommitBox target={nothing} message="" busy={false} canPush onChange={vi.fn()} onCommit={vi.fn()} next={pull} onNext={onNext} />);
+    const button = screen.getByTestId('next-action') as HTMLButtonElement;
+    expect(button.textContent).toBe('Pull · 4 commits');
+    expect(button.title).toBe('Pull 4 commits from origin/main');
+    expect(screen.queryByTestId('commit-button')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Commit options' })).toBeNull();
+    fireEvent.click(button);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the repository is busy, and commits as usual once something changed', () => {
+    render(<CommitBox target={nothing} message="" busy canPush onChange={vi.fn()} onCommit={vi.fn()} next={pull} onNext={vi.fn()} />);
+    expect((screen.getByTestId('next-action') as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
+    render(<CommitBox target={staged} message="feat: x" busy={false} canPush onChange={vi.fn()} onCommit={vi.fn()} next={pull} onNext={vi.fn()} />);
+    expect(screen.getByTestId('commit-button').textContent).toBe('Commit · 2 files');
+    expect(screen.queryByTestId('next-action')).toBeNull();
+  });
+});

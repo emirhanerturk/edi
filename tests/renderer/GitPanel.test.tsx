@@ -821,3 +821,23 @@ describe('GitPanelView, a terminal or Claude Code in a repository', () => {
     expect(onToggle).not.toHaveBeenCalled();
   });
 });
+
+describe('GitPanelView, the main button with nothing to commit', () => {
+  it('pulls the commits waiting on the remote, from the open repository', () => {
+    const onOp = vi.fn();
+    render(<GitPanelView repos={repos} expanded={{ '/w/quizei-web': true }} onToggle={vi.fn()} onOp={onOp} />);
+    const web = row('quizei-web');
+    expect(within(web).getByTestId('next-action').textContent).toBe('Pull · 2 commits');
+    expect(within(web).getByText('No changes')).toBeTruthy();
+    fireEvent.click(within(web).getByTestId('next-action'));
+    expect(onOp).toHaveBeenCalledWith('/w/quizei-web', { op: 'pull' });
+  });
+
+  it('pushes the commits not pushed yet', () => {
+    const onOp = vi.fn();
+    render(<GitPanelView repos={repos} expanded={{ '/w/quizei-api': true }} onToggle={vi.fn()} onOp={onOp} />);
+    fireEvent.click(within(row('quizei-api')).getByTestId('next-action'));
+    expect(onOp).toHaveBeenCalledWith('/w/quizei-api', { op: 'push' });
+    expect(within(row('quizei-api')).getByTestId('next-action').textContent).toBe('Push · 1 commit');
+  });
+});
