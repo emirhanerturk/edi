@@ -42,6 +42,7 @@ const api: EdiApi = {
   stashes: (repoPath) => ipcRenderer.invoke('git:stashes', repoPath),
   stash: (repoPath, oid) => ipcRenderer.invoke('git:stash', repoPath, oid),
   stashMenu: (canApply) => ipcRenderer.invoke('git:stashMenu', canApply),
+  gitFileMenu: (state) => ipcRenderer.invoke('git:fileMenu', state),
   confirmDropStash: (label) => ipcRenderer.invoke('git:confirmDropStash', label),
   diff: (repoPath, filePath) => ipcRenderer.invoke('view:diff', repoPath, filePath),
   readFile: (repoPath, filePath) => ipcRenderer.invoke('view:read', repoPath, filePath),

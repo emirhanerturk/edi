@@ -220,6 +220,19 @@ export type FilesMenuAction =
   | 'newTerminal'
   | `openIn:${EditorId}`;
 
+/** A Git tab file row, for its right-click menu: what applies to it. */
+export interface GitFileMenuState {
+  group: 'staged' | 'changes' | 'conflicts';
+  /** Deleted in the working tree: there is no file to open or show in Finder. */
+  deleted: boolean;
+  /** Not tracked yet: a click opens its content, and it has no history. */
+  untracked: boolean;
+  /** Whether Discard Changes can run now. */
+  canDiscard: boolean;
+}
+
+export type GitFileMenuAction = 'openChanges' | 'openFile' | 'stage' | 'unstage' | 'discard' | 'copyPath' | 'copyRelativePath' | 'reveal' | `openIn:${EditorId}`;
+
 /** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
 
@@ -343,6 +356,8 @@ export interface EdiApi {
   stashes(repoPath: string): Promise<StashList>;
   /** One stash and its changes, for the stash view; `oid` is the stash commit's full id. */
   stash(repoPath: string, oid: string): Promise<StashResult>;
+  /** The native right-click menu of a changed file's row in the Git tab; the picked action, or null. */
+  gitFileMenu(state: GitFileMenuState): Promise<GitFileMenuAction | null>;
   /** The native right-click menu of a stash row; Pop and Apply are greyed out unless `canApply`. */
   stashMenu(canApply: boolean): Promise<StashMenuAction | null>;
   /** Asks (native dialog) before dropping the stash with this label; true to go ahead. */

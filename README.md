@@ -36,7 +36,9 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   there is nothing to commit; each group folds. Stage, unstage,
   commit, commit and push, pull, push, fetch all, switch and create branches. Commits not
   pushed yet are listed under the repository; the newest can be undone (its changes come
-  back staged). Every repository with a remote is fetched in the background every three
+  back staged). Right-click a changed file to open its change or the file, open it in an editor,
+  stage, unstage or discard it, copy its path or show it in Finder. Every repository with a remote is
+  fetched in the background every three
   minutes and when you come back to the window (View > Fetch Automatically turns it off);
   the commits a pull would bring are listed as Incoming, with who made each.
 - **Stash.** The button next to Commit stashes every change, new files included (or only the

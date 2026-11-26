@@ -49,6 +49,7 @@ import type {
 import { AutoFetch } from './autoFetch.js';
 import { KeepAwake } from './keepAwake.js';
 import { FileOps } from './fileOps.js';
+import { gitFileMenuItems, gitFileMenuState } from './gitMenu.js';
 import { GitOps } from './gitOps.js';
 import { PtyManager } from './pty.js';
 import { type Persisted, loadState, mergeLayout, saveState, saveStateSync } from './store.js';
@@ -715,6 +716,10 @@ export class AppCore {
         { id: null, label: '-' },
         { id: 'drop', label: 'Drop…' },
       ]);
+    });
+    ipcMain.handle('git:fileMenu', (_event, state: unknown) => {
+      const valid = gitFileMenuState(state);
+      return valid ? this.popup(gitFileMenuItems(valid)) : null;
     });
     ipcMain.handle('git:confirmDropStash', (_event, label: unknown) => this.ask(dropStashQuestion(typeof label === 'string' ? label : 'this stash')));
     // Read-only view operations: paths are validated in ViewOps.

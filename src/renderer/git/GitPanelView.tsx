@@ -76,6 +76,10 @@ export interface GitPanelProps {
   onUndoCommit?(repoPath: string, commit: CommitSummary): void;
   /** Discard in CHANGES: one file's unstaged changes, or all of them when `file` is null (the caller asks first). */
   onDiscard?(repoPath: string, file: FileChange | null): void;
+  /** Right-click on a changed file's row. */
+  onFileMenu?(repoPath: string, file: FileChange, group: Group): void;
+  /** A key on a changed file's row: ⌥⌘C, ⇧⌥⌘C or ⌥⌘R (what its menu shows). */
+  onFileKey?(repoPath: string, file: FileChange, action: 'copyPath' | 'copyRelativePath' | 'reveal'): void;
   /** The open folder is this one repo: its stashes expand it and are all listed. */
   single?: boolean;
   /** The repo's stashes; read when an expanded repo has any. */
@@ -129,6 +133,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
     openIn: (file: FileChange, editor: EditorId) => props.onOpenIn?.(repo.path, file.path, editor),
     repoPath: repo.path,
     discard: props.onDiscard && ((file: FileChange | null) => props.onDiscard!(repo.path, file)),
+    menu: props.onFileMenu && ((file: FileChange, group: Group) => props.onFileMenu!(repo.path, file, group)),
+    fileKey: props.onFileKey && ((file: FileChange, action: 'copyPath' | 'copyRelativePath' | 'reveal') => props.onFileKey!(repo.path, file, action)),
   };
 
   if (!status) {
@@ -356,6 +362,8 @@ function SyncIcons(props: { ahead: number; behind: number; hasRemote: boolean; p
 }
 
 interface FileGroupProps {
+  menu?(file: FileChange, group: Group): void;
+  fileKey?(file: FileChange, action: 'copyPath' | 'copyRelativePath' | 'reveal'): void;
   title: string;
   group: Group;
   files: FileChange[];
@@ -420,7 +428,7 @@ function GroupHead(props: { title: string; count: number; collapsed: boolean; on
 /** What clicking a changed file's row opens: a new file has no old version, so it opens in the file view. */
 export const opensIn = (file: FileChange) => (file.kind === 'untracked' ? 'file' : 'diff');
 
-function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath, discard: discardAny }: FileGroupProps) {
+function FileGroup({ title, group, files, busy, run, blocked, open, openIn, selectedPath, selectedKind, repoPath, discard: discardAny, menu, fileKey }: FileGroupProps) {
   const discard = group === 'changes' ? discardAny : undefined;
   const [collapsed, toggle] = useCollapsed(`${repoPath}\n${group}`);
   if (files.length === 0) return null;
@@ -465,7 +473,20 @@ function FileGroup({ title, group, files, busy, run, blocked, open, openIn, sele
         )}
       </GroupHead>
       {!collapsed && files.map((file) => (
-        <FileRow key={file.path} file={file} group={group} busy={busy} blocked={blocked} discard={discard} run={run} open={open} openIn={openIn} selected={file.path === selectedPath && selectedKind === opensIn(file)} />
+        <FileRow
+          key={file.path}
+          file={file}
+          group={group}
+          busy={busy}
+          blocked={blocked}
+          discard={discard}
+          run={run}
+          open={open}
+          openIn={openIn}
+          menu={menu}
+          fileKey={fileKey}
+          selected={file.path === selectedPath && selectedKind === opensIn(file)}
+        />
       ))}
     </div>
   );
@@ -733,10 +754,12 @@ interface FileRowProps {
   /** There are conflicts in the repo: discarding is refused. */
   blocked?: boolean;
   discard?(file: FileChange): void;
+  menu?(file: FileChange, group: Group): void;
+  fileKey?(file: FileChange, action: 'copyPath' | 'copyRelativePath' | 'reveal'): void;
 }
 
 /** Clicking a row opens the file in the center panel; the buttons on the right only discard, stage or unstage. */
-function FileRow({ file, group, busy, blocked, discard, selected, run, open, openIn }: FileRowProps) {
+function FileRow({ file, group, busy, blocked, discard, selected, run, open, openIn, menu, fileKey }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
   const discardButton = () => {
@@ -776,8 +799,22 @@ function FileRow({ file, group, busy, blocked, discard, selected, run, open, ope
       onClick={() => open(file, false)}
       onDoubleClick={() => open(file, true)}
       onKeyDown={(event) => {
-        if (event.target === event.currentTarget) openKey(event, (pin) => open(file, pin));
+        if (event.target !== event.currentTarget) return;
+        if (openKey(event, (pin) => open(file, pin))) return;
+        // The keys its menu shows; by position, as Option changes the character.
+        if (!fileKey || !event.metaKey || !event.altKey || event.ctrlKey) return;
+        const action = event.code === 'KeyC' ? (event.shiftKey ? 'copyRelativePath' : 'copyPath') : event.code === 'KeyR' && !event.shiftKey ? 'reveal' : null;
+        if (action === null) return;
+        event.preventDefault();
+        fileKey(file, action);
       }}
+      onContextMenu={
+        menu &&
+        ((event) => {
+          event.preventDefault();
+          menu(file, group);
+        })
+      }
     >
       <span className="file-letter mono" style={{ color: letterColor(mark) }}>
         {mark}

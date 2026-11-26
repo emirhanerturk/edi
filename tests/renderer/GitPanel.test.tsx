@@ -774,3 +774,35 @@ describe('An open repo without changes', () => {
     expect(onDraft).toHaveBeenCalledWith('/w/app', 'feat: next two');
   });
 });
+
+describe('A changed file row', () => {
+  afterEach(cleanup);
+
+  it('a right click asks for its menu with its group; ⌥⌘C and ⌥⌘R act on it', () => {
+    const onFileMenu = vi.fn();
+    const onFileKey = vi.fn();
+    const changed = file('src/a.ts', '.', 'M');
+    render(
+      <GitPanelView
+        repos={[repo('app', { status: status({ files: [changed, file('b.ts', 'M', '.')] }) })]}
+        expanded={{}}
+        onToggle={() => undefined}
+        onFileMenu={onFileMenu}
+        onFileKey={onFileKey}
+      />,
+    );
+    const rowOf = (path: string, group: string) => document.querySelector(`[data-testid="file-row"][data-path="${path}"][data-group="${group}"]`) as HTMLElement;
+    fireEvent.contextMenu(rowOf('src/a.ts', 'changes'));
+    expect(onFileMenu).toHaveBeenCalledWith('/w/app', changed, 'changes');
+    fireEvent.contextMenu(rowOf('b.ts', 'staged'));
+    expect(onFileMenu).toHaveBeenLastCalledWith('/w/app', expect.objectContaining({ path: 'b.ts' }), 'staged');
+    fireEvent.keyDown(rowOf('src/a.ts', 'changes'), { key: 'ç', code: 'KeyC', metaKey: true, altKey: true });
+    expect(onFileKey).toHaveBeenLastCalledWith('/w/app', changed, 'copyPath');
+    fireEvent.keyDown(rowOf('src/a.ts', 'changes'), { key: 'Ç', code: 'KeyC', metaKey: true, altKey: true, shiftKey: true });
+    expect(onFileKey).toHaveBeenLastCalledWith('/w/app', changed, 'copyRelativePath');
+    fireEvent.keyDown(rowOf('src/a.ts', 'changes'), { key: '®', code: 'KeyR', metaKey: true, altKey: true });
+    expect(onFileKey).toHaveBeenLastCalledWith('/w/app', changed, 'reveal');
+    fireEvent.keyDown(rowOf('src/a.ts', 'changes'), { key: 'c', code: 'KeyC', metaKey: true });
+    expect(onFileKey).toHaveBeenCalledTimes(3);
+  });
+});
