@@ -64,6 +64,8 @@ more usable title bar. Every choice below not named so is my call.
   picked tile's path is written under them.
 - **Links**: rows of address and label, a star for the main one, a remove button; Add link. An
   address that isn't a web address turns red and stops Create.
+- **Repositories** (since 2026-11-26, see `2026-11-26-edi-repo-order-design.md`): before Links, the
+  repos found in the folder in the project's order; drag or ⌥↑/⌥↓ to reorder, untick to ignore.
 - Edit project… has **Save** and **Remove from list**. Removing asks first ("Remove "X" from the
   list?"), says the folder stays, and closes the open project first (asking if a terminal is busy).
 

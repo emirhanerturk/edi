@@ -338,7 +338,9 @@ export class AppCore {
     if (previous !== null && resolve(dir) !== previous && (await isDir(dir))) {
       if (!(await this.confirmBusy('switch'))) return CANCELLED;
     }
-    const result = await this.workspace.open(dir);
+    // The project's repo order and ignored repos: the sheet's for a new project, else the folder's project's.
+    const repos = template?.repos ?? this.projectFor((await realDir(dir)) ?? dir)?.repos;
+    const result = await this.workspace.open(dir, repos);
     if (!result.ok) return result;
     const opened = this.workspace.view().dir ?? dir;
     // Terminals belong to the open folder: they close when it changes, and the page opens new ones.
@@ -452,13 +454,15 @@ export class AppCore {
   /** What the sheet starts with for a folder: its name and repos, the images that look like its logo, its repository's page. */
   private async draftFor(dir: string, selfId: string | null): Promise<ProjectDraft> {
     const repos = await discoverRepos(dir);
+    // A folder that is itself a repo has nothing to order.
+    const self = repos.length === 1 && repos[0]!.path === dir;
     const [found, web] = await Promise.all([findLogos(dir, repos), repos.length === 1 ? remoteWebUrl(repos[0]!.path) : Promise.resolve(null)]);
     const taken = this.state.projects.find((project) => project.dir === dir && project.id !== selfId);
     return {
       dir,
       name: basename(dir) || dir,
       repoCount: repos.length,
-      repoNames: [],
+      repoNames: self ? [] : repos.map((repo) => repo.name),
       logos: found.map((path) => this.logos.add(join(dir, path), path)),
       links: web ? [web] : [],
       taken: taken ? { id: taken.id, name: taken.name } : null,
@@ -567,6 +571,12 @@ export class AppCore {
     }
     const { name, links, repos } = clean.input;
     this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links, repos } : other)));
+    // The open project lists its repos again at once; its card and menu count the ones kept.
+    if (this.isOpen(project) && JSON.stringify(repos) !== JSON.stringify(project.repos)) {
+      await this.workspace.setRepoSettings(repos);
+      const repoCount = this.workspace.view().repos.length;
+      this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, repoCount } : other)));
+    }
     const old = project.logo;
     if (old.kind === 'image' && (logo.logo.kind !== 'image' || logo.logo.file !== old.file)) void dropLogo(this.logoFolder, old.file);
     return { ok: true };

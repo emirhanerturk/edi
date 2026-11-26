@@ -65,7 +65,7 @@ export function RepoList({ rows, onChange }: { rows: RepoRow[]; onChange(rows: R
           <div
             key={row.name}
             className={`repo-pick${row.kept ? '' : ' is-ignored'}`}
-            data-testid="repo-row"
+            data-testid="sheet-repo-row"
             onKeyDown={(event) => onKeyDown(event, index)}
             onDragOver={(event) => {
               if (dragged.current !== null) event.preventDefault();

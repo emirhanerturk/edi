@@ -105,6 +105,56 @@ test('Edit project… renames it and changes its links; the title bar follows', 
   }
 });
 
+test('Edit project… orders the repos and ignores one: the Git tab follows at once and after a restart', async () => {
+  const dir = await tmpDir();
+  const quiz = await makeRepo(dir, 'next-quiz');
+  await makeRepo(dir, 'quizei-api');
+  await makeRepo(dir, 'quizei-frontend');
+  await writeFile(join(quiz, 'README.md'), 'changed\n');
+  const first = await launch({ openDir: dir });
+  const gitRows = (page: typeof first.page) => page.locator('[data-testid="repo-row"]');
+  try {
+    const { page } = first;
+    await expect(gitRows(page)).toHaveCount(3);
+    await expect(gitRows(page).first()).toHaveAttribute('data-repo', 'next-quiz');
+    // A file of next-quiz open in the center.
+    const quizRow = page.locator('[data-testid="repo-row"][data-repo="next-quiz"]');
+    if ((await quizRow.getAttribute('aria-expanded')) === 'false') await quizRow.getByTestId('repo-toggle').click();
+    await quizRow.getByTestId('file-row').first().click();
+    await expect(page.getByTestId('center-tab')).toHaveCount(1);
+
+    await page.getByTestId('project-button').click();
+    await page.getByTestId('project-menu').getByRole('menuitem', { name: 'Edit project…' }).click();
+    const sheet = page.getByTestId('project-sheet');
+    await expect(sheet.getByTestId('sheet-repo-row')).toHaveText(['next-quiz', 'quizei-api', 'quizei-frontend']);
+    await sheet.getByLabel('Keep quizei-frontend').press('Alt+ArrowUp');
+    await sheet.getByLabel('Keep quizei-frontend').press('Alt+ArrowUp');
+    await sheet.getByLabel('Keep next-quiz').uncheck();
+    await expect(sheet.getByText('3 git repositories found · 1 ignored')).toBeVisible();
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    await expect(sheet).toHaveCount(0);
+
+    await expect(gitRows(page)).toHaveCount(2);
+    await expect(gitRows(page).nth(0)).toHaveAttribute('data-repo', 'quizei-frontend');
+    await expect(gitRows(page).nth(1)).toHaveAttribute('data-repo', 'quizei-api');
+    // The ignored repo's tab closed with it.
+    await expect(page.getByTestId('center-tab')).toHaveCount(0);
+    await expect(page.getByTestId('statusbar')).toContainText('2 repositories');
+    await page.getByTestId('project-button').click();
+    await expect(page.getByTestId('project-menu')).toContainText('2 repos');
+  } finally {
+    await first.app.close();
+  }
+
+  const again = await launch({ userData: first.userData, openDir: dir });
+  try {
+    await expect(gitRows(again.page)).toHaveCount(2);
+    await expect(gitRows(again.page).nth(0)).toHaveAttribute('data-repo', 'quizei-frontend');
+  } finally {
+    await again.app.close();
+  }
+});
+
 test('All projects (⇧⌘O) shows the Projects screen over the open project, which keeps running; Esc goes back', async () => {
   const one = await tmpDir();
   await makeRepo(one, 'alpha');

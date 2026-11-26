@@ -210,7 +210,7 @@ describe('ProjectSheet, edit', () => {
 
 describe('ProjectSheet, repositories', () => {
   const four = ['next-quiz', 'quizei-admin', 'quizei-api', 'quizei-frontend'];
-  const rows = () => screen.getAllByTestId('repo-row').map((row) => row.textContent);
+  const rows = () => screen.getAllByTestId('sheet-repo-row').map((row) => row.textContent);
   const keep = (name: string) => screen.getByRole('checkbox', { name: `Keep ${name}` }) as HTMLInputElement;
   const folderNote = () => screen.getByTestId('sheet-folder').closest('.sheet-field')!.querySelector('.sheet-note')!.textContent;
 
@@ -244,7 +244,7 @@ describe('ProjectSheet, repositories', () => {
 
   it('dragging a repo by its handle drops it where it is let go', () => {
     openEdit({}, { repoCount: 4, repoNames: four });
-    const [first] = screen.getAllByTestId('repo-row');
+    const [first] = screen.getAllByTestId('sheet-repo-row');
     fireEvent.dragStart(screen.getByRole('button', { name: 'Move quizei-frontend' }));
     fireEvent.dragOver(first!);
     fireEvent.drop(first!);
