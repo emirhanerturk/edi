@@ -9,6 +9,7 @@ import { ProjectSheet } from './projects/ProjectSheet';
 import { ProjectsScreen } from './projects/ProjectsScreen';
 import { QuickOpen } from './quickOpen/QuickOpen';
 import { RightPanel } from './right/RightPanel';
+import { SnippetSheet } from './snippets/SnippetSheet';
 import { useSearch } from './search/searchStore';
 import { connect, useApp } from './store';
 import { TerminalPanel } from './terminals/TerminalPanel';
@@ -21,6 +22,7 @@ export function App() {
   const centerOpen = useApp((s) => s.center.open);
   const projectsShown = useApp((s) => s.projectsShown);
   const sheet = useApp((s) => s.sheet);
+  const snippetSheet = useApp((s) => s.snippetSheet);
   const quickOpen = useApp((s) => s.quickOpen);
   // With the terminals on the right the row is drawn reversed, so a drag to the right narrows them.
   const flip = useApp((s) => s.layout.terminals === 'right') ? -1 : 1;
@@ -41,7 +43,7 @@ export function App() {
       const state = useApp.getState();
       const { tabs, activeTab, newTab, closeTab, activate } = state;
       // The project's terminals and files are behind the Projects screen or a sheet: their shortcuts wait.
-      const covered = state.sheet !== null || state.projectsShown || state.workspace.dir === null;
+      const covered = state.sheet !== null || state.snippetSheet !== null || state.projectsShown || state.workspace.dir === null;
       const key = event.key.toLowerCase();
       let handled = true;
       // Any other shortcut leaves Quick open, and ⌘W only that: what the others do happens behind it.
@@ -153,6 +155,7 @@ export function App() {
           }}
         />
       )}
+      {ready && dir !== null && snippetSheet !== null && !projectsShown && <SnippetSheet key={snippetSheet.serial} snippet={snippetSheet.snippet} />}
       {sheet !== null && <ProjectSheet key={sheet.serial} sheet={sheet} />}
     </div>
   );

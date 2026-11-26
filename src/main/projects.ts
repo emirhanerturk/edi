@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { basename, isAbsolute } from 'node:path';
 import type { Project, ProjectInput, ProjectLink, ProjectLogo, RepoSettings } from '../shared/api.js';
 import { MAX_LABEL, MAX_LINKS, MAX_NAME, MAX_REPO_NAMES, colorFor, isLogoColor, normalizeLink } from '../shared/projects.js';
+import { snippetsOf } from './snippets.js';
 
 /** At most this many projects are kept; past it, the one opened longest ago goes. */
 export const MAX_PROJECTS = 200;
@@ -79,6 +80,7 @@ export function normalizeProjects(raw: unknown[]): Project[] {
       openedAt: time(item.openedAt),
       repoCount: count(item.repoCount),
       repos: repoSettingsOf(item.repos),
+      snippets: snippetsOf(item.snippets),
     });
     if (projects.length === MAX_PROJECTS) break;
   }
@@ -87,7 +89,7 @@ export function normalizeProjects(raw: unknown[]): Project[] {
 
 /** A project for a folder with what the folder alone says: its name, and its first letter on a color. */
 export function defaultProject(dir: string, repoCount: number, openedAt: number, id: string = randomUUID()): Project {
-  return { id, dir, name: basename(dir) || dir, logo: { kind: 'letter', color: colorFor(dir) }, links: [], openedAt, repoCount, repos: { order: [], ignored: [] } };
+  return { id, dir, name: basename(dir) || dir, logo: { kind: 'letter', color: colorFor(dir) }, links: [], openedAt, repoCount, repos: { order: [], ignored: [] }, snippets: [] };
 }
 
 /**
@@ -124,7 +126,7 @@ export function markOpened(projects: Project[], dir: string, repoCount: number, 
   if (projects.some((project) => project.dir === dir)) {
     return projects.map((project) => (project.dir === dir ? { ...project, openedAt: now, repoCount } : project));
   }
-  const added: Project = template ? { ...template, dir, openedAt: now, repoCount } : defaultProject(dir, repoCount, now);
+  const added: Project = template ? { ...template, dir, openedAt: now, repoCount, snippets: [] } : defaultProject(dir, repoCount, now);
   const next = [...projects, added];
   if (next.length <= MAX_PROJECTS) return next;
   const oldest = byOpened(projects).at(-1);

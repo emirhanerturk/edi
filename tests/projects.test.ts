@@ -24,6 +24,7 @@ const project = (over: Partial<Project> = {}): Project => ({
   openedAt: 0,
   repoCount: 1,
   repos: { order: [], ignored: [] },
+  snippets: [],
   ...over,
 });
 
@@ -110,6 +111,7 @@ describe('the projects in the state file', () => {
         openedAt: 5,
         repoCount: 8,
         repos: { order: ['quizei-frontend', 'next-quiz'], ignored: ['next-quiz'] },
+        snippets: [],
       },
       {
         id: 'p2',
@@ -120,6 +122,7 @@ describe('the projects in the state file', () => {
         openedAt: 0,
         repoCount: 0,
         repos: { order: [], ignored: [] },
+        snippets: [],
       },
     ]);
   });
@@ -165,7 +168,7 @@ describe('the projects in the state file', () => {
       links: [{ url: 'https://github.com/a/b', label: 'GitHub' }],
       repos: { order: ['b', 'a'], ignored: ['c'] },
     };
-    expect(markOpened(list, '/s/edi', 1, 60, template)[1]).toEqual({ ...template, dir: '/s/edi', openedAt: 60, repoCount: 1 });
+    expect(markOpened(list, '/s/edi', 1, 60, template)[1]).toEqual({ ...template, dir: '/s/edi', openedAt: 60, repoCount: 1, snippets: [] });
     // A template doesn't replace a project the folder already has.
     expect(markOpened(list, '/s/quizei', 9, 70, template)).toEqual([project({ openedAt: 70, repoCount: 9 })]);
   });

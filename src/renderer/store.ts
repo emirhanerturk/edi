@@ -11,10 +11,13 @@ import type {
   ProjectDraft,
   ProjectView,
   ServerInfo,
+  Snippet,
+  SnippetMenuAction,
   StashEntry,
   StashMenuAction,
   StashRetry,
   TabState,
+  TerminalCreated,
   WorkspaceView,
 } from '../shared/api';
 import { type ClaudeTitleState, claudeTitleState } from '../shared/claudeTitle';
@@ -40,7 +43,17 @@ import { clampWidths } from './components/Splitter';
 import { discardHow, goesToTrash } from '../git/discardKind';
 import { groupFiles, isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
-import { disposeAllTerminals, disposeTerminal, onTerminalLink, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
+import {
+  disposeAllTerminals,
+  disposeTerminal,
+  onTerminalLink,
+  onTerminalTitle,
+  openTerminal,
+  openTerminalWith,
+  pasteTerminal,
+  showTerminal,
+  writeTerminal,
+} from './terminals/terminals';
 
 export interface Tab {
   id: number;
@@ -60,6 +73,8 @@ export interface Tab {
   claudeUntil: number;
   /** Last Claude Code state read from the terminal title; null if no title has arrived yet. */
   titleState: ClaudeTitleState | null;
+  /** Opened by a snippet: it keeps the snippet's name and shows its mark. */
+  snippet?: boolean;
 }
 
 /** Time allowed for Claude Code to start. */
@@ -75,8 +90,10 @@ export function applyTabStates(tabs: Tab[], states: TabState[], now: number): Ta
     // If Claude Code exited, both the bell and the state read from the title are stale.
     const waiting = state.claude ? tab.waiting : false;
     const titleState = state.claude ? tab.titleState : null;
+    // A snippet's tab keeps the snippet's name, whatever runs in it.
+    const title = tab.snippet ? tab.title : state.title;
     if (
-      tab.title === state.title &&
+      tab.title === title &&
       tab.claude === state.claude &&
       tab.busy === state.busy &&
       tab.waiting === waiting &&
@@ -84,7 +101,7 @@ export function applyTabStates(tabs: Tab[], states: TabState[], now: number): Ta
     ) {
       return tab;
     }
-    return { ...tab, title: state.title, claude: state.claude, busy: state.busy, waiting, titleState };
+    return { ...tab, title, claude: state.claude, busy: state.busy, waiting, titleState };
   });
 }
 
@@ -289,6 +306,18 @@ interface AppStore {
   /** Closes all tabs (when the folder changes). */
   resetTabs(): void;
 
+  /** Runs a snippet in a new terminal tab named after it (the main process asks first if the snippet says so). */
+  runSnippet(snippet: Snippet): Promise<void>;
+  /** Types the snippet's command at the open terminal's prompt without running it. */
+  typeSnippet(snippet: Snippet): void;
+  /** The New snippet or Edit snippet sheet; null when none is open. */
+  snippetSheet: { snippet: Snippet | null; serial: number } | null;
+  /** Opens the sheet for `snippet`, or for a new one. */
+  editSnippet(snippet: Snippet | null): void;
+  closeSnippetSheet(): void;
+  /** What was picked in a snippet's right-click menu. */
+  snippetAction(snippet: Snippet, action: SnippetMenuAction): Promise<void>;
+
   /** Repos in the Git tab that the user expanded or collapsed by hand (for the session). */
   expanded: Record<string, boolean>;
   toggleRepo(repoPath: string, open: boolean): void;
@@ -321,6 +350,36 @@ const without = <T,>(record: Record<string, T>, key: string): Record<string, T> 
 };
 
 const EMPTY: WorkspaceView = { dir: null, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 };
+
+/** A snippet the main process didn't run; `cancelled`: its question was answered no. */
+class SnippetRefused extends Error {
+  constructor(
+    message: string,
+    readonly cancelled: boolean,
+  ) {
+    super(message);
+  }
+}
+
+/** A tab for the terminal just opened, in front; its title follows the terminal's (Claude Code's state). */
+function addTab(created: TerminalCreated, kind: { claude?: boolean; snippet?: boolean }): void {
+  const claude = kind.claude === true;
+  const tab: Tab = {
+    id: created.id,
+    title: claude ? 'claude' : created.title,
+    claude,
+    waiting: false,
+    busy: false,
+    exited: false,
+    claudeUntil: claude ? Date.now() + CLAUDE_START_MS : 0,
+    titleState: null,
+    ...(kind.snippet ? { snippet: true } : {}),
+  };
+  useApp.setState((state) => ({ tabs: [...state.tabs, tab], activeTab: tab.id }));
+  onTerminalTitle(tab.id, (title) =>
+    useApp.setState((state) => ({ tabs: state.tabs.map((other) => (other.id === tab.id ? applyTitle(other, title, state.activeTab === tab.id) : other)) })),
+  );
+}
 
 export const useApp = create<AppStore>((set, get) => ({
   ready: false,
@@ -522,20 +581,7 @@ export const useApp = create<AppStore>((set, get) => ({
       disposeTerminal(created.id);
       return;
     }
-    const tab: Tab = {
-      id: created.id,
-      title: opts.claude ? 'claude' : created.title,
-      claude: opts.claude === true,
-      waiting: false,
-      busy: false,
-      exited: false,
-      claudeUntil: opts.claude ? Date.now() + CLAUDE_START_MS : 0,
-      titleState: null,
-    };
-    set((state) => ({ tabs: [...state.tabs, tab], activeTab: tab.id }));
-    onTerminalTitle(tab.id, (title) =>
-      set((state) => ({ tabs: state.tabs.map((other) => (other.id === tab.id ? applyTitle(other, title, state.activeTab === tab.id) : other)) })),
-    );
+    addTab(created, { claude: opts.claude === true });
   },
   closeTab(id) {
     const { tabs, activeTab } = get();
@@ -557,6 +603,42 @@ export const useApp = create<AppStore>((set, get) => ({
   resetTabs() {
     disposeAllTerminals();
     set({ tabs: [], activeTab: null });
+  },
+
+  async runSnippet(snippet) {
+    const dir = get().workspace.dir;
+    if (dir === null) return;
+    let created: TerminalCreated;
+    try {
+      created = await openTerminalWith(async (size) => {
+        const result = await edi.runSnippet(snippet.id, size);
+        if (!result.ok) throw new SnippetRefused(result.error, result.cancelled === true);
+        return result.terminal;
+      });
+    } catch (error) {
+      if (!(error instanceof SnippetRefused) || !error.cancelled) set({ centerError: `${snippet.name}: ${error instanceof Error ? error.message : String(error)}` });
+      return;
+    }
+    if (get().workspace.dir !== dir) {
+      edi.pty.close(created.id);
+      disposeTerminal(created.id);
+      return;
+    }
+    addTab(created, { snippet: true });
+  },
+  typeSnippet(snippet) {
+    const id = get().activeTab;
+    if (id === null || !pasteTerminal(id, snippet.command)) set({ centerError: 'Open a terminal to type the snippet into' });
+  },
+  snippetSheet: null,
+  editSnippet: (snippet) => set({ snippetSheet: { snippet, serial: ++sheetSerial } }),
+  closeSnippetSheet: () => set({ snippetSheet: null }),
+  async snippetAction(snippet, action) {
+    if (action === 'run') return get().runSnippet(snippet);
+    if (action === 'type') return get().typeSnippet(snippet);
+    if (action === 'edit') return get().editSnippet(snippet);
+    const result = action === 'duplicate' ? await edi.duplicateSnippet(snippet.id) : await edi.deleteSnippet(snippet.id);
+    if (!result.ok && !result.cancelled) set({ centerError: `${snippet.name}: ${result.error}` });
   },
 
   expanded: {},
@@ -704,8 +786,9 @@ export function connect(): () => void {
         servers: workspace.dir === state.workspace.dir ? state.servers : [],
         // Another project opened, or none is open: the Projects screen isn't over one any more.
         projectsShown: workspace.dir === state.workspace.dir ? state.projectsShown : false,
-        // Quick open and its recent files belong to the folder.
+        // Quick open and its recent files belong to the folder, and so does a snippet being edited.
         quickOpen: workspace.dir === state.workspace.dir ? state.quickOpen : false,
+        snippetSheet: workspace.dir === state.workspace.dir ? state.snippetSheet : null,
         recent: workspace.dir === state.workspace.dir ? state.recent : [],
       })),
     ),

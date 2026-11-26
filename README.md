@@ -30,6 +30,13 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Terminals.** Real login shells (`$SHELL -l`) in tabs. A tab is named after the process
   running in front; Claude Code tabs carry a mark, and a bell when a background session
   stops working and waits for you.
+- **Snippets.** A project keeps commands you run often, each with a name, an optional group, the
+  folder it runs in (the project folder or one of its repositories) and one or more lines. The
+  button left of + in the terminal tab bar lists them by group; a click runs one in a new tab named
+  after it, typing its lines one by one as if you typed them; ⌥-click types it at the open
+  terminal's prompt without running it. A snippet marked "Ask before running" asks first.
+  Right-click one to edit, duplicate or delete it. Snippets are saved with the project in edi's own
+  state file, not in a repository.
 - **Git tab.** Every repository directly under the open folder, refreshed every two seconds.
   A collapsed row shows the branch, the state and one sync button; an open repository lists
   conflicted, staged and changed files with a commit box, which stays with its buttons greyed out when
@@ -101,7 +108,7 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Keep Mac Awake.** View > Keep Mac Awake stops the Mac from going to sleep on its own while
   edi is open, so a long Claude Code session or build keeps running. The display may still
   turn off, and closing a laptop's lid still puts it to sleep. Off unless you turn it on.
-- **Remembers** the projects, the window position, the panel widths and
+- **Remembers** the projects and their snippets, the window position, the panel widths and
   sides, the diff layout and the History layout.
 
 - **The `edi` command.** `edi <folder>` opens that folder's project in edi from any terminal;
@@ -201,7 +208,9 @@ preferences:
 - **The page cannot run commands.** The window is sandboxed and talks to the main process
   through a small typed bridge. A Git operation names a repository by path, and the main
   process accepts only the exact paths it discovered itself; an operation is one of a fixed
-  list, never free text. A commit message is passed to Git as a single argument.
+  list, never free text. A commit message is passed to Git as a single argument. A snippet is
+  run by its id: the main process types the command it saved into a new terminal, in the folder it
+  checks is still the project's, and asks first when the snippet says so.
 - **Reading files stays inside the repository.** The page names a file by its path in a
   discovered repository; the main process resolves symlinks and refuses anything that leads
   outside it or into any `.git` folder. Viewing never writes; creating, renaming and trashing

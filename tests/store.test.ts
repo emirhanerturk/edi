@@ -37,7 +37,7 @@ describe('persistent state', () => {
     );
     const state = await loadState(file);
     expect(state.projects).toEqual([
-      { id: 'p1', dir: '/a/b', name: 'Quizei', logo: { kind: 'letter', color: expect.any(String) }, links: [], openedAt: 0, repoCount: 3, repos: { order: [], ignored: [] } },
+      { id: 'p1', dir: '/a/b', name: 'Quizei', logo: { kind: 'letter', color: expect.any(String) }, links: [], openedAt: 0, repoCount: 3, repos: { order: [], ignored: [] }, snippets: [] },
     ]);
     expect(state).toEqual({
       projects: state.projects,
@@ -84,6 +84,7 @@ describe('persistent state', () => {
           openedAt: 1_700_000_000_000,
           repoCount: 2,
           repos: { order: [], ignored: [] },
+          snippets: [],
         },
       ],
       layout: { left: 500, right: 400, diffMode: 'inline' as const, historyLayout: 'byRepo' as const, terminals: 'right' as const },

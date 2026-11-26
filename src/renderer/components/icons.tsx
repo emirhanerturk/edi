@@ -240,3 +240,32 @@ export const SearchIcon = (p: IconProps) => (
     <path d="M10.4 10.4L14 14" />
   </Icon>
 );
+/** A snippet: lines with a play mark (Lucide's list-video, ISC license). */
+export const SnippetIcon = ({ size = 14, label, ...rest }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    role={label ? 'img' : undefined}
+    aria-label={label}
+    aria-hidden={label ? undefined : true}
+    style={{ flex: 'none' }}
+    {...rest}
+  >
+    <path d="M12 12H3" />
+    <path d="M16 6H3" />
+    <path d="M12 18H3" />
+    <path d="m16 12 5 3-5 3v-6Z" />
+  </svg>
+);
+/** Run: a filled triangle. */
+export const PlayIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.4} fill="currentColor" {...p}>
+    <path d="M4.5 2.8v10.4L13 8z" />
+  </Icon>
+);

@@ -19,8 +19,10 @@ import {
   discardChangesQuestion,
   discardQuestion,
   discardTarget,
+  deleteSnippetQuestion,
   dropStashQuestion,
   replaceAllQuestion,
+  runSnippetQuestion,
   removeProjectQuestion,
   revertCommitQuestion,
   undoCommitQuestion,
@@ -44,6 +46,9 @@ import type {
   ProjectMenuAction,
   ProjectView,
   ServerInfo,
+  SnippetMenuAction,
+  SnippetResult,
+  SnippetRun,
   StashMenuAction,
   TerminalCreated,
 } from '../shared/api.js';
@@ -57,6 +62,7 @@ import { type Persisted, loadState, mergeLayout, saveState, saveStateSync } from
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
 import { SearchOps } from './searchOps.js';
+import { duplicateSnippet, placeOf, saveSnippet, typedCommand } from './snippets.js';
 import { openUrl } from './openUrl.js';
 import { Serial } from './serial.js';
 import { ViewOps } from './viewOps.js';
@@ -632,6 +638,74 @@ export class AppCore {
     return { ok: true };
   }
 
+  /** The open project as kept; null with none open. */
+  private openRecord(): Project | null {
+    const dir = this.workspace.view().dir;
+    return dir === null ? null : this.projectFor(dir);
+  }
+
+  private setSnippets(projectId: string, snippets: Project['snippets']): void {
+    this.changeProjects((projects) => projects.map((other) => (other.id === projectId ? { ...other, snippets } : other)));
+  }
+
+  /** The open project's repositories a snippet can run in, by folder name (not the project folder itself). */
+  private snippetRepos(project: Project) {
+    return this.workspace.view().repos.filter((repo) => repo.path !== project.dir);
+  }
+
+  async saveSnippet(input: unknown): Promise<SnippetResult> {
+    const project = this.openRecord();
+    if (!project) return NO_PROJECT;
+    const saved = saveSnippet(
+      project.snippets,
+      input,
+      this.snippetRepos(project).map((repo) => repo.name),
+    );
+    if (!saved.ok) return saved;
+    this.setSnippets(project.id, saved.snippets);
+    return { ok: true, id: saved.id };
+  }
+
+  async deleteSnippet(id: unknown): Promise<SnippetResult> {
+    const project = this.openRecord();
+    const snippet = project?.snippets.find((candidate) => candidate.id === id);
+    if (!project || !snippet) return { ok: false, error: 'Snippet not found' };
+    if (!(await this.ask(deleteSnippetQuestion(snippet.name)))) return CANCELLED;
+    const current = this.project(project.id);
+    if (current) this.setSnippets(current.id, current.snippets.filter((candidate) => candidate.id !== snippet.id));
+    return { ok: true, id: snippet.id };
+  }
+
+  duplicateSnippet(id: unknown): SnippetResult {
+    const project = this.openRecord();
+    if (!project || typeof id !== 'string') return { ok: false, error: 'Snippet not found' };
+    const copied = duplicateSnippet(project.snippets, id);
+    if (!copied.ok) return copied;
+    this.setSnippets(project.id, copied.snippets);
+    return { ok: true, id: copied.id };
+  }
+
+  /**
+   * Opens a terminal where the snippet runs and types its command there, line by line, as if typed: the
+   * command comes from the saved project, never from the page. A snippet marked so asks first.
+   */
+  async runSnippet(id: unknown, size: unknown): Promise<SnippetRun> {
+    const project = this.openRecord();
+    const snippet = project?.snippets.find((candidate) => candidate.id === id);
+    if (!project || !snippet) return { ok: false, error: 'Snippet not found' };
+    const place = placeOf(snippet, project.dir, this.workspace.view().repos);
+    if (!place.ok) return place;
+    if (snippet.ask && !(await this.ask(runSnippetQuestion(snippet.name, place.label, snippet.command)))) return CANCELLED;
+    // The project may have closed while the question was up.
+    if (this.workspace.view().dir !== project.dir) return { ok: false, error: 'The project is no longer open' };
+    const cwd = place.cwd;
+    if (!(await isDir(cwd))) return { ok: false, error: 'Folder not found' };
+    const s = (typeof size === 'object' && size !== null ? size : {}) as Record<string, unknown>;
+    const terminal = this.ptys.create({ cols: Number(s.cols), rows: Number(s.rows), cwd, command: typedCommand(snippet.command) });
+    setTimeout(() => void this.pollProcesses(), AFTER_CREATE_MS);
+    return { ok: true, terminal: { id: terminal, title: snippet.name } };
+  }
+
   async openProject(projectId: unknown): Promise<OpenResult> {
     const project = this.project(projectId);
     if (!project) return NO_PROJECT;
@@ -761,6 +835,21 @@ export class AppCore {
     ipcMain.on('search:stop', (_event, id: unknown) => this.searchOps.stop(id));
     ipcMain.handle('search:replace', (_event, repoPath: unknown, path: unknown, query: unknown, replacement: unknown, stamp: unknown, lines: unknown) =>
       this.searchOps.replace(repoPath, path, query, replacement, stamp, lines),
+    );
+    ipcMain.handle('snippet:save', (_event, input: unknown) => this.saveSnippet(input));
+    ipcMain.handle('snippet:delete', (_event, id: unknown) => this.deleteSnippet(id));
+    ipcMain.handle('snippet:duplicate', (_event, id: unknown) => this.duplicateSnippet(id));
+    ipcMain.handle('snippet:run', (_event, id: unknown, size: unknown) => this.runSnippet(id, size));
+    ipcMain.handle('snippet:menu', () =>
+      this.popup<SnippetMenuAction>([
+        { id: 'run', label: 'Run' },
+        { id: 'type', label: 'Type into the Open Terminal' },
+        { id: null, label: '-' },
+        { id: 'edit', label: 'Edit…' },
+        { id: 'duplicate', label: 'Duplicate' },
+        { id: null, label: '-' },
+        { id: 'delete', label: 'Delete…' },
+      ]),
     );
     ipcMain.handle('search:confirmReplaceAll', (_event, summary: unknown) => {
       const question = replaceAllQuestion(summary);

@@ -1,5 +1,6 @@
-import { BellIcon, ClaudeMark, CloseIcon, PlusIcon, TerminalIcon } from '../components/icons';
+import { BellIcon, ClaudeMark, CloseIcon, PlusIcon, SnippetIcon, TerminalIcon } from '../components/icons';
 import { tabPorts } from '../servers/model';
+import { SnippetsMenu } from '../snippets/SnippetsMenu';
 import { type Tab, useApp } from '../store';
 
 export function TabBar() {
@@ -21,6 +22,7 @@ export function TabBar() {
         ))}
       </div>
       <div className="spacer" />
+      <SnippetsMenu />
       <button className="tabbar-add" data-testid="new-terminal" aria-label="New terminal" title="New terminal (⌘T)" onClick={() => void newTab()}>
         <PlusIcon size={14} />
       </button>
@@ -48,6 +50,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
       className={`tab${active ? ' active' : ''}`}
       data-testid="tab"
       data-claude={tab.claude}
+      data-snippet={tab.snippet === true}
       role="tab"
       aria-selected={active}
       tabIndex={-1}
@@ -60,7 +63,7 @@ function TabButton({ tab, active }: { tab: Tab; active: boolean }) {
         } else if (event.button === 0) activate(tab.id);
       }}
     >
-      {tab.claude ? <ClaudeMark size={13} /> : <TerminalIcon size={13} />}
+      {tab.claude ? <ClaudeMark size={13} /> : tab.snippet ? <SnippetIcon size={13} className="tab-snippet-icon" /> : <TerminalIcon size={13} />}
       <span className="tab-title">{tab.title}</span>
       {ports !== null && (
         <span className="tab-port mono" data-testid="tab-port" title="Listening on localhost">

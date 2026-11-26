@@ -90,6 +90,30 @@ export interface RepoSettings {
 export type ProjectLogo = { kind: 'image'; file: string } | { kind: 'letter'; color: LogoColor };
 
 /** A folder of git repositories with a name, a logo and links. */
+/** A saved command of a project, run from the snippets menu in the terminal tab bar. */
+export interface Snippet {
+  id: string;
+  name: string;
+  /** The name of its group in the menu; '' for none (those come first). */
+  group: string;
+  /** The repository it runs in, by folder name; '' for the project folder. */
+  where: string;
+  /** One or more lines, typed into the new terminal one by one. */
+  command: string;
+  /** Asks before running: for commands that deploy, publish or delete. */
+  ask: boolean;
+}
+
+/** A new snippet (no `id`) or the edited one. */
+export type SnippetInput = Omit<Snippet, 'id'> & { id?: string };
+
+export type SnippetResult = { ok: true; id: string } | { ok: false; error: string; cancelled?: true };
+
+/** A snippet run: the terminal it opened, named after it. */
+export type SnippetRun = { ok: true; terminal: TerminalCreated } | { ok: false; error: string; cancelled?: true };
+
+export type SnippetMenuAction = 'run' | 'type' | 'edit' | 'duplicate' | 'delete';
+
 export interface Project {
   id: string;
   /** The folder (its real path); its git repositories are what the project shows. */
@@ -103,6 +127,8 @@ export interface Project {
   /** The git repositories shown when it was last opened (the ignored ones aren't counted). */
   repoCount: number;
   repos: RepoSettings;
+  /** Its snippets, in the order they were made. */
+  snippets: Snippet[];
 }
 
 /** A project as the page shows it. */
@@ -446,6 +472,19 @@ export interface EdiApi {
   replaceText(repoPath: string, path: string, query: TextQuery, replacement: string, stamp: string, lines: number[]): Promise<ReplaceResult>;
   /** Asks before Replace All; true to go ahead. */
   confirmReplaceAll(summary: ReplaceAllSummary): Promise<boolean>;
+  /** Adds a snippet to the open project, or saves the edited one (with its `id`). */
+  saveSnippet(input: SnippetInput): Promise<SnippetResult>;
+  /** Deletes one of the open project's snippets, after asking. */
+  deleteSnippet(id: string): Promise<SnippetResult>;
+  /** A copy of the snippet, named "… copy", right after it. */
+  duplicateSnippet(id: string): Promise<SnippetResult>;
+  /**
+   * Opens a terminal where the snippet runs and types its command there, line by line; asks first if the
+   * snippet says so. The page names the snippet: the command comes from what was saved.
+   */
+  runSnippet(id: string, size: { cols: number; rows: number }): Promise<SnippetRun>;
+  /** A snippet's right-click menu. */
+  snippetMenu(): Promise<SnippetMenuAction | null>;
   /** One level of a folder inside the repo; used to show the contents of an ignored folder. */
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
   /** The last known Claude usage limits; null if the bridge isn't set up. */

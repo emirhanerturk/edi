@@ -181,3 +181,27 @@ export function replaceAllQuestion(value: unknown): Question | null {
     cancelId: 1,
   };
 }
+
+/** Before running a snippet marked "Ask before running". `where`: the repository's name, or "the project folder". */
+export function runSnippetQuestion(name: string, where: string, command: string): Question {
+  const oneLine = command.split('\n').join('; ');
+  return {
+    type: 'warning',
+    message: `Run ${quoted(name)}?`,
+    detail: `In ${where}: ${oneLine.length > 300 ? `${oneLine.slice(0, 299)}…` : oneLine}`,
+    buttons: ['Run', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}
+
+export function deleteSnippetQuestion(name: string): Question {
+  return {
+    type: 'warning',
+    message: `Delete the snippet ${quoted(name)}?`,
+    detail: 'Its command is deleted from the project. This cannot be undone.',
+    buttons: ['Delete', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}
