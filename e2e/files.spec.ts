@@ -1,20 +1,12 @@
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type ElectronApplication, type Page, expect, test } from '@playwright/test';
-import { launch, makeRepo, tmpDir } from './helpers.js';
+import { launch, makeRepo, nextMenuPicks, tmpDir } from './helpers.js';
 
 const row = (page: Page, name: string) => page.locator(`[data-testid="tree-row"][data-name="${name}"]`);
 const exists = (path: string) => access(path).then(() => true, () => false);
 
-/** The native menus and dialogs can't be clicked: the next menu picks `label`, the next question answers `response`. */
-async function nextMenuPicks(app: ElectronApplication, label: string) {
-  await app.evaluate(({ Menu }, pick) => {
-    Menu.prototype.popup = function (this: Electron.Menu, options?: Electron.PopupOptions) {
-      this.items.find((item) => item.label === pick)?.click();
-      options?.callback?.();
-    };
-  }, label);
-}
+/** The native dialogs can't be clicked: the next question answers `response`. */
 async function questionsAnswer(app: ElectronApplication, response: number) {
   await app.evaluate(({ dialog }, answer) => {
     dialog.showMessageBox = (async () => ({ response: answer, checkboxChecked: false })) as typeof dialog.showMessageBox;

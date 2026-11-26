@@ -53,6 +53,7 @@ describe('busyLabel', () => {
     expect(busyLabel({ op: 'switch', branch: 'x' })).toBe('Switching…');
     expect(busyLabel({ op: 'createBranch', branch: 'x' })).toBe('Switching…');
     expect(busyLabel({ op: 'undoCommit', oid: 'a'.repeat(40) })).toBe('Undoing commit…');
+    expect(busyLabel({ op: 'revertCommit', oid: 'a'.repeat(40) })).toBe('Reverting…');
     expect(busyLabel({ op: 'stash', message: '', staged: false })).toBe('Stashing…');
     expect(busyLabel({ op: 'stashPop', oid: 'a'.repeat(40) })).toBe('Popping stash…');
     expect(busyLabel({ op: 'stashApply', oid: 'a'.repeat(40) })).toBe('Applying stash…');
@@ -226,6 +227,17 @@ describe('GitOps', () => {
     expect(fileOf(ws, repo, 'new.txt').x).toBe('A');
     expect(await ops.run(repo, { op: 'undoCommit', oid })).toEqual({ ok: false, error: 'This is no longer the latest commit' });
     expect(await ops.unpushed('/nope')).toEqual({ ok: false, error: 'Unknown repository' });
+  });
+
+  it('reverts a commit; an op without an oid is refused', async () => {
+    const { repos, ops } = await setup();
+    const repo = repos[0]!;
+    await writeFile(join(repo, 'new.txt'), 'x\n');
+    expect((await ops.run(repo, { op: 'commit', message: 'feat: new', all: true, push: false })).ok).toBe(true);
+    const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
+    expect(await ops.run(repo, { op: 'revertCommit', oid })).toEqual({ ok: true, message: 'Commit reverted' });
+    expect(await log(repo)).toEqual(['Revert "feat: new"', 'feat: new', 'chore: init']);
+    expect(await ops.run(repo, { op: 'revertCommit' } as unknown as GitOp)).toEqual({ ok: false, error: 'Invalid operation' });
   });
 
   it('stashes, lists, pops and drops by stash id; the status counts the stashes', async () => {

@@ -15,7 +15,7 @@ const FETCH_TIMEOUT_MS = 120_000;
  * Commands that can run hooks or update the working tree: pre-commit / pre-push
  * hooks may run tests, and an interrupted pull leaves the tree half-updated. Hence the long timeout.
  */
-const SLOW_TIMEOUT_MS = 600_000;
+export const SLOW_TIMEOUT_MS = 600_000;
 export const CONFLICT_ERROR = 'Conflicted files present; resolve them outside edi';
 
 /**

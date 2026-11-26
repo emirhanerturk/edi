@@ -165,6 +165,8 @@ export type GitOp =
   | { op: 'createBranch'; branch: string }
   /** `git reset --soft HEAD~1`, only if HEAD is still `oid` and isn't pushed. */
   | { op: 'undoCommit'; oid: string }
+  /** `git revert --no-edit`; aborted again at once if it stops on conflicts. */
+  | { op: 'revertCommit'; oid: string }
   /**
    * Every change, new files included, or only the staged ones; `message` may be empty. `then`: a switch
    * or pull that git refused because of the local changes, run again once they are stashed.
@@ -181,6 +183,10 @@ export type StashRetry = { op: 'switch'; branch: string } | { op: 'pull' };
 
 /** The right-click menu of a stash row. */
 export type StashMenuAction = 'pop' | 'apply' | 'drop';
+
+/** A commit's menu (History's right-click, the commit view's ⋯): what was picked. */
+export type CommitMenuAction = 'copy' | 'github' | 'revert';
+export type CommitMenuChoice = { action: 'copy' } | { action: 'github'; url: string } | { action: 'revert' };
 
 export type OpResult = { ok: true; message: string } | { ok: false; error: string };
 
@@ -302,6 +308,13 @@ export interface EdiApi {
   incoming(repoPath: string): Promise<IncomingResult>;
   /** Asks (native dialog) before undoing the commit with this subject; true to go ahead. */
   confirmUndo(subject: string): Promise<boolean>;
+  /** Asks (native dialog) before reverting the commit with this subject; true to go ahead. */
+  confirmRevert(subject: string): Promise<boolean>;
+  /**
+   * A commit's native menu. `links`: Copy SHA and Open on GitHub too (History); without, only Revert
+   * (the commit view's ⋯). `canRevert`: false greys Revert out (merge commits). Null if nothing was picked.
+   */
+  commitMenu(repoPath: string, oid: string, opts: { links: boolean; canRevert: boolean }): Promise<CommitMenuChoice | null>;
   /** The repo's stashes, newest first (at most 100). */
   stashes(repoPath: string): Promise<StashList>;
   /** One stash and its changes, for the stash view; `oid` is the stash commit's full id. */

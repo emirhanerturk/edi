@@ -1,8 +1,9 @@
 import { openKey } from '../components/keys';
-import { type KeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useState } from 'react';
 import type { CommitSummary } from '../../git/types';
 import { ArrowUp, BranchIcon, ChevronDown, ChevronRight, TagIcon, WarningIcon } from '../components/icons';
 import { useNow } from '../components/useNow';
+import { edi } from '../bridge';
 import { canLoadMore, useApp } from '../store';
 import { type HistoryRow, type RepoGroup, type RepoLog, byRepo, historyKey, isRelease, timeline } from './model';
 import { RepoFilter } from './RepoFilter';
@@ -31,14 +32,24 @@ export interface HistoryPanelViewProps {
   /** The commit open in the center panel. */
   selected: { repoPath: string; oid: string } | null;
   onOpenCommit(repoPath: string, oid: string, pin: boolean): void;
+  /** A commit was right-clicked: its menu (Copy SHA, Open on GitHub, Revert). */
+  onCommitMenu?(repoPath: string, commit: CommitSummary): void;
   onFilter(path: string | null): void;
   onLayout(layout: HistoryLayout): void;
   onLoadMore(): void;
 }
 
-/** Click previews, double click opens a permanent tab; Enter or Space previews, ⌘Enter opens a permanent tab. */
-function openHandlers(open: (pin: boolean) => void) {
+/**
+ * Click previews, double click opens a permanent tab; Enter or Space previews, ⌘Enter opens a permanent tab.
+ * A right click opens the commit's menu.
+ */
+function openHandlers(open: (pin: boolean) => void, menu?: () => void) {
   return {
+    onContextMenu: (event: MouseEvent) => {
+      if (!menu) return;
+      event.preventDefault();
+      menu();
+    },
     role: 'button',
     tabIndex: 0,
     onClick: () => open(false),
@@ -107,7 +118,7 @@ export function HistoryPanelView(props: HistoryPanelViewProps) {
   );
 }
 
-function Timeline({ rows, now, single, loading, selected, onOpenCommit }: HistoryPanelViewProps) {
+function Timeline({ rows, now, single, loading, selected, onOpenCommit, onCommitMenu }: HistoryPanelViewProps) {
   if (rows.length === 0) return <p className="history-note">{loading ? 'Loading…' : 'No commits yet'}</p>;
   return (
     <>
@@ -129,10 +140,11 @@ function Timeline({ rows, now, single, loading, selected, onOpenCommit }: Histor
           );
         }
         const open = (pin: boolean) => onOpenCommit(row.repoPath, row.commit.oid, pin);
+        const menu = onCommitMenu && (() => onCommitMenu(row.repoPath, row.commit));
         const current = selected?.repoPath === row.repoPath && selected.oid === row.commit.oid;
         if (row.type === 'release') {
           return (
-            <div key={row.commit.oid + row.repoPath} className="history-release" data-testid="history-release" aria-current={current} {...openHandlers(open)}>
+            <div key={row.commit.oid + row.repoPath} className="history-release" data-testid="history-release" aria-current={current} {...openHandlers(open, menu)}>
               <TagIcon size={12} />
               <span className="history-tag mono">{row.tag}</span>
               {!single && <span className="history-repo">{row.repoName}</span>}
@@ -150,7 +162,7 @@ function Timeline({ rows, now, single, loading, selected, onOpenCommit }: Histor
             data-testid="history-commit"
             data-merge={row.merge}
             aria-current={current}
-            {...openHandlers(open)}
+            {...openHandlers(open, menu)}
           >
             <div className="history-title">
               <Subject subject={row.commit.subject} merge={row.merge} />
@@ -173,7 +185,7 @@ function Timeline({ rows, now, single, loading, selected, onOpenCommit }: Histor
   );
 }
 
-function ByRepo({ groups, now, loading, selected, onOpenCommit }: HistoryPanelViewProps) {
+function ByRepo({ groups, now, loading, selected, onOpenCommit, onCommitMenu }: HistoryPanelViewProps) {
   // Groups the user expanded or collapsed; the others are expanded or collapsed based on the last 3 days.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   if (groups.length === 0) return <p className="history-note">{loading ? 'Loading…' : 'No commits yet'}</p>;
@@ -203,6 +215,7 @@ function ByRepo({ groups, now, loading, selected, onOpenCommit }: HistoryPanelVi
                   now={now}
                   current={selected?.repoPath === group.repoPath && selected.oid === commit.oid}
                   open={(pin) => onOpenCommit(group.repoPath, commit.oid, pin)}
+                  menu={onCommitMenu && (() => onCommitMenu(group.repoPath, commit))}
                 />
               ))}
           </div>
@@ -212,10 +225,10 @@ function ByRepo({ groups, now, loading, selected, onOpenCommit }: HistoryPanelVi
   );
 }
 
-function GroupLine({ commit, now, current, open }: { commit: CommitSummary; now: number; current: boolean; open(pin: boolean): void }) {
+function GroupLine({ commit, now, current, open, menu }: { commit: CommitSummary; now: number; current: boolean; open(pin: boolean): void; menu?: () => void }) {
   const release = commit.tags.find((tag) => isRelease(commit.subject, tag));
   return (
-    <div className="history-line" data-testid="history-line" aria-current={current} {...openHandlers(open)}>
+    <div className="history-line" data-testid="history-line" aria-current={current} {...openHandlers(open, menu)}>
       {release !== undefined ? (
         <>
           <span className="history-tag mono">{release}</span>
@@ -279,6 +292,11 @@ export function HistoryPanel() {
       canLoadMore={layout === 'timeline' && shown.some((repo) => canLoadMore(history[repo.path]))}
       selected={active?.kind === 'commit' ? { repoPath: active.repoPath, oid: active.path } : null}
       onOpenCommit={(repoPath, oid, pin) => openInCenter({ kind: 'commit', repoPath, path: oid }, pin)}
+      onCommitMenu={(repoPath, commit) => {
+        void edi.commitMenu(repoPath, commit.oid, { links: true, canRevert: commit.parents === 1 }).then((choice) => {
+          if (choice) void useApp.getState().commitAction(repoPath, commit, choice);
+        });
+      }}
       onFilter={setHistoryFilter}
       onLayout={setHistoryLayout}
       onLoadMore={loadMoreHistory}

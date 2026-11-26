@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon } from '../components/icons';
+import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon, MoreIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -52,10 +52,12 @@ export interface CommitPaneProps {
   onOpenUrl(url: string): void;
   /** Opens a changed file (as it is now) in the file view. Must be stable: the file sections are memoized. */
   onOpenFile?(path: string): void;
+  /** The ⋯ button: the commit's menu (Revert). No button without it. */
+  onMore?(): void;
 }
 
 /** A commit: subject, body, details and the diff of every changed file, one below the other. */
-export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile }: CommitPaneProps) {
+export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore }: CommitPaneProps) {
   const commitOrNull = result?.ok ? result.commit : null;
   // Collapsed files are kept here: the "expand/collapse all" button in the header changes them too.
   // Switching to another commit starts over, with those over 400 lines collapsed.
@@ -145,6 +147,11 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
               <button className="commit-copy commit-web" aria-label="Open on GitHub" title={result.webUrl} onClick={() => onOpenUrl(result.webUrl!)}>
                 <span>GitHub</span>
                 <ExternalIcon size={12} />
+              </button>
+            )}
+            {onMore && (
+              <button className="commit-copy commit-more" data-testid="commit-more" aria-label="More actions" title="More actions" onClick={onMore}>
+                <MoreIcon size={12} />
               </button>
             )}
           </div>

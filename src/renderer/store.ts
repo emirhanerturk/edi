@@ -2,6 +2,7 @@ import type { EditorId } from '../shared/editors';
 import { create } from 'zustand';
 import type {
   ClaudeUsage,
+  CommitMenuChoice,
   GitOp,
   Layout,
   LogResult,
@@ -263,6 +264,10 @@ interface AppStore {
   gitOp(repoPath: string, op: GitOp): Promise<void>;
   /** Pops, applies or (after asking) drops a stash. */
   stashAction(repoPath: string, stash: StashEntry, action: StashMenuAction): Promise<void>;
+  /** Asks, then reverts the commit; if it fails, the Git tab shows with the repo expanded, so the error is seen. */
+  revertCommit(repoPath: string, commit: { oid: string; subject: string }): Promise<void>;
+  /** What was picked in a commit's menu: copy its hash, open its GitHub page, or revert it. */
+  commitAction(repoPath: string, commit: { oid: string; subject: string }, choice: CommitMenuChoice): Promise<void>;
   /** Gives a stash a new message; its tab takes the new name. */
   renameStash(repoPath: string, stash: StashEntry, message: string): Promise<void>;
   fetchAll(): Promise<void>;
@@ -539,6 +544,18 @@ export const useApp = create<AppStore>((set, get) => ({
     if (action === 'drop' && !(await edi.confirmDropStash(stashTitle(stash)))) return;
     const op: GitOp = action === 'pop' ? { op: 'stashPop', oid: stash.oid } : action === 'apply' ? { op: 'stashApply', oid: stash.oid } : { op: 'stashDrop', oid: stash.oid };
     await get().gitOp(repoPath, op);
+  },
+  async revertCommit(repoPath, commit) {
+    if (!(await edi.confirmRevert(commit.subject))) return;
+    await get().gitOp(repoPath, { op: 'revertCommit', oid: commit.oid });
+    if (get().errors[repoPath] === undefined) return;
+    get().setRightTab('git');
+    get().toggleRepo(repoPath, true);
+  },
+  async commitAction(repoPath, commit, choice) {
+    if (choice.action === 'copy') await navigator.clipboard.writeText(commit.oid).catch(() => undefined);
+    else if (choice.action === 'github') await get().openUrl(choice.url);
+    else await get().revertCommit(repoPath, commit);
   },
   async renameStash(repoPath, stash, message) {
     await get().gitOp(repoPath, { op: 'stashRename', oid: stash.oid, message });
