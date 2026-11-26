@@ -193,6 +193,69 @@ describe('Workspace', () => {
     expect(views.at(-1)?.rootSessions).toBe(1);
   });
 
+  describe('in the project order, without the ignored repos', () => {
+    async function fourRepos() {
+      const dir = await makeTmpDir();
+      for (const name of ['a', 'b', 'c', 'd']) await initRepo(dir, name, { commit: true });
+      return dir;
+    }
+    const names = (ws: Workspace) => ws.view().repos.map((repo) => repo.name);
+
+    it('lists the repos in the project order without the ignored ones, and counts only those', async () => {
+      const dir = await fourRepos();
+      const { ws } = makeWorkspace();
+      expect(await ws.open(dir, { order: ['c'], ignored: ['b'] })).toEqual({ ok: true, repoCount: 3 });
+      expect(names(ws)).toEqual(['c', 'a', 'd']);
+      expect(ws.repo(join(dir, 'b'))).toBeNull();
+    });
+
+    it('new settings apply at once and keep the state of the repos that stay', async () => {
+      const dir = await fourRepos();
+      const { ws, views } = makeWorkspace();
+      await ws.open(dir);
+      ws.setBusy(join(dir, 'a'), 'Pushing…');
+      await ws.setRepoSettings({ order: ['b', 'a'], ignored: ['c'] });
+      expect(ws.view().repos.map((repo) => [repo.name, repo.busy])).toEqual([
+        ['b', null],
+        ['a', 'Pushing…'],
+        ['d', null],
+      ]);
+      expect(ws.repo(join(dir, 'c'))).toBeNull();
+      expect(views.at(-1)?.repos.map((repo) => repo.name)).toEqual(['b', 'a', 'd']);
+    });
+
+    it('a repo made later shows at the end; the settings stay on rescan', async () => {
+      const dir = await fourRepos();
+      const { ws } = makeWorkspace();
+      await ws.open(dir, { order: ['b', 'a'], ignored: ['c'] });
+      await initRepo(dir, 'e', { commit: true });
+      await ws.rescan();
+      expect(names(ws)).toEqual(['b', 'a', 'd', 'e']);
+    });
+
+    it('a folder that is itself a repo shows, whatever the settings say', async () => {
+      const dir = await initRepo(await makeTmpDir(), 'solo', { commit: true });
+      const { ws } = makeWorkspace();
+      expect(await ws.open(dir, { order: [], ignored: ['solo'] })).toEqual({ ok: true, repoCount: 1 });
+      expect(names(ws)).toEqual(['solo']);
+    });
+
+    it('with every repo ignored, the folder opens with none', async () => {
+      const dir = await fourRepos();
+      const { ws } = makeWorkspace();
+      expect(await ws.open(dir, { order: [], ignored: ['a', 'b', 'c', 'd'] })).toEqual({ ok: true, repoCount: 0 });
+      expect(ws.view().repos).toEqual([]);
+    });
+
+    it('opening without settings forgets the previous folder\'s', async () => {
+      const dir = await fourRepos();
+      const { ws } = makeWorkspace();
+      await ws.open(dir, { order: [], ignored: ['a'] });
+      await ws.open(dir);
+      expect(names(ws)).toEqual(['a', 'b', 'c', 'd']);
+    });
+  });
+
   it('sends no updates after being disposed', async () => {
     const dir = await makeTmpDir();
     await initRepo(dir, 'a', { commit: true });
