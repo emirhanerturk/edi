@@ -63,7 +63,7 @@ export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked
     menu.setOpen(false);
     onStash({ staged: stagedOnly });
   };
-  const disabled = busy || blocked;
+  const disabled = busy || blocked || total === 0;
 
   return (
     <div className="stash" ref={menu.ref} onKeyDown={menuKeys}>
@@ -72,7 +72,7 @@ export function StashMenu({ total, staged, unstaged, partlyStaged, busy, blocked
         className="stash-button"
         data-testid="stash-button"
         aria-label="Stash changes"
-        title={blocked ? 'Resolve the conflicts first' : 'Stash changes'}
+        title={blocked ? 'Resolve the conflicts first' : total === 0 ? 'Nothing to stash' : 'Stash changes'}
         aria-haspopup="menu"
         aria-expanded={menu.open}
         disabled={disabled}

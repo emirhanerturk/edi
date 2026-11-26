@@ -227,31 +227,30 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
 
       {open && (
         <div className="repo-body">
-          {count > 0 && (
-            <CommitBox
-              target={commitTarget(groups)}
-              message={props.drafts?.[repo.path] ?? ''}
-              busy={busy}
-              canPush={repo.hasRemote}
-              onChange={(message) => props.onDraft?.(repo.path, message)}
-              onCommit={({ all, push }) => run({ op: 'commit', message: props.drafts?.[repo.path] ?? '', all, push })}
-              aside={
-                // git can't stash before the first commit.
-                !status.unborn && (
-                  <StashMenu
-                    total={count}
-                    staged={groups.staged.length}
-                    unstaged={groups.changes.length > 0}
-                    partlyStaged={groups.staged.some(isPartlyStaged)}
-                    busy={busy}
-                    blocked={groups.conflicts.length > 0}
-                    message={props.drafts?.[repo.path] ?? ''}
-                    onStash={({ staged }) => run({ op: 'stash', message: props.drafts?.[repo.path] ?? '', staged })}
-                  />
-                )
-              }
-            />
-          )}
+          {/* Stays when there is nothing to commit: its buttons wait for a change; the text typed is kept. */}
+          <CommitBox
+            target={commitTarget(groups)}
+            message={props.drafts?.[repo.path] ?? ''}
+            busy={busy}
+            canPush={repo.hasRemote}
+            onChange={(message) => props.onDraft?.(repo.path, message)}
+            onCommit={({ all, push }) => run({ op: 'commit', message: props.drafts?.[repo.path] ?? '', all, push })}
+            aside={
+              // git can't stash before the first commit.
+              !status.unborn && (
+                <StashMenu
+                  total={count}
+                  staged={groups.staged.length}
+                  unstaged={groups.changes.length > 0}
+                  partlyStaged={groups.staged.some(isPartlyStaged)}
+                  busy={busy}
+                  blocked={groups.conflicts.length > 0}
+                  message={props.drafts?.[repo.path] ?? ''}
+                  onStash={({ staged }) => run({ op: 'stash', message: props.drafts?.[repo.path] ?? '', staged })}
+                />
+              )
+            }
+          />
           {groups.conflicts.length > 0 && (
             <p className="repo-note">
               {groups.conflicts.length === 1 ? '1 file has conflicts. Resolve it' : `${groups.conflicts.length} files have conflicts. Resolve them`}{' '}

@@ -742,3 +742,35 @@ describe('a detached HEAD', () => {
     expect(onOp).toHaveBeenCalledWith('/w/quizei-app', { op: 'switch', branch: 'main' });
   });
 });
+
+describe('An open repo without changes', () => {
+  afterEach(cleanup);
+
+  it('keeps the commit box: Commit, its arrow and Stash are greyed out, No changes is under it, the text stays', () => {
+    const onDraft = vi.fn();
+    render(
+      <GitPanelView
+        repos={[repo('app', { status: status() })]}
+        expanded={{ '/w/app': true }}
+        onToggle={() => undefined}
+        onOp={vi.fn()}
+        onDraft={onDraft}
+        drafts={{ '/w/app': 'feat: next' }}
+      />,
+    );
+    const box = screen.getByTestId('commit-message') as HTMLTextAreaElement;
+    expect(box.value).toBe('feat: next');
+    expect(box.disabled).toBe(false);
+    const commit = screen.getByTestId('commit-button') as HTMLButtonElement;
+    expect(commit.textContent).toBe('Commit');
+    expect(commit.disabled).toBe(true);
+    expect(commit.title).toBe('Nothing to commit');
+    expect((screen.getByRole('button', { name: 'Commit options' }) as HTMLButtonElement).disabled).toBe(true);
+    const stash = screen.getByTestId('stash-button') as HTMLButtonElement;
+    expect(stash.disabled).toBe(true);
+    expect(stash.title).toBe('Nothing to stash');
+    expect(within(row('app')).getByText('No changes')).toBeTruthy();
+    fireEvent.change(box, { target: { value: 'feat: next two' } });
+    expect(onDraft).toHaveBeenCalledWith('/w/app', 'feat: next two');
+  });
+});

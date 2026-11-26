@@ -51,7 +51,7 @@ export function CommitBox({ target, message, busy, canPush, onChange, onCommit, 
             className={`commit-button${target.all ? ' commit-all' : ''}`}
             data-testid="commit-button"
             disabled={!ready}
-            title="Commit (⌘↵)"
+            title={target.count === 0 ? 'Nothing to commit' : 'Commit (⌘↵)'}
             onClick={() => commit(false)}
           >
             {target.label}

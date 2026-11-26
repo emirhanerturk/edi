@@ -32,7 +32,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   stops working and waits for you.
 - **Git tab.** Every repository directly under the open folder, refreshed every two seconds.
   A collapsed row shows the branch, the state and one sync button; an open repository lists
-  conflicted, staged and changed files with a commit box; each group folds. Stage, unstage,
+  conflicted, staged and changed files with a commit box, which stays with its buttons greyed out when
+  there is nothing to commit; each group folds. Stage, unstage,
   commit, commit and push, pull, push, fetch all, switch and create branches. Commits not
   pushed yet are listed under the repository; the newest can be undone (its changes come
   back staged). Every repository with a remote is fetched in the background every three
