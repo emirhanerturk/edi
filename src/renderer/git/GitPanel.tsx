@@ -25,6 +25,7 @@ function fileAction(repoPath: string, file: FileChange, action: GitFileMenuActio
   else if (action === 'copyPath') void navigator.clipboard.writeText(`${repoPath}/${file.path}`).catch(() => undefined);
   else if (action === 'copyRelativePath') void navigator.clipboard.writeText(file.path).catch(() => undefined);
   else if (action === 'reveal') void edi.revealEntry(repoPath, file.path);
+  else if (action === 'history') state.openInCenter({ kind: 'history', repoPath, path: file.path }, false);
   else if (action.startsWith('openIn:')) void state.openIn(action.slice('openIn:'.length) as EditorId, repoPath, file.path);
 }
 

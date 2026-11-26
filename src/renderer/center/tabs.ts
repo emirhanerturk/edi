@@ -1,11 +1,11 @@
 // The center panel's tab logic: pure functions that don't change the state but return a new one.
 
 /**
- * What can be opened in the center panel: a file's diff, its content, a commit, a stash, or a new file
- * not saved yet (`untitled`: `path` is its name, `repoPath` the repo to suggest when saving, or '').
+ * What can be opened in the center panel: a file's diff, its content, its history, a commit, a stash, or a
+ * new file not saved yet (`untitled`: `path` is its name, `repoPath` the repo to suggest when saving, or '').
  */
 export interface CenterTarget {
-  kind: 'diff' | 'file' | 'commit' | 'stash' | 'untitled';
+  kind: 'diff' | 'file' | 'history' | 'commit' | 'stash' | 'untitled';
   repoPath: string;
   /** Path relative to the repo; the full commit ID for a commit or a stash. */
   path: string;

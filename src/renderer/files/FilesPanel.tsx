@@ -618,6 +618,7 @@ export function FilesPanel() {
     } else if (action === 'copyPath') void navigator.clipboard.writeText(path === '' ? repoPath : `${repoPath}/${path}`).catch(() => undefined);
     else if (action === 'copyRelativePath') void navigator.clipboard.writeText(path).catch(() => undefined);
     else if (action === 'newTerminal') void useApp.getState().newTab({ repoPath, dir: path });
+    else if (action === 'history') openInCenter({ kind: 'history', repoPath, path }, false);
     else if (action.startsWith('openIn:')) void useApp.getState().openIn(action.slice('openIn:'.length) as EditorId, repoPath, path);
   };
 

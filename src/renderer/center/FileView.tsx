@@ -223,6 +223,12 @@ export function FileView({ repo, path }: { repo: RepoView; path: string }) {
       isNew={isNew}
       tokens={tokens}
       onOpenIn={(editor) => void useApp.getState().openIn(editor, repo.path, path)}
+      onHistory={() => {
+        // The file tab stays: the history opens in the preview tab.
+        const app = useApp.getState();
+        app.pinCenterTab(id);
+        app.openInCenter({ kind: 'history', repoPath: repo.path, path }, false);
+      }}
       editor={
         entry && monaco ? (
           <EditorHost

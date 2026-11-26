@@ -156,9 +156,10 @@ describe('FileOps.saveNew', () => {
 describe('menuItems', () => {
   const labels = (kind: 'repo' | 'dir' | 'file', canPaste = false) => menuItems(kind, canPaste).map((item) => item.label);
 
-  it('a file: open in an editor, copy it or its path, rename, duplicate, delete, reveal', () => {
+  it('a file: open in an editor, its history, copy it or its path, rename, duplicate, delete, reveal', () => {
     expect(labels('file')).toEqual([
       'Open in',
+      'File History',
       '-',
       'Copy',
       'Copy Path',

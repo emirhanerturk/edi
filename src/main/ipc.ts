@@ -758,6 +758,10 @@ export class AppCore {
     ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));
     ipcMain.handle('history:log', (_event, repoPath: unknown, count: unknown) => this.historyOps.log(repoPath, count));
     ipcMain.handle('history:commit', (_event, repoPath: unknown, oid: unknown) => this.historyOps.commit(repoPath, oid));
+    ipcMain.handle('history:file', (_event, repoPath: unknown, path: unknown, count: unknown) => this.historyOps.fileHistory(repoPath, path, count));
+    ipcMain.handle('history:fileChange', (_event, repoPath: unknown, oid: unknown, path: unknown, origPath: unknown) =>
+      this.historyOps.fileChange(repoPath, oid, path, origPath),
+    );
     ipcMain.handle('history:commitMenu', (_event, repoPath: unknown, oid: unknown, opts: unknown) => this.historyOps.commitMenu(repoPath, oid, opts));
 
     ipcMain.handle('pty:create', async (_event, o: unknown): Promise<TerminalCreated> => {

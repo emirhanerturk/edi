@@ -3,7 +3,7 @@ import { memo, useMemo } from 'react';
 import type { ParsedDiff } from '../../git/diffParse';
 import type { DiffView } from '../../shared/api';
 import type { DiffTokens, Token } from '../highlight/highlight';
-import { FileIcon } from '../components/icons';
+import { FileIcon, HistoryIcon } from '../components/icons';
 import { ViewHeader, ViewNote } from './ViewHeader';
 import { type Cell, MAX_DIFF_LINES, type Row, diffRows } from './diffRows';
 import type { MediaPair } from './media';
@@ -23,13 +23,15 @@ export interface DiffPaneProps {
   onOpenFile(): void;
   /** A changed image or video: its version in HEAD and on disk, shown in place of "Binary file". */
   media?: MediaPair | null;
+  /** The History button: the file's history in a tab. */
+  onHistory?(): void;
 }
 
 const NOT_CHANGED = 'File is not in the list of changes';
 const TOO_LARGE = 'This diff is too large to show';
 
 /** A file's changes against HEAD: side by side or in a single column. */
-export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn, onOpenFile, media = null }: DiffPaneProps) {
+export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn, onOpenFile, media = null, onHistory }: DiffPaneProps) {
   const diff = view?.ok ? view.diff : null;
   // A file deleted from the working tree has no version to open.
   const onDisk = view?.ok === true && view.file.y !== 'D' && !(view.file.y === '.' && view.file.x === 'D');
@@ -53,6 +55,12 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn,
               Inline
             </button>
           </div>
+        )}
+        {onHistory && view?.ok === true && view.file.kind !== 'untracked' && view.file.x !== 'A' && (
+          <button className="view-button" title="The commits that changed this file" onClick={onHistory}>
+            <HistoryIcon size={12} />
+            <span>History</span>
+          </button>
         )}
         {onDisk && (
           <button className="view-button" title="Show the whole file" onClick={onOpenFile}>
@@ -95,7 +103,7 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn,
  * Polling rerenders the bound view every 2 s; as long as the diff, mode and colors stay the same
  * (useView keeps the same object for the same data) the rows aren't rebuilt and the body isn't rerendered.
  */
-const DiffBody = memo(function DiffBody({ diff, mode, tokens }: { diff: ParsedDiff; mode: 'split' | 'inline'; tokens: DiffTokens | null }) {
+export const DiffBody = memo(function DiffBody({ diff, mode, tokens }: { diff: ParsedDiff; mode: 'split' | 'inline'; tokens: DiffTokens | null }) {
   const rows = useMemo(() => diffRows(diff, mode), [diff, mode]);
   return (
     <div className={`diff-body mono ${mode}`} data-testid="diff-body">

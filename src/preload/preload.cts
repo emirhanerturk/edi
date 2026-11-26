@@ -67,6 +67,8 @@ const api: EdiApi = {
   openIn: (editor, repoPath, filePath) => ipcRenderer.invoke('view:openIn', editor, repoPath, filePath),
   openUrl: (url) => ipcRenderer.invoke('shell:openUrl', url),
   log: (repoPath, count) => ipcRenderer.invoke('history:log', repoPath, count),
+  fileHistory: (repoPath, path, count) => ipcRenderer.invoke('history:file', repoPath, path, count),
+  fileChange: (repoPath, oid, path, origPath) => ipcRenderer.invoke('history:fileChange', repoPath, oid, path, origPath),
   commit: (repoPath, oid) => ipcRenderer.invoke('history:commit', repoPath, oid),
   pty: {
     create: (o) => ipcRenderer.invoke('pty:create', o),

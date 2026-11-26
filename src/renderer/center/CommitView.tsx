@@ -63,6 +63,15 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
   }, [info]);
   useEffect(() => () => useApp.getState().setCenterInfo(null), []);
   const media = useCallback((file: CommitFile) => commitMedia(repo.path, oid, file), [repo.path, oid]);
+  // The commit tab stays; the file's history opens in the preview tab.
+  const fileHistory = useCallback(
+    (path: string) => {
+      const app = useApp.getState();
+      app.pinCenterTab(tabId({ kind: 'commit', repoPath: repo.path, path: oid }));
+      app.openInCenter({ kind: 'history', repoPath: repo.path, path }, false);
+    },
+    [repo.path, oid],
+  );
   // The commit tab stays; the file opens in the preview tab, as "Open file" does in the diff view.
   const openFile = useCallback(
     (path: string) => {
@@ -86,6 +95,7 @@ export function CommitView({ repo, oid }: { repo: RepoView; oid: string }) {
       onOpenUrl={(url) => void useApp.getState().openUrl(url)}
       onOpenFile={openFile}
       media={media}
+      onFileHistory={fileHistory}
       onMore={() => {
         if (!data?.ok) return;
         const { commit } = data;

@@ -10,7 +10,7 @@ import { tabId } from './tabs';
 import { useView, useVersion } from './useView';
 
 /** Last highlighting. When the file changes, the old one stays until the new one arrives; `Code` doesn't use it on a mismatched line. */
-function useDiffTokens(diff: ParsedDiff | null, path: string): DiffTokens | null {
+export function useDiffTokens(diff: ParsedDiff | null, path: string): DiffTokens | null {
   const [tokens, setTokens] = useState<DiffTokens | null>(null);
   useEffect(() => {
     if (!diff) return;
@@ -54,6 +54,12 @@ export function DiffView({ repo, path }: { repo: RepoView; path: string }) {
       media={media}
       onMode={(next) => useApp.getState().setDiffMode(next)}
       onOpenIn={(editor) => void useApp.getState().openIn(editor, repo.path, path)}
+      onHistory={() => {
+        // The diff stays: the history opens in the preview tab.
+        const app = useApp.getState();
+        app.pinCenterTab(tabId({ kind: 'diff', repoPath: repo.path, path }));
+        app.openInCenter({ kind: 'history', repoPath: repo.path, path }, false);
+      }}
       onOpenFile={() => {
         // The new tab replaces the preview tab: so the diff isn't lost, that one is pinned first.
         const app = useApp.getState();

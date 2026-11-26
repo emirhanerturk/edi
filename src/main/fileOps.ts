@@ -56,6 +56,7 @@ export function menuItems(kind: FilesMenuKind, canPaste = false): MenuItem[] {
     const openIn: MenuItem = { id: null, label: 'Open in', submenu: EDITORS.map((editor) => ({ id: `openIn:${editor.id}` as const, label: editor.name })) };
     return [
       openIn,
+      { id: 'history', label: 'File History' },
       SEPARATOR,
       copy,
       copyPath,

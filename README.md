@@ -69,6 +69,10 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   under day headers, newest first; or grouped by repository. Commits not pushed yet carry an
   arrow, a version commit shows as a tag line, merges are dimmed. Filter to one repository to
   see where its upstream stands. 50 commits per repository at a time, with "Load 50 more".
+- **File history.** File History (in a file's right-click menu in the Files and Git tabs, the
+  History button of the file and diff views, and beside each file in the commit view) opens a tab
+  with the commits that changed the file, following it through renames, with its uncommitted changes
+  first; the selected one's change to the file shows below, and Open commit opens the whole commit.
 - **Commit view.** Clicking a commit opens it in the center panel: message, author,
   repository, branch, time, totals, a copy button for the hash, a GitHub link once the commit
   is pushed, and every changed file's diff one under another. A changed image or video shows the

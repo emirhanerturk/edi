@@ -189,3 +189,18 @@ export interface StashDetail {
 
 /** `gone`: the stash is no longer in the list (popped or dropped). */
 export type StashResult = { ok: true; stash: StashDetail } | { ok: false; error: string; gone?: true };
+
+/** A commit in a file's history (see `fileHistory.ts`). */
+export interface FileHistoryEntry {
+  commit: CommitSummary;
+  /** The file's path in this commit: before a later rename it had another one. */
+  path: string;
+  /** Where it was before this commit, when this commit renamed it; null otherwise. */
+  origPath: string | null;
+  added: number;
+  removed: number;
+  binary: boolean;
+}
+
+export type FileHistoryResult = { ok: true; entries: FileHistoryEntry[]; hasMore: boolean } | { ok: false; error: string };
+export type FileChangeResult = { ok: true; diff: ParsedDiff } | { ok: false; error: string };

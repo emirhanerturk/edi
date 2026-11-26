@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CommitFile, CommitResult } from '../../shared/api';
-import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon, MoreIcon } from '../components/icons';
+import { BranchIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, ExpandIcon, ExternalIcon, FileIcon, FoldIcon, HistoryIcon, MoreIcon } from '../components/icons';
 import { letterColor } from '../git/model';
 import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
@@ -58,10 +58,12 @@ export interface CommitPaneProps {
   onMore?(): void;
   /** A changed image or video's versions, shown in place of "Binary file". Must be stable. */
   media?(file: CommitFile): MediaPair | null;
+  /** A file's History button: its history in a tab. Must be stable. */
+  onFileHistory?(path: string): void;
 }
 
 /** A commit: subject, body, details and the diff of every changed file, one below the other. */
-export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore, media }: CommitPaneProps) {
+export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore, media, onFileHistory }: CommitPaneProps) {
   const commitOrNull = result?.ok ? result.commit : null;
   // Collapsed files are kept here: the "expand/collapse all" button in the header changes them too.
   // Switching to another commit starts over, with those over 400 lines collapsed.
@@ -162,7 +164,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
         </div>
       </header>
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
-      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onOpenFile={onOpenFile} media={media} onToggle={(path) =>
+      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onOpenFile={onOpenFile} onFileHistory={onFileHistory} media={media} onToggle={(path) =>
           setCollapsed((prev) => {
             const next = new Set(prev);
             if (next.has(path)) next.delete(path);
@@ -249,10 +251,11 @@ interface CommitFilesProps {
   onOpenFile?(path: string): void;
   /** A changed image or video's versions (see `CommitPaneProps.media`). */
   media?(file: CommitFile): MediaPair | null;
+  onFileHistory?(path: string): void;
 }
 
 /** Every changed file's diff, one below the other (the commit and stash views). */
-export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile, media }: CommitFilesProps) {
+export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile, media, onFileHistory }: CommitFilesProps) {
   if (files.length === 0) return <ViewNote>No file changes</ViewNote>;
   return (
     <div className="commit-files mono">
@@ -264,6 +267,7 @@ export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, on
           tokens={tokens.get(file.path) ?? null}
           onToggle={onToggle}
           onOpenFile={onOpenFile}
+          onFileHistory={onFileHistory}
           media={media}
         />
       ))}
@@ -279,6 +283,7 @@ const CommitFileSection = memo(function CommitFileSection({
   tokens,
   onToggle,
   onOpenFile,
+  onFileHistory,
   media,
 }: {
   file: CommitFile;
@@ -286,6 +291,7 @@ const CommitFileSection = memo(function CommitFileSection({
   tokens: DiffTokens | null;
   onToggle(path: string): void;
   onOpenFile?(path: string): void;
+  onFileHistory?(path: string): void;
   media?(file: CommitFile): MediaPair | null;
 }) {
   const slash = file.path.lastIndexOf('/');
@@ -319,6 +325,11 @@ const CommitFileSection = memo(function CommitFileSection({
             </span>
           )}
         </button>
+        {onFileHistory && (
+          <button className="icon-button tiny commit-file-open" aria-label={`History of ${file.path.slice(slash + 1)}`} title="File history" onClick={() => onFileHistory(file.path)}>
+            <HistoryIcon size={12} />
+          </button>
+        )}
         {/* A file the commit deleted may not be there any more. */}
         {onOpenFile && file.letter !== 'D' && (
           <button className="icon-button tiny commit-file-open" aria-label={`Open ${file.path.slice(slash + 1)}`} title="Open file" onClick={() => onOpenFile(file.path)}>

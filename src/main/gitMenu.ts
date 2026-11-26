@@ -41,6 +41,8 @@ export function gitFileMenuItems(state: GitFileMenuState): GitMenuItem[] {
     { id: 'copyPath', label: 'Copy Path', accelerator: 'Alt+Command+C' },
     { id: 'copyRelativePath', label: 'Copy Relative Path', accelerator: 'Shift+Alt+Command+C' },
     SEPARATOR,
+    // A new file has no commits yet.
+    { id: 'history', label: 'File History', enabled: !state.untracked },
     { id: 'reveal', label: 'Reveal in Finder', accelerator: 'Alt+Command+R', enabled: !state.deleted },
   );
   return items;

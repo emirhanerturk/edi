@@ -3,7 +3,7 @@ import { type ReactNode, memo, useMemo, useState } from 'react';
 import type { FileContent } from '../../shared/api';
 import { mediaUrl } from '../../shared/media';
 import { fileSize } from '../format';
-import { LockIcon } from '../components/icons';
+import { HistoryIcon, LockIcon } from '../components/icons';
 import type { Token } from '../highlight/highlight';
 import { languageOf } from '../highlight/languages';
 import { Code } from './DiffPane';
@@ -49,6 +49,8 @@ export interface FilePaneProps {
   onLoadDisk?(): void;
   /** Closes the tab (offered when the file was deleted under unsaved edits). */
   onClose?(): void;
+  /** The History button: the file's history in a tab. */
+  onHistory?(): void;
 }
 
 /** The file view: an editor for text files, a preview for images and videos, a note otherwise. */
@@ -76,6 +78,12 @@ export function FilePane(props: FilePaneProps) {
             <LockIcon size={12} />
             Read-only
           </span>
+        )}
+        {props.onHistory && !isNew && (
+          <button className="view-button" data-testid="file-history-button" title="The commits that changed this file" onClick={props.onHistory}>
+            <HistoryIcon size={12} />
+            <span>History</span>
+          </button>
         )}
       </ViewHeader>
       {editing && <EditBar {...props} edit={edit} />}

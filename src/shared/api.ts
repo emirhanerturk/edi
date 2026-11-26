@@ -8,10 +8,12 @@ import type { ParsedDiff } from '../git/diffParse.js';
 import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult } from '../git/types.js';
 import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
+import type { FileChangeResult, FileHistoryEntry, FileHistoryResult } from '../git/types.js';
 
 export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult };
 export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, WriteResult };
 export type { StashDetail, StashEntry, StashList, StashResult };
+export type { FileChangeResult, FileHistoryEntry, FileHistoryResult };
 
 export interface RepoView {
   name: string;
@@ -218,6 +220,7 @@ export type FilesMenuAction =
   | 'copyPath'
   | 'copyRelativePath'
   | 'newTerminal'
+  | 'history'
   | `openIn:${EditorId}`;
 
 /** A Git tab file row, for its right-click menu: what applies to it. */
@@ -231,7 +234,17 @@ export interface GitFileMenuState {
   canDiscard: boolean;
 }
 
-export type GitFileMenuAction = 'openChanges' | 'openFile' | 'stage' | 'unstage' | 'discard' | 'copyPath' | 'copyRelativePath' | 'reveal' | `openIn:${EditorId}`;
+export type GitFileMenuAction =
+  | 'openChanges'
+  | 'openFile'
+  | 'stage'
+  | 'unstage'
+  | 'discard'
+  | 'copyPath'
+  | 'copyRelativePath'
+  | 'history'
+  | 'reveal'
+  | `openIn:${EditorId}`;
 
 /** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
@@ -407,6 +420,10 @@ export interface EdiApi {
   /** Opens a web link from the terminal in the default browser (http/https only). */
   openUrl(url: string): Promise<OpResult>;
   log(repoPath: string, count: number): Promise<LogResult>;
+  /** The commits that changed a file (its path now), newest first, following renames; `count` a multiple of 50. */
+  fileHistory(repoPath: string, path: string, count: number): Promise<FileHistoryResult>;
+  /** A file's change in one commit of its history; `origPath`: where it was before, if that commit renamed it. */
+  fileChange(repoPath: string, oid: string, path: string, origPath: string | null): Promise<FileChangeResult>;
   commit(repoPath: string, oid: string): Promise<CommitResult>;
   pty: {
     create(o: NewTerminal): Promise<TerminalCreated>;

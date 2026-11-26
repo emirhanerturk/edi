@@ -224,3 +224,12 @@ export const MoreIcon = (p: IconProps) => (
     <circle cx="12.5" cy="8" r="1.3" />
   </Icon>
 );
+
+/** A file's history: a clock with an arrow going back. */
+export const HistoryIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.5} {...p}>
+    <path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8L2.6 5.8" />
+    <path d="M2.6 2.6v3.2h3.2" />
+    <path d="M8 5.2v3l2.1 1.3" />
+  </Icon>
+);
