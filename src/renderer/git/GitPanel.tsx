@@ -70,6 +70,7 @@ export function GitPanel() {
       expanded={expanded}
       onToggle={toggleRepo}
       onOpenTerminal={(repoPath) => void newTab({ repoPath })}
+      onOpenClaude={(repoPath) => void newTab({ repoPath, claude: true })}
       drafts={drafts}
       errors={errors}
       onDraft={setDraft}

@@ -806,3 +806,18 @@ describe('A changed file row', () => {
     expect(onFileKey).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('GitPanelView, a terminal or Claude Code in a repository', () => {
+  it('the open repository has both buttons; a closed one shows them on its row too, without toggling it', () => {
+    const onOpenTerminal = vi.fn();
+    const onOpenClaude = vi.fn();
+    const onToggle = vi.fn();
+    // quizei-app has changes, so it starts open; quizei-web is closed.
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={onToggle} onOpenTerminal={onOpenTerminal} onOpenClaude={onOpenClaude} />);
+    fireEvent.click(within(row('quizei-app')).getByRole('button', { name: 'Open a terminal in quizei-app' }));
+    fireEvent.click(within(row('quizei-web')).getByRole('button', { name: 'Start Claude Code in quizei-web' }));
+    expect(onOpenTerminal).toHaveBeenCalledWith('/w/quizei-app');
+    expect(onOpenClaude).toHaveBeenCalledWith('/w/quizei-web');
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+});

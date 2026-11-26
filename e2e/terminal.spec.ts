@@ -167,3 +167,28 @@ test('an inactive tab\'s close button shows on hover and closes that tab', async
     await app.close();
   }
 });
+
+test('the ▾ beside + opens a terminal in a repository, and the tab says which', async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  await makeRepo(dir, 'beta');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    const tabs = page.getByTestId('tab');
+    await expect(tabs).toHaveCount(1);
+    await page.getByTestId('new-terminal-in').click();
+    await page.getByTestId('place-item').filter({ hasText: 'alpha' }).click();
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(1).getByTestId('tab-place')).toHaveText('alpha');
+    await page.keyboard.type('touch in-alpha\n');
+    await expect.poll(() => exists(join(alpha, 'in-alpha'))).toBe(true);
+
+    // ⌥⌘T opens the same list from the keyboard; Esc closes it.
+    await page.keyboard.press('Alt+Meta+t');
+    await expect(page.getByTestId('place-menu')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('place-menu')).toHaveCount(0);
+  } finally {
+    await app.close();
+  }
+});

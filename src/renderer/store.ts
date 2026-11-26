@@ -75,6 +75,8 @@ export interface Tab {
   titleState: ClaudeTitleState | null;
   /** Opened by a snippet: it keeps the snippet's name and shows its mark. */
   snippet?: boolean;
+  /** The repository it started in, by name; absent for the project folder. */
+  place?: string;
 }
 
 /** Time allowed for Claude Code to start. */
@@ -305,6 +307,9 @@ interface AppStore {
   activate(id: number): void;
   /** Closes all tabs (when the folder changes). */
   resetTabs(): void;
+  /** The list of places a new terminal (`shell`) or Claude Code session starts in, beside + and ✳+; null when closed. */
+  placeMenu: 'shell' | 'claude' | null;
+  showPlaceMenu(kind: 'shell' | 'claude' | null): void;
 
   /** Runs a snippet in a new terminal tab named after it (the main process asks first if the snippet says so). */
   runSnippet(snippet: Snippet): Promise<void>;
@@ -362,7 +367,7 @@ class SnippetRefused extends Error {
 }
 
 /** A tab for the terminal just opened, in front; its title follows the terminal's (Claude Code's state). */
-function addTab(created: TerminalCreated, kind: { claude?: boolean; snippet?: boolean }): void {
+function addTab(created: TerminalCreated, kind: { claude?: boolean; snippet?: boolean; place?: string }): void {
   const claude = kind.claude === true;
   const tab: Tab = {
     id: created.id,
@@ -374,6 +379,7 @@ function addTab(created: TerminalCreated, kind: { claude?: boolean; snippet?: bo
     claudeUntil: claude ? Date.now() + CLAUDE_START_MS : 0,
     titleState: null,
     ...(kind.snippet ? { snippet: true } : {}),
+    ...(kind.place ? { place: kind.place } : {}),
   };
   useApp.setState((state) => ({ tabs: [...state.tabs, tab], activeTab: tab.id }));
   onTerminalTitle(tab.id, (title) =>
@@ -581,7 +587,9 @@ export const useApp = create<AppStore>((set, get) => ({
       disposeTerminal(created.id);
       return;
     }
-    addTab(created, { claude: opts.claude === true });
+    // A tab started in a repository says which; the project folder's (or the only repository's, when that is the folder) says nothing.
+    const repo = opts.repoPath === undefined ? undefined : get().workspace.repos.find((candidate) => candidate.path === opts.repoPath);
+    addTab(created, { claude: opts.claude === true, place: repo && repo.path !== dir ? repo.name : undefined });
   },
   closeTab(id) {
     const { tabs, activeTab } = get();
@@ -604,6 +612,8 @@ export const useApp = create<AppStore>((set, get) => ({
     disposeAllTerminals();
     set({ tabs: [], activeTab: null });
   },
+  placeMenu: null,
+  showPlaceMenu: (kind) => set({ placeMenu: kind }),
 
   async runSnippet(snippet) {
     const dir = get().workspace.dir;
@@ -789,6 +799,7 @@ export function connect(): () => void {
         // Quick open and its recent files belong to the folder, and so does a snippet being edited.
         quickOpen: workspace.dir === state.workspace.dir ? state.quickOpen : false,
         snippetSheet: workspace.dir === state.workspace.dir ? state.snippetSheet : null,
+        placeMenu: workspace.dir === state.workspace.dir ? state.placeMenu : null,
         recent: workspace.dir === state.workspace.dir ? state.recent : [],
       })),
     ),

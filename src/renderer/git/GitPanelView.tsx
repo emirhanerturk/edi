@@ -52,6 +52,8 @@ export interface GitPanelProps {
   expanded: Record<string, boolean>;
   onToggle(repoPath: string, open: boolean): void;
   onOpenTerminal?(repoPath: string): void;
+  /** Starts Claude Code in a new terminal tab in the repository. */
+  onOpenClaude?(repoPath: string): void;
   /** Commit messages being written (path → text). */
   drafts?: Record<string, string>;
   /** Error from the last operation (path → git's line). */
@@ -109,8 +111,24 @@ export function GitPanelView(props: GitPanelProps) {
   );
 }
 
+/** A terminal, and Claude Code, in the repository: on the open repository's row, and on hover on a closed one. */
+function LaunchButtons({ repoName, onTerminal, onClaude }: { repoName: string; onTerminal(): void; onClaude?: () => void }) {
+  return (
+    <>
+      <button className="icon-button small" aria-label={`Open a terminal in ${repoName}`} title="Open a terminal in this repository" onClick={onTerminal}>
+        <TerminalIcon size={13} />
+      </button>
+      {onClaude && (
+        <button className="icon-button small" aria-label={`Start Claude Code in ${repoName}`} title="Start Claude Code in this repository" onClick={onClaude}>
+          <ClaudeMark size={12} />
+        </button>
+      )}
+    </>
+  );
+}
+
 function Repo(props: GitPanelProps & { repo: RepoView }) {
-  const { repo, expanded, onToggle, onOpenTerminal } = props;
+  const { repo, expanded, onToggle, onOpenTerminal, onOpenClaude } = props;
   const { status } = repo;
   const error = props.errors?.[repo.path];
   const run = (op: GitOp) => props.onOp?.(repo.path, op);
@@ -197,17 +215,14 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
                 onPush={() => run({ op: 'push' })}
               />
             )}
-            <button
-              className="icon-button small"
-              aria-label="Open a terminal in this repository"
-              title="Open a terminal in this repository"
-              onClick={() => onOpenTerminal?.(repo.path)}
-            >
-              <TerminalIcon size={13} />
-            </button>
+            <LaunchButtons repoName={repo.name} onTerminal={() => onOpenTerminal?.(repo.path)} onClaude={onOpenClaude && (() => onOpenClaude(repo.path))} />
           </>
         ) : (
           <>
+            {/* On hover: a terminal or Claude Code in this repository. */}
+            <span className="repo-launch">
+              <LaunchButtons repoName={repo.name} onTerminal={() => onOpenTerminal?.(repo.path)} onClaude={onOpenClaude && (() => onOpenClaude(repo.path))} />
+            </span>
             <span className="repo-branch mono" title={status.head}>
               {status.head}
             </span>
