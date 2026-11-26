@@ -55,8 +55,10 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Files tab.** Each repository's working tree; files and folders ignored by git are dimmed
   (an ignored folder is read from disk one level at a time when you open it). Changed files carry
   their status letter, folders that contain changes a dot; files carry an icon by type. Right-click
-  (or the buttons on a folder row) for New File, New Folder, Rename, Move to Trash and Reveal in
-  Finder. Clicking a file opens it in an editor (Monaco, with the same colors as the diff view,
+  (or the buttons on a folder row) for New File, New Folder, Copy and Paste (Finder can paste a copied
+  file too), Duplicate, Copy Path, Copy Relative Path, Rename, Delete (to the Trash, after asking),
+  Open in an editor, a new terminal in a folder, and Reveal in Finder; the keys the menu shows work on
+  the selected row. Clicking a file opens it in an editor (Monaco, with the same colors as the diff view,
   and a minimap); ⌘S saves. Bars in the gutter mark lines changed since HEAD, and the cursor's
   line shows who changed it last; clicking that opens the commit. If an agent changes the file under
   unsaved edits, a bar offers "Load disk version" or "Keep mine"; closing an edited tab, quitting
@@ -171,7 +173,7 @@ preferences:
   stash asks first; it is the only stash action that deletes anything. A stash is named by
   its commit id, never by its position, which shifts.
 - **Files change only on purpose.** Saving writes only if the disk still holds the text the
-  edit started from. New files and folders, and renames, never replace an existing one.
+  edit started from. New files and folders, copies, and renames never replace an existing one.
   Deleting moves to the macOS Trash, after asking.
 - **Nothing automatic.** No background fetch, pull or push. The network is touched only when
   you press Fetch, Pull, Push or Publish.

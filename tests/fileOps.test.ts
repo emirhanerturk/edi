@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FileOps, menuItems } from '../src/main/fileOps.js';
@@ -22,6 +22,7 @@ async function setup() {
   const asked: Question[] = [];
   const trashed: string[] = [];
   const revealed: string[] = [];
+  const clipboard: string[] = [];
   let answer = true;
   const offered: string[] = [];
   let chosen: string | null = null;
@@ -34,6 +35,7 @@ async function setup() {
       trashed.push(target);
     },
     reveal: (target) => revealed.push(target),
+    copyToClipboard: (target) => clipboard.push(target),
     menu: async () => 'rename',
     choosePath: async (defaultPath) => {
       offered.push(defaultPath);
@@ -43,10 +45,12 @@ async function setup() {
   return {
     dir,
     repo,
+    ws,
     ops,
     asked,
     trashed,
     revealed,
+    clipboard,
     offered,
     answer: (yes: boolean) => (answer = yes),
     choose: (path: string | null) => (chosen = path),
@@ -81,7 +85,7 @@ describe('FileOps', () => {
     answer(false);
     expect(await ops.trash(repo, 'src', 0)).toEqual({ ok: false, error: '', cancelled: true });
     expect(trashed).toEqual([]);
-    expect(asked[0]!.message).toBe('Move "src" to the Trash?');
+    expect(asked[0]!.message).toBe('Delete "src"?');
     expect(asked[0]!.detail).toContain('The folder and everything in it');
     answer(true);
     expect(await ops.trash(repo, 'src/a.ts', 2)).toEqual({ ok: true, path: 'src/a.ts' });
@@ -150,10 +154,83 @@ describe('FileOps.saveNew', () => {
 });
 
 describe('menuItems', () => {
-  it('folders can get new entries; files and folders can be renamed or trashed; everything can be revealed', () => {
-    const labels = (kind: 'repo' | 'dir' | 'file') => menuItems(kind).map((item) => item.label);
-    expect(labels('repo')).toEqual(['New File…', 'New Folder…', '-', 'Reveal in Finder']);
-    expect(labels('dir')).toEqual(['New File…', 'New Folder…', '-', 'Rename…', 'Move to Trash', '-', 'Reveal in Finder']);
-    expect(labels('file')).toEqual(['Rename…', 'Move to Trash', '-', 'Reveal in Finder']);
+  const labels = (kind: 'repo' | 'dir' | 'file', canPaste = false) => menuItems(kind, canPaste).map((item) => item.label);
+
+  it('a file: open in an editor, copy it or its path, rename, duplicate, delete, reveal', () => {
+    expect(labels('file')).toEqual([
+      'Open in',
+      '-',
+      'Copy',
+      'Copy Path',
+      'Copy Relative Path',
+      '-',
+      'Rename…',
+      'Duplicate',
+      'Delete',
+      '-',
+      'Reveal in Finder',
+    ]);
+    const openIn = menuItems('file')[0]!;
+    expect(openIn.submenu?.map((item) => item.id)).toEqual(['openIn:antigravity', 'openIn:zed']);
+    expect(menuItems('file').find((item) => item.id === 'trash')).toMatchObject({ label: 'Delete', accelerator: 'Command+Backspace' });
+  });
+
+  it('a folder and a repo: new entries, a terminal there, paste only once something was copied', () => {
+    expect(labels('dir')).toEqual([
+      'New File…',
+      'New Folder…',
+      '-',
+      'New Terminal Here',
+      '-',
+      'Copy',
+      'Paste',
+      'Copy Path',
+      'Copy Relative Path',
+      '-',
+      'Rename…',
+      'Delete',
+      '-',
+      'Reveal in Finder',
+    ]);
+    expect(labels('repo')).toEqual(['New File…', 'New Folder…', '-', 'New Terminal Here', '-', 'Paste', 'Copy Path', '-', 'Reveal in Finder']);
+    const paste = (kind: 'repo' | 'dir', canPaste: boolean) => menuItems(kind, canPaste).find((item) => item.id === 'paste')?.enabled;
+    expect(paste('dir', false)).toBe(false);
+    expect(paste('repo', true)).toBe(true);
+  });
+});
+
+describe('FileOps copy, paste and duplicate', () => {
+  it('pastes what was copied, under its own name or "name copy"; never replaces', async () => {
+    const { repo, ops, clipboard } = await setup();
+    expect(await ops.paste(repo, '')).toEqual({ ok: false, error: 'Copy a file or folder first' });
+    expect(await ops.copy(repo, 'src/a.ts')).toEqual({ ok: true, path: 'src/a.ts' });
+    expect(clipboard).toEqual([join(await realpath(repo), 'src', 'a.ts')]);
+
+    expect(await ops.paste(repo, '')).toEqual({ ok: true, path: 'a.ts' });
+    expect(await readFile(join(repo, 'a.ts'), 'utf8')).toBe('a\n');
+    expect(await ops.paste(repo, '')).toEqual({ ok: true, path: 'a copy.ts' });
+    expect(await ops.paste(repo, '')).toEqual({ ok: true, path: 'a copy 2.ts' });
+    expect(await readFile(join(repo, 'a.ts'), 'utf8')).toBe('a\n');
+  });
+
+  it('duplicates a file or a folder beside it, and does not copy a folder into itself', async () => {
+    const { repo, ops } = await setup();
+    expect(await ops.duplicate(repo, 'src/a.ts')).toEqual({ ok: true, path: 'src/a copy.ts' });
+    expect(await ops.duplicate(repo, 'src')).toEqual({ ok: true, path: 'src copy' });
+    expect(await readFile(join(repo, 'src copy', 'a.ts'), 'utf8')).toBe('a\n');
+    await ops.copy(repo, 'src');
+    expect(await ops.paste(repo, 'src')).toEqual({ ok: false, error: 'A folder cannot be copied into itself' });
+    expect(await ops.paste(repo, '../x')).toEqual({ ok: false, error: 'File is outside the repository' });
+    expect(await ops.duplicate(repo, '.git')).toEqual({ ok: false, error: 'File is outside the repository' });
+    expect(await ops.copy('/elsewhere', 'src/a.ts')).toEqual(UNKNOWN);
+  });
+
+  it('a deleted file asks with Delete and says it has uncommitted changes', async () => {
+    const { repo, ops, asked, ws } = await setup();
+    await writeFile(join(repo, 'src', 'a.ts'), 'changed\n');
+    await ws.refresh(repo);
+    await ops.trash(repo, 'src/a.ts', 0);
+    expect(asked.at(-1)).toMatchObject({ message: 'Delete "a.ts"?', buttons: ['Delete', 'Cancel'] });
+    expect(asked.at(-1)!.detail).toContain("It has changes that aren't committed.");
   });
 });

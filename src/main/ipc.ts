@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { type BrowserWindow, Menu, dialog, ipcMain, net, powerSaveBlocker, protocol, shell } from 'electron';
+import { pathToFileURL } from 'node:url';
+import { type BrowserWindow, ClipboardItem, Menu, type MenuItemConstructorOptions, clipboard, dialog, ipcMain, net, powerSaveBlocker, protocol, shell } from 'electron';
 import { discoverRepos } from '../git/discover.js';
+import { locateInRepo } from '../git/files.js';
 import { remoteWebUrl } from '../git/remoteUrl.js';
 import { listPs } from '../procs.js';
 import { readUsage, usageFile } from './claudeUsage.js';
@@ -80,6 +82,16 @@ const realDir = async (path: string): Promise<string | null> => {
 };
 const takenBy = (project: Project) => ({ ok: false, error: `This folder is already the project ${project.name}` }) as const;
 
+/** An item of a native menu: a separator without an id or submenu. */
+interface PopupItem<T extends string> {
+  id: T | null;
+  label: string;
+  enabled?: boolean;
+  /** The key shown beside it. */
+  accelerator?: string;
+  submenu?: PopupItem<T>[];
+}
+
 
 /** The main process's state and everything it talks to the page about. */
 export class AppCore {
@@ -146,6 +158,11 @@ export class AppCore {
       ask: (question) => this.ask(question),
       trash: (target) => shell.trashItem(target),
       reveal: (target) => shell.showItemInFolder(target),
+      // Finder pastes the file from its URL on the pasteboard; a terminal or an editor gets its path.
+      copyToClipboard: (target) => {
+        const item = new ClipboardItem({ 'text/plain': target, 'electron application/osclipboard;format="public.file-url"': pathToFileURL(target).href });
+        void clipboard.write([item]).catch(() => clipboard.writeText(target).catch(() => undefined));
+      },
       menu: (items) => this.popup(items),
       choosePath: async (defaultPath) => {
         const win = this.getWindow();
@@ -285,24 +302,30 @@ export class AppCore {
     return busyQuestion('quit', this.busyTabs, this.unsavedFiles, this.gitRepos()) !== null;
   }
 
-  /** A native context menu at the mouse; resolves with the picked item's id, or null when it closes without one. */
-  private popup<T extends string>(items: { id: T | null; label: string; enabled?: boolean }[]): Promise<T | null> {
+  /**
+   * A native context menu at the mouse; resolves with the picked item's id, or null when it closes without
+   * one. An item with a `submenu` opens it; one without an id and submenu is a separator. `accelerator`
+   * only shows the key: the page handles it.
+   */
+  private popup<T extends string>(items: PopupItem<T>[]): Promise<T | null> {
     return new Promise((resolve) => {
       let picked = false;
-      const menu = Menu.buildFromTemplate(
-        items.map((item) =>
-          item.id === null
-            ? { type: 'separator' as const }
-            : {
-                label: item.label,
-                enabled: item.enabled !== false,
-                click: () => {
-                  picked = true;
-                  resolve(item.id);
-                },
-              },
-        ),
-      );
+      const build = (list: PopupItem<T>[]): MenuItemConstructorOptions[] =>
+        list.map((item) => {
+          if (item.submenu) return { label: item.label, enabled: item.enabled !== false, submenu: build(item.submenu) };
+          if (item.id === null) return { type: 'separator' as const };
+          const id = item.id;
+          return {
+            label: item.label,
+            enabled: item.enabled !== false,
+            ...(item.accelerator ? { accelerator: item.accelerator, registerAccelerator: false } : {}),
+            click: () => {
+              picked = true;
+              resolve(id);
+            },
+          };
+        });
+      const menu = Menu.buildFromTemplate(build(items));
       const win = this.getWindow();
       // The click handler can run just after the close callback: wait a moment before reporting "nothing".
       const callback = () => setTimeout(() => !picked && resolve(null), 100);
@@ -713,6 +736,9 @@ export class AppCore {
     );
     ipcMain.handle('files:trash', (_event, repoPath: unknown, path: unknown, unsaved: unknown) => this.fileOps.trash(repoPath, path, unsaved));
     ipcMain.handle('files:reveal', (_event, repoPath: unknown, path: unknown) => this.fileOps.reveal(repoPath, path));
+    ipcMain.handle('files:copy', (_event, repoPath: unknown, path: unknown) => this.fileOps.copy(repoPath, path));
+    ipcMain.handle('files:paste', (_event, repoPath: unknown, dir: unknown) => this.fileOps.paste(repoPath, dir));
+    ipcMain.handle('files:duplicate', (_event, repoPath: unknown, path: unknown) => this.fileOps.duplicate(repoPath, path));
     ipcMain.handle('files:menu', (_event, kind: unknown) => this.fileOps.menu(kind));
     ipcMain.handle('files:saveNew', (_event, text: unknown, repoPath: unknown) => this.fileOps.saveNew(text, repoPath));
     ipcMain.handle('view:headText', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.headText(repoPath, filePath));
@@ -728,17 +754,23 @@ export class AppCore {
     ipcMain.handle('history:commit', (_event, repoPath: unknown, oid: unknown) => this.historyOps.commit(repoPath, oid));
     ipcMain.handle('history:commitMenu', (_event, repoPath: unknown, oid: unknown, opts: unknown) => this.historyOps.commitMenu(repoPath, oid, opts));
 
-    ipcMain.handle('pty:create', (_event, o: unknown): TerminalCreated => {
+    ipcMain.handle('pty:create', async (_event, o: unknown): Promise<TerminalCreated> => {
       const opts = (typeof o === 'object' && o !== null ? o : {}) as Record<string, unknown>;
       const dir = this.workspace.view().dir;
       if (dir === null) throw new Error('No folder is open');
-      // The path from the page isn't free: only a discovered repo or the open folder.
+      // The path from the page isn't free: only a discovered repo or the open folder, or a folder inside the repo.
       const repo = typeof opts.repoPath === 'string' ? this.workspace.repo(opts.repoPath) : null;
       if (typeof opts.repoPath === 'string' && !repo) throw new Error('Unknown repository');
+      let cwd = repo?.path ?? dir;
+      if (repo && typeof opts.dir === 'string' && opts.dir !== '') {
+        const folder = await locateInRepo(repo.path, opts.dir);
+        if (!folder.ok || !(await isDir(folder.target))) throw new Error('Folder not found');
+        cwd = folder.target;
+      }
       const id = this.ptys.create({
         cols: Number(opts.cols),
         rows: Number(opts.rows),
-        cwd: repo?.path ?? dir,
+        cwd,
         command: opts.claude === true ? 'claude' : undefined,
       });
       setTimeout(() => void this.pollProcesses(), AFTER_CREATE_MS);

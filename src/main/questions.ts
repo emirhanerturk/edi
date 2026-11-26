@@ -91,11 +91,17 @@ export function dropStashQuestion(label: string): Question {
 
 const unsavedLine = (count: number) => `${plural(count, 'open file has', 'open files have')} unsaved changes. They will be lost.`;
 
-/** Before moving a file or folder from the Files tab to the Trash. */
-export function trashQuestion(name: string, isDir: boolean, unsavedFiles: number): Question {
-  const lines = [isDir ? 'The folder and everything in it go to the Trash. You can restore them from there.' : 'You can restore it from the Trash.'];
+/**
+ * Before deleting a file or folder from the Files tab: it goes to the Trash. `uncommitted`: it (or a file
+ * in the folder) has changes git doesn't have yet.
+ */
+export function trashQuestion(name: string, isDir: boolean, unsavedFiles: number, uncommitted = false): Question {
+  const lines = [
+    isDir ? 'The folder and everything in it go to the Trash, and you can put them back from there.' : 'It goes to the Trash, and you can put it back from there.',
+  ];
+  if (uncommitted) lines.push(isDir ? "Some of its files have changes that aren't committed." : "It has changes that aren't committed.");
   if (unsavedFiles > 0) lines.push(unsavedLine(unsavedFiles));
-  return { type: 'warning', message: `Move "${name}" to the Trash?`, detail: lines.join(' '), buttons: ['Move to Trash', 'Cancel'], defaultId: 0, cancelId: 1 };
+  return { type: 'warning', message: `Delete "${name}"?`, detail: lines.join(' '), buttons: ['Delete', 'Cancel'], defaultId: 0, cancelId: 1 };
 }
 
 /** Before renaming a file or folder whose open tabs have unsaved edits (the tabs reload from disk). */

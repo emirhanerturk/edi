@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileChange, FileList, RepoStatus } from '../../src/git/types';
-import { FilesPanelView, type FilesPanelViewProps } from '../../src/renderer/files/FilesPanel';
+import { FilesPanelView, type FilesPanelViewProps, keyAction } from '../../src/renderer/files/FilesPanel';
 import type { RepoView } from '../../src/shared/api';
 
 afterEach(cleanup);
@@ -285,6 +285,34 @@ describe('FilesPanelView: new, rename, delete', () => {
     fireEvent.change(input, { target: { value: 'game.tsx' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(props.onSubmitName).toHaveBeenCalledWith('game.tsx');
+  });
+
+  it('the keys its menu shows act on the row: copy, paste, duplicate, copy path, reveal', () => {
+    const props = renderView({ open, onAction: vi.fn() });
+    fireEvent.keyDown(row('play.tsx'), { key: 'c', code: 'KeyC', metaKey: true });
+    expect(props.onAction).toHaveBeenLastCalledWith('/w/quizei-app', 'app/play.tsx', 'file', 'copy');
+    fireEvent.keyDown(row('app'), { key: 'v', code: 'KeyV', metaKey: true });
+    expect(props.onAction).toHaveBeenLastCalledWith('/w/quizei-app', 'app', 'dir', 'paste');
+    fireEvent.keyDown(row('play.tsx'), { key: 'ç', code: 'KeyC', metaKey: true, altKey: true });
+    expect(props.onAction).toHaveBeenLastCalledWith('/w/quizei-app', 'app/play.tsx', 'file', 'copyPath');
+    fireEvent.keyDown(row('quizei-app'), { key: '®', code: 'KeyR', metaKey: true, altKey: true });
+    expect(props.onAction).toHaveBeenLastCalledWith('/w/quizei-app', '', 'repo', 'reveal');
+    // A key that isn't one of them, or ⌘C on the repo itself, does nothing.
+    const calls = vi.mocked(props.onAction!).mock.calls.length;
+    fireEvent.keyDown(row('play.tsx'), { key: 'x', code: 'KeyX', metaKey: true });
+    fireEvent.keyDown(row('quizei-app'), { key: 'c', code: 'KeyC', metaKey: true });
+    expect(props.onAction).toHaveBeenCalledTimes(calls);
+  });
+
+  it('keyAction reads the key by position', () => {
+    const key = (code: string, over: Partial<KeyboardEvent> = {}) => ({ metaKey: true, altKey: false, shiftKey: false, ctrlKey: false, code, ...over });
+    expect(keyAction(key('KeyC'), 'file')).toBe('copy');
+    expect(keyAction(key('KeyC', { altKey: true, shiftKey: true }), 'dir')).toBe('copyRelativePath');
+    expect(keyAction(key('KeyC', { altKey: true, shiftKey: true }), 'repo')).toBeNull();
+    expect(keyAction(key('KeyD'), 'file')).toBe('duplicate');
+    expect(keyAction(key('KeyD'), 'dir')).toBeNull();
+    expect(keyAction(key('KeyV', { metaKey: false }), 'dir')).toBeNull();
+    expect(keyAction(key('KeyV', { ctrlKey: true }), 'dir')).toBeNull();
   });
 
   it('⌘⌫ on a row moves it to the Trash; F2 renames', () => {

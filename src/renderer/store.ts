@@ -246,7 +246,8 @@ interface AppStore {
   /** Claude usage limits (from the status line bridge); null if unknown. */
   usage: ClaudeUsage | null;
   activeTab: number | null;
-  newTab(opts?: { claude?: boolean; repoPath?: string }): Promise<void>;
+  /** A terminal in the open folder, or in a repo (`dir`: a folder inside it); `claude` starts Claude Code. */
+  newTab(opts?: { claude?: boolean; repoPath?: string; dir?: string }): Promise<void>;
   closeTab(id: number): void;
   activate(id: number): void;
   /** Closes all tabs (when the folder changes). */

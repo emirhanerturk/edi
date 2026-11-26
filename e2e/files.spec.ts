@@ -77,14 +77,20 @@ test('Files tab: new folder and file, rename and move to the Trash', async () =>
     await row(page, 'readme.md').click({ button: 'right' });
     await expect.poll(seen).toEqual([expect.stringMatching(/^reveal .*\/docs\/readme\.md$/)]);
 
-    // Move to Trash: Cancel keeps it; confirming trashes it and closes its tab.
+    // Duplicate: a copy beside it, named "… copy".
+    await nextMenuPicks(app, 'Duplicate');
+    await row(page, 'readme.md').click({ button: 'right' });
+    await expect.poll(() => exists(join(repo, 'docs', 'readme copy.md'))).toBe(true);
+    await expect(row(page, 'readme copy.md')).toHaveCount(1);
+
+    // Delete: Cancel keeps it; confirming moves it to the Trash and closes its tab.
     await questionsAnswer(app, 1);
-    await nextMenuPicks(app, 'Move to Trash');
+    await nextMenuPicks(app, 'Delete');
     await row(page, 'readme.md').click({ button: 'right' });
     await page.waitForTimeout(300);
     expect(await seen()).toHaveLength(1);
     await questionsAnswer(app, 0);
-    await nextMenuPicks(app, 'Move to Trash');
+    await nextMenuPicks(app, 'Delete');
     await row(page, 'readme.md').click({ button: 'right' });
     await expect.poll(seen).toEqual([expect.stringMatching(/^reveal /), expect.stringMatching(/^trash .*\/docs\/readme\.md$/)]);
     await expect(page.getByTestId('center-tab').filter({ hasText: 'readme.md' })).toHaveCount(0);

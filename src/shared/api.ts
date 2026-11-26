@@ -206,7 +206,19 @@ export type EntryOpResult = { ok: true; path: string } | { ok: false; error: str
 export type SaveNewResult = { ok: true; repoPath: string; path: string } | { ok: false; error: string; cancelled?: true };
 /** The kind of Files tab row that was right-clicked, and what was picked from its menu. */
 export type FilesMenuKind = 'repo' | 'dir' | 'file';
-export type FilesMenuAction = 'newFile' | 'newFolder' | 'rename' | 'trash' | 'reveal';
+export type FilesMenuAction =
+  | 'newFile'
+  | 'newFolder'
+  | 'rename'
+  | 'trash'
+  | 'reveal'
+  | 'copy'
+  | 'paste'
+  | 'duplicate'
+  | 'copyPath'
+  | 'copyRelativePath'
+  | 'newTerminal'
+  | `openIn:${EditorId}`;
 
 /** `cancelled`: the user backed out at the running-terminals prompt; this is not an error. */
 export type OpenResult = { ok: true } | { ok: false; error: string; cancelled?: true };
@@ -216,6 +228,8 @@ export interface NewTerminal {
   rows: number;
   /** If given, the terminal opens in this repo; otherwise in the open folder. Must be a discovered repo path. */
   repoPath?: string;
+  /** A folder inside `repoPath` (relative to it) to open in instead of the repo's own folder. */
+  dir?: string;
   /** Starts Claude Code in the terminal. */
   claude?: boolean;
 }
@@ -347,6 +361,12 @@ export interface EdiApi {
   trashEntry(repoPath: string, path: string, unsaved: number): Promise<EntryOpResult>;
   /** Shows it in Finder; '' is the repo itself. */
   revealEntry(repoPath: string, path: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Copy: puts the file or folder on the clipboard (Finder can paste it) and keeps it for `pasteEntry`. */
+  copyEntry(repoPath: string, path: string): Promise<EntryOpResult>;
+  /** Paste: what was copied, into the folder `dir` ('' is the repo); never replaces, a name in use gets " copy". */
+  pasteEntry(repoPath: string, dir: string): Promise<EntryOpResult>;
+  /** Duplicate: a copy beside it named "… copy". */
+  duplicateEntry(repoPath: string, path: string): Promise<EntryOpResult>;
   /** Saves an untitled editor's text as a new file through the Save panel, starting in `repoPath` if given. */
   saveNew(text: string, repoPath: string | null): Promise<SaveNewResult>;
   /** The native right-click menu of a Files tab row; the picked action, or null. */

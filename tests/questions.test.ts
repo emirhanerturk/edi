@@ -81,18 +81,19 @@ describe('dropStashQuestion', () => {
 });
 
 describe('trashQuestion', () => {
-  it('names the file or folder, says it can be restored, and warns about unsaved edits', () => {
+  it('asks to delete it, says it goes to the Trash, warns about uncommitted changes and unsaved edits', () => {
     expect(trashQuestion('a.ts', false, 0)).toEqual({
       type: 'warning',
-      message: 'Move "a.ts" to the Trash?',
-      detail: 'You can restore it from the Trash.',
-      buttons: ['Move to Trash', 'Cancel'],
+      message: 'Delete "a.ts"?',
+      detail: 'It goes to the Trash, and you can put it back from there.',
+      buttons: ['Delete', 'Cancel'],
       defaultId: 0,
       cancelId: 1,
     });
-    expect(trashQuestion('src', true, 0).detail).toBe('The folder and everything in it go to the Trash. You can restore them from there.');
-    expect(trashQuestion('src', true, 2).detail).toBe(
-      'The folder and everything in it go to the Trash. You can restore them from there. 2 open files have unsaved changes. They will be lost.',
+    expect(trashQuestion('a.ts', false, 0, true).detail).toBe("It goes to the Trash, and you can put it back from there. It has changes that aren't committed.");
+    expect(trashQuestion('src', true, 0).detail).toBe('The folder and everything in it go to the Trash, and you can put them back from there.');
+    expect(trashQuestion('src', true, 2, true).detail).toBe(
+      "The folder and everything in it go to the Trash, and you can put them back from there. Some of its files have changes that aren't committed. 2 open files have unsaved changes. They will be lost.",
     );
   });
 });
