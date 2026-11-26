@@ -232,6 +232,16 @@ test('a change is discarded from its row; Discard all resets the rest and trashe
     const changes = page.locator('[data-testid="file-row"][data-group="changes"]');
     await expect(changes).toHaveCount(3);
 
+    // A row's buttons show only while the pointer is over it, lined up under the header's.
+    const firstActions = changes.first().locator('.file-actions');
+    await page.mouse.move(0, 0);
+    await expect(firstActions).toHaveCSS('opacity', '0');
+    await changes.first().hover();
+    await expect(firstActions).toHaveCSS('opacity', '1');
+    const left = async (testId: string, scope = page.locator('body')) => (await scope.getByTestId(testId).first().boundingBox())!.x;
+    expect(await left('discard-file', changes.first())).toBe(await left('discard-all'));
+    expect(await left('stage-file', changes.first())).toBe(await left('stage-all'));
+
     await changes.filter({ hasText: 'README.md' }).getByTestId('discard-file').click();
     await expect(changes).toHaveCount(2);
     expect(await readFile(join(alpha, 'README.md'), 'utf8')).toBe('readme\n');

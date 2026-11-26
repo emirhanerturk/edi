@@ -786,28 +786,31 @@ function FileRow({ file, group, busy, blocked, discard, selected, run, open, ope
       <span className={`file-name${isDeletion(file, group) ? ' deleted' : ''}`}>{name}</span>
       <span className="file-dir">{dir}</span>
       {group === 'staged' && isPartlyStaged(file) && <span className="chip">partly staged</span>}
-      {group === 'staged' && button('unstage-file', `Unstage ${name}`, 'Unstage', { op: 'unstage', file }, <MinusIcon size={12} />)}
-      {group === 'conflicts' && (
-        <OpenInMenu
-          className="open-in-row"
-          onOpen={(editor) => openIn(file, editor)}
-          button={({ open: shown, toggle }) => (
-            <button
-              className="icon-button tiny"
-              data-testid="open-in"
-              aria-label={`Open ${name} in…`}
-              aria-haspopup="menu"
-              aria-expanded={shown}
-              onClick={toggle}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              <ExternalIcon size={12} />
-            </button>
-          )}
-        />
-      )}
-      {discard && discardButton()}
-      {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
+      {/* Shown while the pointer is over the row (or a button in it has focus); spaced like the header's. */}
+      <div className="file-actions">
+        {group === 'staged' && button('unstage-file', `Unstage ${name}`, 'Unstage', { op: 'unstage', file }, <MinusIcon size={12} />)}
+        {group === 'conflicts' && (
+          <OpenInMenu
+            className="open-in-row"
+            onOpen={(editor) => openIn(file, editor)}
+            button={({ open: shown, toggle }) => (
+              <button
+                className="icon-button tiny"
+                data-testid="open-in"
+                aria-label={`Open ${name} in…`}
+                aria-haspopup="menu"
+                aria-expanded={shown}
+                onClick={toggle}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <ExternalIcon size={12} />
+              </button>
+            )}
+          />
+        )}
+        {discard && discardButton()}
+        {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
+      </div>
     </div>
   );
 }
