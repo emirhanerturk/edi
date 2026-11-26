@@ -247,6 +247,23 @@ describe('Workspace', () => {
       expect(ws.view().repos).toEqual([]);
     });
 
+    it('new settings give the count kept, or null when another folder opened meanwhile', async () => {
+      const dir = await fourRepos();
+      const other = await makeTmpDir();
+      await initRepo(other, 'x', { commit: true });
+      const { ws, views } = makeWorkspace();
+      await ws.open(dir);
+      expect(await ws.setRepoSettings({ order: [], ignored: ['a'] })).toBe(3);
+
+      const applying = ws.setRepoSettings({ order: [], ignored: ['b'] });
+      const opening = ws.open(other);
+      expect(await applying).toBeNull();
+      await opening;
+      expect(names(ws)).toEqual(['x']);
+      // No view of the old folder's repos under the new folder went out.
+      expect(views.some((view) => view.dir === other && view.repos.some((repo) => repo.name !== 'x'))).toBe(false);
+    });
+
     it('opening without settings forgets the previous folder\'s', async () => {
       const dir = await fourRepos();
       const { ws } = makeWorkspace();

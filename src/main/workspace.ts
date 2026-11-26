@@ -81,11 +81,17 @@ export class Workspace {
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
   }
 
-  /** New settings for the open project: its repos are listed again with them, keeping the state of those that stay. */
-  async setRepoSettings(repos: RepoSettings): Promise<void> {
+  /**
+   * New settings for the open project: its repos are listed again with them, keeping the state of those
+   * that stay. Gives how many it shows, or null if another folder opened (or it closed) meanwhile.
+   */
+  async setRepoSettings(repos: RepoSettings): Promise<number | null> {
+    const generation = this.generation;
     this.repoSettings = repos;
     await this.rescan();
+    if (generation !== this.generation) return null;
     this.emit();
+    return this.repos.length;
   }
 
   /** The repos in `dir` as the settings list them. A folder that is itself a repo is shown as is: there is nothing to order. */

@@ -571,11 +571,16 @@ export class AppCore {
     }
     const { name, links, repos } = clean.input;
     this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links, repos } : other)));
-    // The open project lists its repos again at once; its card and menu count the ones kept.
-    if (this.isOpen(project) && JSON.stringify(repos) !== JSON.stringify(project.repos)) {
-      await this.workspace.setRepoSettings(repos);
-      const repoCount = this.workspace.view().repos.length;
-      this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, repoCount } : other)));
+    // The open project lists its repos again at once; its card and menu count the ones kept. In turn with
+    // opening folders: an open in flight finishes first, and the settings are read afresh once it has.
+    if (JSON.stringify(repos) !== JSON.stringify(project.repos)) {
+      await this.opening.run(`\0repos:${project.id}`, async () => {
+        const current = this.project(project.id);
+        if (!current || !this.isOpen(current)) return { ok: true };
+        const repoCount = await this.workspace.setRepoSettings(current.repos);
+        if (repoCount !== null) this.changeProjects((projects) => projects.map((other) => (other.id === current.id ? { ...other, repoCount } : other)));
+        return { ok: true };
+      });
     }
     const old = project.logo;
     if (old.kind === 'image' && (logo.logo.kind !== 'image' || logo.logo.file !== old.file)) void dropLogo(this.logoFolder, old.file);

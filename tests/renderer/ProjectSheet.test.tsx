@@ -11,6 +11,8 @@ const bridge = vi.hoisted(() => ({
     removeProject: vi.fn(async (): Promise<OpenResult> => ({ ok: true })),
     chooseProjectFolder: vi.fn(async (): Promise<ProjectDraft | null> => null),
     chooseLogo: vi.fn(async (): Promise<ChosenLogo> => null),
+    confirmDiscard: vi.fn(async (): Promise<boolean> => true),
+    setUnsaved: vi.fn(),
   },
 }));
 vi.mock('../../src/renderer/bridge', () => ({ edi: bridge.edi }));
@@ -273,5 +275,43 @@ describe('ProjectSheet, repositories', () => {
     expect(keep('web').checked).toBe(true);
     await submit();
     expect(bridge.edi.createProject).toHaveBeenCalledWith(expect.objectContaining({ repos: { order: ['api', 'web'], ignored: [] } }));
+  });
+
+  it('a repo that is ignored stays listed even when it is the only one left, so it can be ticked back', () => {
+    openEdit({ repos: { order: [], ignored: ['web'] } }, { repoCount: 1, repoNames: ['web'] });
+    expect(rows()).toEqual(['webignored']);
+    fireEvent.click(keep('web'));
+    expect(keep('web').checked).toBe(true);
+  });
+
+  describe('unsaved edits in a repo about to be ignored', () => {
+    const quizPath = `${project.dir}/next-quiz`;
+    function withUnsavedTab() {
+      useApp.setState({
+        workspace: { ...useApp.getState().workspace, dir: project.dir, repos: four.map((name) => ({ name, path: `${project.dir}/${name}` }) as never) },
+        center: { tabs: [{ id: 't1', kind: 'file', repoPath: quizPath, path: 'src/login.ts', pinned: true }], active: 't1' } as never,
+        unsaved: { t1: true },
+      });
+    }
+
+    it('asks before Save, and Cancel keeps the sheet open', async () => {
+      openEdit({ open: true }, { repoCount: 4, repoNames: four });
+      withUnsavedTab();
+      bridge.edi.confirmDiscard.mockResolvedValueOnce(false);
+      fireEvent.click(keep('next-quiz'));
+      await submit();
+      expect(bridge.edi.confirmDiscard).toHaveBeenCalledWith('login.ts');
+      expect(bridge.edi.updateProject).not.toHaveBeenCalled();
+      expect(useApp.getState().sheet).not.toBeNull();
+    });
+
+    it('saves once the edits are given up; nothing is asked for a repo that stays', async () => {
+      openEdit({ open: true }, { repoCount: 4, repoNames: four });
+      withUnsavedTab();
+      fireEvent.click(keep('quizei-admin'));
+      await submit();
+      expect(bridge.edi.confirmDiscard).not.toHaveBeenCalled();
+      expect(bridge.edi.updateProject).toHaveBeenCalledTimes(1);
+    });
   });
 });
