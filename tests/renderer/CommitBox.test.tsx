@@ -103,3 +103,27 @@ describe('CommitBox with nothing to commit', () => {
     expect(screen.queryByTestId('next-action')).toBeNull();
   });
 });
+
+describe('the message box', () => {
+  it('starts as one line', () => {
+    renderBox({ message: '' });
+    expect(screen.getByTestId('commit-message').getAttribute('rows')).toBe('1');
+  });
+
+  it('grows with its text up to the limit, then scrolls', async () => {
+    const { fitHeight } = await import('../../src/renderer/git/CommitBox');
+    const field = document.createElement('textarea');
+    field.style.lineHeight = '18px';
+    field.style.paddingTop = '6px';
+    field.style.paddingBottom = '6px';
+    document.body.append(field);
+    let content = 3 * 18 + 12;
+    Object.defineProperty(field, 'scrollHeight', { get: () => content });
+    fitHeight(field, 10);
+    expect([field.style.height, field.style.overflowY]).toEqual(['66px', 'hidden']);
+    content = 14 * 18 + 12;
+    fitHeight(field, 10);
+    expect([field.style.height, field.style.overflowY]).toEqual([`${10 * 18 + 12}px`, 'auto']);
+    field.remove();
+  });
+});

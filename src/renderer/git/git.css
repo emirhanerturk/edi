@@ -555,11 +555,12 @@ button.branch-chip:hover {
   gap: 8px;
 }
 
+/* One line to start with; it grows with the text (see CommitBox), then scrolls. */
 .commit-message {
   display: block;
   width: 100%;
-  min-height: 52px;
-  padding: 8px 10px;
+  padding: 6px 10px;
+  overflow-y: hidden;
   border-radius: 7px;
   background: var(--input);
   border: 1px solid var(--border);
