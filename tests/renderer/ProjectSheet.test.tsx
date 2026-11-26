@@ -61,9 +61,9 @@ const openNew = (over: Partial<ProjectDraft> = {}) => {
   useApp.setState({ sheet });
   return render(<ProjectSheet sheet={sheet} />);
 };
-const openEdit = (over: Partial<ProjectView> = {}) => {
+const openEdit = (over: Partial<ProjectView> = {}, draftOver: Partial<ProjectDraft> = {}) => {
   useApp.setState({ projects: [{ ...project, ...over }] });
-  const sheet = { mode: 'edit' as const, projectId: 'quizei', draft: { ...draft, dir: project.dir, logos: [], links: [] }, serial: 2 };
+  const sheet = { mode: 'edit' as const, projectId: 'quizei', draft: { ...draft, dir: project.dir, logos: [], links: [], ...draftOver }, serial: 2 };
   useApp.setState({ sheet });
   return render(<ProjectSheet sheet={sheet} />);
 };
@@ -205,5 +205,73 @@ describe('ProjectSheet, edit', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Remove from list' })));
     expect(bridge.edi.removeProject).toHaveBeenCalledWith('quizei');
     expect(useApp.getState().sheet).toBeNull();
+  });
+});
+
+describe('ProjectSheet, repositories', () => {
+  const four = ['next-quiz', 'quizei-admin', 'quizei-api', 'quizei-frontend'];
+  const rows = () => screen.getAllByTestId('repo-row').map((row) => row.textContent);
+  const keep = (name: string) => screen.getByRole('checkbox', { name: `Keep ${name}` }) as HTMLInputElement;
+  const folderNote = () => screen.getByTestId('sheet-folder').closest('.sheet-field')!.querySelector('.sheet-note')!.textContent;
+
+  it('lists the repos before the links, in the project order with the ignored ones unticked', () => {
+    openEdit({ repos: { order: ['quizei-frontend'], ignored: ['next-quiz'] } }, { repoCount: 4, repoNames: four });
+    const labels = [...document.querySelectorAll('.sheet-label')].map((el) => el.textContent ?? '');
+    expect(labels.indexOf('REPOSITORIES')).toBeGreaterThan(-1);
+    expect(labels.indexOf('REPOSITORIES')).toBeLessThan(labels.findIndex((text) => text.startsWith('LINKS')));
+    expect(rows()).toEqual(['quizei-frontend', 'next-quizignored', 'quizei-admin', 'quizei-api']);
+    expect(keep('next-quiz').checked).toBe(false);
+    expect(keep('quizei-frontend').checked).toBe(true);
+    expect(folderNote()).toBe('4 git repositories found · 1 ignored');
+  });
+
+  it('⌥↑ and ⌥↓ move a repo; unticking ignores it; Save sends the order and the ignored ones', async () => {
+    openEdit({}, { repoCount: 4, repoNames: four });
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(keep('quizei-frontend'), { key: 'ArrowUp', altKey: true });
+    expect(document.activeElement).toBe(keep('quizei-frontend'));
+    fireEvent.keyDown(keep('quizei-admin'), { key: 'ArrowDown', altKey: true });
+    // Without ⌥ the arrows do nothing here.
+    fireEvent.keyDown(keep('next-quiz'), { key: 'ArrowUp' });
+    expect(rows()).toEqual(['quizei-frontend', 'next-quiz', 'quizei-api', 'quizei-admin']);
+    fireEvent.click(keep('next-quiz'));
+    expect(rows()[1]).toBe('next-quizignored');
+    await submit();
+    expect(bridge.edi.updateProject).toHaveBeenCalledWith(
+      'quizei',
+      expect.objectContaining({ repos: { order: ['quizei-frontend', 'next-quiz', 'quizei-api', 'quizei-admin'], ignored: ['next-quiz'] } }),
+    );
+  });
+
+  it('dragging a repo by its handle drops it where it is let go', () => {
+    openEdit({}, { repoCount: 4, repoNames: four });
+    const [first] = screen.getAllByTestId('repo-row');
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Move quizei-frontend' }));
+    fireEvent.dragOver(first!);
+    fireEvent.drop(first!);
+    expect(rows()).toEqual(['quizei-frontend', 'next-quiz', 'quizei-admin', 'quizei-api']);
+  });
+
+  it('every repo can be ignored, and ticked back', () => {
+    openEdit({}, { repoCount: 4, repoNames: four });
+    for (const name of four) fireEvent.click(keep(name));
+    expect(rows()).toHaveLength(4);
+    expect(folderNote()).toBe('4 git repositories found · 4 ignored');
+    fireEvent.click(keep('quizei-api'));
+    expect(folderNote()).toBe('4 git repositories found · 3 ignored');
+  });
+
+  it('no section for a folder that is itself a repo; another folder starts with all of its repos kept', async () => {
+    openNew({ repoNames: [] });
+    expect(screen.queryByText('REPOSITORIES')).toBeNull();
+    cleanup();
+
+    bridge.edi.chooseProjectFolder.mockResolvedValueOnce({ ...draft, dir: '/Users/me/studios/beremo', name: 'beremo', repoCount: 2, repoNames: ['web', 'api'] });
+    openNew({ repoCount: 4, repoNames: four });
+    fireEvent.click(keep('next-quiz'));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Change…' })));
+    expect(rows()).toEqual(['api', 'web']);
+    expect(keep('web').checked).toBe(true);
+    await submit();
+    expect(bridge.edi.createProject).toHaveBeenCalledWith(expect.objectContaining({ repos: { order: ['api', 'web'], ignored: [] } }));
   });
 });

@@ -591,6 +591,70 @@
   border-top: 1px solid var(--chip);
 }
 
+/* REPOSITORIES: the repos found in the folder, in the project's order; an unticked one is ignored. */
+.repo-rows {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.repo-pick {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 4px;
+}
+
+.repo-pick + .repo-pick {
+  border-top: 1px solid var(--chip);
+}
+
+.repo-handle {
+  flex: none;
+  width: 22px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.repo-handle:hover {
+  color: var(--text);
+}
+
+.repo-keep {
+  flex: none;
+  margin: 0;
+  accent-color: var(--green);
+}
+
+.repo-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-pick.is-ignored .repo-pick-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.repo-pick-tag {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .link-row.invalid .link-url {
   color: var(--red);
 }
