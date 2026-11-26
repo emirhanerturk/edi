@@ -12,6 +12,30 @@ export function openKey(event: KeyboardEvent, open: (pin: boolean) => void): boo
   return true;
 }
 
+/** Where the user is working: the terminals, the center panel, or the side panel (Git, History, Files). */
+export type Area = 'terminals' | 'center' | 'side';
+
+/** The panel an event happened in; null outside the three (the title bar, the status bar). */
+export function areaOf(target: EventTarget | null): Area | null {
+  if (!(target instanceof Element)) return null;
+  if (target.closest('.center')) return 'center';
+  if (target.closest('.terminals')) return 'terminals';
+  if (target.closest('.git')) return 'side';
+  return null;
+}
+
+export type CloseTarget = { kind: 'terminal'; id: number } | { kind: 'center'; id: string };
+
+/**
+ * What ⌘W closes: the active terminal while the user works in the terminals; otherwise the center
+ * panel's active tab, as files open there from the side panel too. With the center panel closed,
+ * nothing: a terminal is never closed in its place.
+ */
+export function closeTarget(area: Area, center: { open: boolean; active: string | null }, terminal: number | null): CloseTarget | null {
+  if (area === 'terminals') return terminal === null ? null : { kind: 'terminal', id: terminal };
+  return center.open && center.active !== null ? { kind: 'center', id: center.active } : null;
+}
+
 const typing = (target: EventTarget) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
 /** The element `step` places away from `current` among `items`, wrapping around; the first or last when `current` isn't one of them. */

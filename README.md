@@ -109,8 +109,8 @@ npm start        # run the built app
 The development copy keeps its settings in a folder of its own (`edi-dev`), apart from the
 installed app.
 
-`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab,
-`⌘1`–`⌘9` switch tabs.
+`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab
+of the panel in use (the terminal, or the file or diff in the center panel), `⌘1`–`⌘9` switch tabs.
 
 ## Install
 

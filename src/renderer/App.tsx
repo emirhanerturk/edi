@@ -1,5 +1,6 @@
 import { type CSSProperties, useEffect, useRef } from 'react';
 import { CenterPanel } from './center/CenterPanel';
+import { type Area, areaOf, closeTarget } from './components/keys';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { ViewErrorBar } from './components/ViewErrorBar';
@@ -26,6 +27,11 @@ export function App() {
   useEffect(() => connect(), []);
 
   useEffect(() => {
+    // The panel the user is working in, followed by clicks and focus: ⌘W closes a tab there.
+    let area: Area = 'terminals';
+    const follow = (event: Event) => {
+      area = areaOf(event.target) ?? area;
+    };
     // Listened to in the capture phase: the shortcut is handled before it reaches the terminal, even when the terminal has focus.
     const onKey = (event: KeyboardEvent) => {
       if (!event.metaKey || event.ctrlKey || event.altKey) return;
@@ -41,15 +47,27 @@ export function App() {
         // All projects, and back.
         if (state.sheet === null && state.workspace.dir !== null) state.showProjects(!state.projectsShown);
       } else if (key === 't') {
-        if (!covered) void newTab({ claude: event.shiftKey });
+        if (!covered) {
+          area = 'terminals';
+          void newTab({ claude: event.shiftKey });
+        }
       } else if (key === 'n' && !event.shiftKey) {
         if (covered) handled = false;
-        else state.newUntitled();
+        else {
+          area = 'center';
+          state.newUntitled();
+        }
       } else if (key === 'w' && !event.shiftKey) {
-        if (!covered && activeTab !== null) closeTab(activeTab);
+        // The tab of the panel in use: a file or diff in the center panel, the terminal in the terminals.
+        const target = covered ? null : closeTarget(area, state.center, activeTab);
+        if (target?.kind === 'terminal') closeTab(target.id);
+        else if (target?.kind === 'center') void state.closeCenterTab(target.id);
       } else if (/^[1-9]$/.test(key) && !event.shiftKey) {
         const tab = tabs[Number(key) - 1];
-        if (!covered && tab) activate(tab.id);
+        if (!covered && tab) {
+          area = 'terminals';
+          activate(tab.id);
+        }
       } else handled = false;
       if (handled) {
         event.preventDefault();
@@ -57,7 +75,13 @@ export function App() {
       }
     };
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', follow, true);
+    window.addEventListener('focusin', follow, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', follow, true);
+      window.removeEventListener('focusin', follow, true);
+    };
   }, []);
 
   return (

@@ -83,6 +83,43 @@ test('clicking a changed file opens its diff', async () => {
   }
 });
 
+test('Cmd+W closes the tab of the panel in use: a file or diff in the center panel, the terminal in the terminals', async () => {
+  const dir = await tmpDir();
+  await repoWithChanges(dir);
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    const terminals = page.getByTestId('tab');
+    await expect(terminals).toHaveCount(1);
+    await page.locator('.term-host.active').click();
+
+    // A diff opened from the Git tab: Cmd+W closes it, not the terminal typed in before.
+    await fileRow(page, 'README.md').click();
+    await expect(centerTabs(page)).toHaveCount(1);
+    await page.keyboard.press('Meta+w');
+    await expect(centerTabs(page)).toHaveCount(0);
+    await expect(terminals).toHaveCount(1);
+
+    // A click in the center panel counts as working there.
+    await fileRow(page, 'README.md').dblclick();
+    await fileRow(page, 'src/app.ts').dblclick();
+    await expect(centerTabs(page)).toHaveCount(2);
+    await page.locator('.term-host.active').click();
+    await page.getByTestId('center-view').click({ position: { x: 30, y: 120 } });
+    await page.keyboard.press('Meta+w');
+    await expect(centerTabs(page)).toHaveCount(1);
+    await expect(terminals).toHaveCount(1);
+
+    // Back in the terminals, Cmd+W closes the terminal and leaves the file open.
+    await page.keyboard.press('Meta+t');
+    await expect(terminals).toHaveCount(2);
+    await page.keyboard.press('Meta+w');
+    await expect(terminals).toHaveCount(1);
+    await expect(centerTabs(page)).toHaveCount(1);
+  } finally {
+    await app.close();
+  }
+});
+
 test('the diff layout and the left panel width persist across relaunches', async () => {
   const dir = await tmpDir();
   await repoWithChanges(dir);
