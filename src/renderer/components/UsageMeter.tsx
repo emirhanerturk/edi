@@ -58,8 +58,12 @@ interface Shown {
   label: string;
   name: string;
   lengthMs: number;
-  window: UsageWindow;
+  /** Null while no window is running: it hasn't started yet, or has run out (0% used). */
+  window: UsageWindow | null;
 }
+
+/** The window if it is running at `now`; null when it hasn't started or its reset time has passed. */
+const running = (window: UsageWindow | null, now: number): UsageWindow | null => (window !== null && window.resetsAt > now ? window : null);
 
 interface Props {
   usage: ClaudeUsage | null;
@@ -73,11 +77,11 @@ export function UsageMeter({ usage, now }: Props) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   if (!usage) return null;
-  const windows: Shown[] = [];
-  if (usage.fiveHour) windows.push({ key: '5h', label: '5h', name: '5-hour limit', lengthMs: 5 * HOUR, window: usage.fiveHour });
-  if (usage.week) windows.push({ key: 'week', label: 'Week', name: 'Weekly limit', lengthMs: 7 * 24 * HOUR, window: usage.week });
-  const shown = windows.filter((entry) => entry.window.resetsAt > now);
-  if (shown.length === 0) return null;
+  // Both always show: a window that isn't running is at 0%, without a countdown.
+  const shown: Shown[] = [
+    { key: '5h', label: '5h', name: '5-hour limit', lengthMs: 5 * HOUR, window: running(usage.fiveHour, now) },
+    { key: 'week', label: 'Week', name: 'Weekly limit', lengthMs: 7 * 24 * HOUR, window: running(usage.week, now) },
+  ];
 
   // A short delay both ways: passing over it doesn't flash the panel, and the pointer can cross into the panel.
   const hover = (next: boolean) => {
@@ -96,16 +100,19 @@ export function UsageMeter({ usage, now }: Props) {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
-        {shown.map(({ key, label, window }) => (
-          <span key={key} className="usage-window" data-testid="usage-window" data-level={level(window.percent)}>
-            <span className="usage-label">{label}</span>
-            <span className="usage-bar" aria-hidden="true">
-              <span className="usage-fill" style={{ width: `${Math.min(100, Math.max(0, window.percent))}%` }} />
+        {shown.map(({ key, label, window }) => {
+          const percent = window?.percent ?? 0;
+          return (
+            <span key={key} className="usage-window" data-testid="usage-window" data-level={level(percent)} data-running={window !== null}>
+              <span className="usage-label">{label}</span>
+              <span className="usage-bar" aria-hidden="true">
+                <span className="usage-fill" style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+              </span>
+              <span className="usage-percent mono">{Math.round(percent)}%</span>
+              {window !== null && <span className="usage-left mono">{leftText(window.resetsAt, now)}</span>}
             </span>
-            <span className="usage-percent mono">{Math.round(window.percent)}%</span>
-            <span className="usage-left mono">{leftText(window.resetsAt, now)}</span>
-          </span>
-        ))}
+          );
+        })}
       </div>
       {open && <UsagePanel windows={shown} updatedAt={usage.updatedAt} now={now} />}
     </div>
@@ -116,6 +123,21 @@ function UsagePanel({ windows, updatedAt, now }: { windows: Shown[]; updatedAt: 
   return (
     <div className="usage-panel" data-testid="usage-panel" role="dialog" aria-label="Claude usage limits">
       {windows.map(({ key, name, lengthMs, window }) => {
+        if (window === null) {
+          return (
+            <section key={key} className="usage-detail" data-testid="usage-detail" data-level="normal">
+              <div className="usage-detail-head">
+                <span>{name}</span>
+                <span className="usage-percent mono">0% used</span>
+              </div>
+              <div className="usage-detail-bar" aria-hidden="true" />
+              <dl className="usage-rows mono">
+                <dt>Starts</dt>
+                <dd>with your next message</dd>
+              </dl>
+            </section>
+          );
+        }
         const leftMs = window.resetsAt - now;
         const elapsedMs = Math.min(lengthMs, Math.max(0, lengthMs - leftMs));
         const elapsedPercent = Math.round((elapsedMs / lengthMs) * 100);

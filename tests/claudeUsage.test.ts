@@ -22,10 +22,12 @@ describe('parseUsage', () => {
     });
   });
 
-  it('drops a window whose reset time has passed; null when neither is left', () => {
+  it('a window past its reset time, or not reported, is not running (null), and the other one is kept', () => {
     const past = { used_percentage: 99, resets_at: sec(NOW - 1000) };
     expect(parseUsage(limits({ five_hour: past }), NOW, NOW)).toMatchObject({ fiveHour: null, week: { percent: 18 } });
-    expect(parseUsage(limits({ five_hour: past, seven_day: past }), NOW, NOW)).toBeNull();
+    expect(parseUsage(limits({ five_hour: past, seven_day: past }), NOW, NOW)).toEqual({ fiveHour: null, week: null, updatedAt: NOW });
+    const { five_hour: _five, ...weekOnly } = JSON.parse(limits()) as Record<string, unknown>;
+    expect(parseUsage(JSON.stringify(weekOnly), NOW, NOW)).toMatchObject({ fiveHour: null, week: { percent: 18 } });
   });
 
   it('returns null on broken or missing data, drops a window with non-numeric fields and keeps values over 100%', () => {

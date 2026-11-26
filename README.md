@@ -25,8 +25,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   All projects (⇧⌘O, over the open project, which keeps running; Esc goes back) or starts a new
   one. Beside it the main link is written out with ↗ (a click opens it in the browser), and +N opens
   the other links.
-- **Claude usage.** The 5-hour and weekly limits in the title bar, with reset times (see
-  [Install](#install) for the one-line setup).
+- **Claude usage.** The 5-hour and weekly limits in the title bar, with reset times; a window that
+  hasn't started yet shows 0% (see [Install](#install) for the one-line setup).
 - **Terminals.** Real login shells (`$SHELL -l`) in tabs. A tab is named after the process
   running in front; Claude Code tabs carry a mark, and a bell when a background session
   stops working and waits for you.

@@ -87,11 +87,28 @@ describe('UsageMeter', () => {
     expect((items[1]!.querySelector('.usage-fill') as HTMLElement).style.width).toBe('100%');
   });
 
-  it('hides a window when there is no data or its reset time has passed', () => {
+  it('shows nothing without data; a window not running, or past its reset time, is at 0% with no countdown', () => {
     const { container } = render(<UsageMeter usage={null} now={NOW} />);
     expect(container.textContent).toBe('');
     cleanup();
+    render(<UsageMeter usage={usage({ fiveHour: null })} now={NOW} />);
+    let items = screen.getAllByTestId('usage-window');
+    expect(items.map((item) => item.textContent)).toEqual(['5h0%', 'Week91%3d 21h']);
+    expect(items[0]!.dataset.running).toBe('false');
+    expect((items[0]!.querySelector('.usage-fill') as HTMLElement).style.width).toBe('0%');
+    cleanup();
     render(<UsageMeter usage={usage({ fiveHour: { percent: 50, resetsAt: NOW - 1 } })} now={NOW} />);
-    expect(screen.getAllByTestId('usage-window').map((item) => item.textContent)).toEqual(['Week91%3d 21h']);
+    items = screen.getAllByTestId('usage-window');
+    expect(items.map((item) => item.textContent)).toEqual(['5h0%', 'Week91%3d 21h']);
+  });
+
+  it("the panel says a window that isn't running starts with the next message", () => {
+    vi.useFakeTimers();
+    render(<UsageMeter usage={usage({ fiveHour: null })} now={NOW} />);
+    fireEvent.mouseEnter(screen.getByTestId('usage'));
+    act(() => vi.advanceTimersByTime(200));
+    const details = screen.getAllByTestId('usage-detail');
+    expect(details[0]!.textContent).toBe('5-hour limit0% usedStartswith your next message');
+    expect(details[1]!.textContent).toContain('Weekly limit91% used');
   });
 });

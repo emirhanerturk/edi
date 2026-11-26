@@ -252,6 +252,7 @@ export interface UsageWindow {
 
 /** Claude usage limits, from Claude Code's status line bridge. */
 export interface ClaudeUsage {
+  /** Null while no window is running: it hasn't started yet, or its reset time has passed (0% used). */
   fiveHour: UsageWindow | null;
   week: UsageWindow | null;
   /** When the data was written (ms). */
@@ -269,7 +270,7 @@ export interface EdiEvents {
   'pty:exit': [id: number];
   tabs: [tabs: TabState[]];
   servers: [servers: ServerInfo[]];
-  /** Claude usage limits changed (or no valid window is left: null). */
+  /** Claude usage limits changed (null: the bridge isn't set up, or its file is broken). */
   usage: [usage: ClaudeUsage | null];
   /** The layout changed from the menu (View > Layout). */
   layout: [layout: Layout];
@@ -362,7 +363,7 @@ export interface EdiApi {
   listFiles(repoPath: string): Promise<FileList>;
   /** One level of a folder inside the repo; used to show the contents of an ignored folder. */
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
-  /** The last known Claude usage limits; null if the bridge isn't set up or the data has expired. */
+  /** The last known Claude usage limits; null if the bridge isn't set up. */
   claudeUsage(): Promise<ClaudeUsage | null>;
   /** Opens the file in an editor, or the repo folder if `filePath` is null. */
   openIn(editor: EditorId, repoPath: string, filePath: string | null): Promise<OpResult>;
