@@ -192,3 +192,32 @@ test('+ lists the repositories to open a terminal in, and the tab says which', a
     await app.close();
   }
 });
+
+test('a tab dragged before or after another moves there', async () => {
+  const dir = await tmpDir();
+  await makeRepo(dir, 'alpha');
+  await makeRepo(dir, 'beta');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    const tabs = page.getByTestId('tab');
+    await expect(tabs).toHaveCount(1);
+    for (const name of ['alpha', 'beta']) {
+      await page.getByTestId('new-terminal').click();
+      await page.getByTestId('place-item').filter({ hasText: name }).click();
+    }
+    await expect(tabs).toHaveCount(3);
+    const places = () => tabs.evaluateAll((all) => all.map((tab) => tab.querySelector('[data-testid="tab-place"]')?.textContent ?? ''));
+    expect(await places()).toEqual(['', 'alpha', 'beta']);
+
+    // alpha onto beta's right half: after it.
+    const box = (await tabs.nth(2).boundingBox())!;
+    await tabs.nth(1).dragTo(tabs.nth(2), { targetPosition: { x: box.width - 6, y: box.height / 2 } });
+    await expect.poll(places).toEqual(['', 'beta', 'alpha']);
+
+    // ⌘1–⌘9 follow the new order.
+    await page.keyboard.press('Meta+2');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  } finally {
+    await app.close();
+  }
+});

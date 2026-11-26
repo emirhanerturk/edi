@@ -38,7 +38,33 @@
 }
 
 .tab {
+  position: relative;
   cursor: pointer;
+}
+
+/* Dragging a tab: it fades, and a line marks where it will go (before or after the tab under the pointer). */
+.tab.dragging {
+  opacity: 0.5;
+}
+
+.tab.drop-before::before,
+.tab.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tab.drop-before::before {
+  left: 0;
+}
+
+.tab.drop-after::after {
+  right: 0;
 }
 
 .tab:hover {
