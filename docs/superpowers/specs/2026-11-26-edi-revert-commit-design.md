@@ -30,6 +30,9 @@ lifts the "reverting pushed commits" non-goal in `2026-11-24-edi-editor-files-gi
 - `oid` is a full commit hash and is an ancestor of HEAD (on the current branch).
 - It is not a merge commit. For merge commits the menu item is disabled (my call: choosing a
   parent is too much for something this rare).
+- The menus also grey Revert out for a commit with no parent (the root commit, or the boundary of
+  a shallow clone), where reverting would delete everything it holds; the main process alone would
+  allow a root commit (decided during the final review).
 - No merge, rebase, cherry-pick or revert is in progress, and there are no conflicts.
 - Local changes are left to git: if they would be overwritten, git refuses and its error is shown.
 

@@ -10,11 +10,20 @@ export const ALREADY_REVERTED = "This commit's changes are already undone";
 
 /** A full commit id (SHA-1 or SHA-256). It can't start with "-", so it can't be mistaken for an option. */
 const OID = /^[0-9a-f]{40,64}$/;
+/** git's ways of saying the revert left nothing to commit, depending on what else is in the work tree. */
+const NOTHING_TO_COMMIT = /nothing to commit|nothing added to commit|no changes added to commit/;
+
+/** The staged paths; null if git can't say. */
+async function stagedPaths(repo: string): Promise<string | null> {
+  const staged = await runGit(repo, ['diff', '--cached', '--name-only']);
+  return staged.ok ? staged.stdout.trim() : null;
+}
 
 /**
  * `git revert --no-edit <oid>`, with git's own message. Checked first, in order: the commit exists, no
  * merge, rebase, cherry-pick or revert is in progress (one of the user's must never be aborted here),
- * nothing is conflicted, the commit is on the current branch and isn't a merge.
+ * nothing is conflicted, the commit is on the current branch and isn't a merge. If it fails, nothing of
+ * it stays: a stop on conflicts is aborted, and changes left staged by a failed commit are taken back.
  */
 export async function revertCommit(repo: string, oid: unknown): Promise<ActionResult> {
   if (typeof oid !== 'string' || !OID.test(oid)) return { ok: false, error: 'Invalid commit' };
@@ -37,12 +46,23 @@ export async function revertCommit(repo: string, oid: unknown): Promise<ActionRe
   if (!parents.ok) return { ok: false, error: parents.error };
   if (parents.stdout.trim().split(' ').length - 1 > 1) return { ok: false, error: 'A merge commit cannot be reverted here' };
 
+  const head = await runGit(repo, ['rev-parse', 'HEAD']);
+  if (!head.ok) return { ok: false, error: head.error };
+  const indexWasClean = (await stagedPaths(repo)) === '';
+
   const reverted = await runGit(repo, ['revert', '--no-edit', oid], { timeoutMs: SLOW_TIMEOUT_MS });
   if (reverted.ok) return { ok: true, message: 'Commit reverted' };
   if ((await operationIn(dirs.git)) === 'revert') {
     const abort = await runGit(repo, ['revert', '--abort']);
     return { ok: false, error: abort.ok ? REVERT_CONFLICT : `${REVERT_CONFLICT}, and undoing the attempt failed: ${abort.error}` };
   }
-  if (reverted.stdout.includes('nothing to commit')) return { ok: false, error: ALREADY_REVERTED };
+  if (NOTHING_TO_COMMIT.test(reverted.stdout)) return { ok: false, error: ALREADY_REVERTED };
+  // The changes were applied but the commit failed (signing, no identity): git leaves them staged
+  // without REVERT_HEAD. They are taken back; edits that were there before are kept.
+  const now = await runGit(repo, ['rev-parse', 'HEAD']);
+  if (indexWasClean && now.ok && now.stdout === head.stdout && (await stagedPaths(repo)) !== '') {
+    const back = await runGit(repo, ['reset', '-q', '--merge', 'HEAD'], { timeoutMs: SLOW_TIMEOUT_MS });
+    if (!back.ok) return { ok: false, error: `${reverted.error}, and undoing the attempt failed: ${back.error}` };
+  }
   return { ok: false, error: overwriteError(reverted.stderr ?? '') ?? reverted.error };
 }

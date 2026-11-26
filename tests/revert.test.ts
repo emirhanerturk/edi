@@ -59,6 +59,32 @@ describe('revertCommit', () => {
     expect(await git(repo, 'status', '--porcelain')).toBe('');
   });
 
+  it('an already undone commit is recognised with an untracked file or an unrelated edit around', async () => {
+    const { repo, three } = await threeCommits();
+    expect((await revertCommit(repo, three)).ok).toBe(true);
+    await writeFile(join(repo, 'loose.txt'), 'untracked\n');
+    expect(await revertCommit(repo, three)).toEqual({ ok: false, error: ALREADY_REVERTED });
+    await writeFile(join(repo, 'f'), 'edited\n');
+    expect(await revertCommit(repo, three)).toEqual({ ok: false, error: ALREADY_REVERTED });
+    expect(await git(repo, 'status', '--porcelain')).toBe(' M f\n?? loose.txt\n');
+    expect(await has(repo, 'REVERT_HEAD')).toBe(false);
+  });
+
+  it('a revert whose commit fails (signing) is rolled back: nothing staged, unrelated edits kept', async () => {
+    const { repo, three } = await threeCommits();
+    await git(repo, 'config', 'commit.gpgsign', 'true');
+    await git(repo, 'config', 'gpg.program', '/usr/bin/false');
+    const before = await head(repo);
+    await writeFile(join(repo, 'f'), 'edited\n');
+    const result = await revertCommit(repo, three);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/sign/i);
+    expect(await head(repo)).toBe(before);
+    expect(await readFile(join(repo, 'g'), 'utf8')).toBe('x\n');
+    expect(await git(repo, 'status', '--porcelain')).toBe(' M f\n');
+    expect(await has(repo, 'REVERT_HEAD')).toBe(false);
+  });
+
   it('refuses while another operation is in progress, without touching it', async () => {
     const { repo, one } = await threeCommits();
     await git(repo, 'switch', '-q', '-c', 'side', one);
