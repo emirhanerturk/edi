@@ -632,3 +632,29 @@ test('Quick open (⌘P) finds a file by name in any repository, opens it, and li
     await app.close();
   }
 });
+
+test('center panel tabs can be dragged into another order; Quick open ⌘↵ keeps a file in a tab', async () => {
+  const dir = await tmpDir();
+  await repoWithChanges(dir);
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    for (const name of ['README', 'app.ts']) {
+      await page.keyboard.press('Meta+p');
+      await page.getByTestId('quick-open-input').fill(name);
+      await page.keyboard.press('Meta+Enter');
+      await expect(page.getByTestId('quick-open')).toHaveCount(0);
+    }
+    const tabs = centerTabs(page);
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(0)).toHaveAttribute('data-preview', 'false');
+    const titles = () => tabs.locator('.tab-title').allTextContents();
+    expect(await titles()).toEqual(['README.md', 'app.ts']);
+
+    // README.md onto app.ts's right half: after it.
+    const box = (await tabs.nth(1).boundingBox())!;
+    await tabs.nth(0).dragTo(tabs.nth(1), { targetPosition: { x: box.width - 6, y: box.height / 2 } });
+    await expect.poll(titles).toEqual(['app.ts', 'README.md']);
+  } finally {
+    await app.close();
+  }
+});
