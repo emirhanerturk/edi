@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
-import type { RepoView } from '../../shared/api';
+import { useCallback, useEffect } from 'react';
+import type { CommitFile, RepoView } from '../../shared/api';
 import { edi } from '../bridge';
 import { useNow } from '../components/useNow';
 import { useApp } from '../store';
 import { useCommitTokens } from './CommitView';
+import { commitMedia } from './media';
 import { StashPane } from './StashPane';
 import { useView } from './useView';
 
@@ -25,9 +26,12 @@ export function StashView({ repo, oid }: { repo: RepoView; oid: string }) {
     useApp.getState().setCenterInfo(info);
   }, [info]);
   useEffect(() => () => useApp.getState().setCenterInfo(null), []);
+  // A stash keeps the files that were new (untracked) in its third parent.
+  const media = useCallback((file: CommitFile) => commitMedia(repo.path, oid, file, file.untracked ? `${oid}^3` : oid), [repo.path, oid]);
 
   return (
     <StashPane
+      media={media}
       repoName={repo.name}
       result={data}
       now={now}

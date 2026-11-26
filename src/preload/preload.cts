@@ -46,6 +46,7 @@ const api: EdiApi = {
   confirmDropStash: (label) => ipcRenderer.invoke('git:confirmDropStash', label),
   diff: (repoPath, filePath) => ipcRenderer.invoke('view:diff', repoPath, filePath),
   readFile: (repoPath, filePath) => ipcRenderer.invoke('view:read', repoPath, filePath),
+  mediaSize: (repoPath, filePath, rev) => ipcRenderer.invoke('view:mediaSize', repoPath, filePath, rev),
   writeFile: (repoPath, filePath, text, expected) => ipcRenderer.invoke('view:write', repoPath, filePath, text, expected),
   createEntry: (repoPath, path, kind) => ipcRenderer.invoke('files:create', repoPath, path, kind),
   renameEntry: (repoPath, path, name, unsaved) => ipcRenderer.invoke('files:rename', repoPath, path, name, unsaved),

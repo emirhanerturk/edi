@@ -2,6 +2,7 @@ import type { EditorId } from '../../shared/editors';
 import { type ReactNode, memo, useMemo, useState } from 'react';
 import type { FileContent } from '../../shared/api';
 import { mediaUrl } from '../../shared/media';
+import { fileSize } from '../format';
 import { LockIcon } from '../components/icons';
 import type { Token } from '../highlight/highlight';
 import { languageOf } from '../highlight/languages';
@@ -12,11 +13,7 @@ import { ViewHeader, ViewNote } from './ViewHeader';
 
 export { splitLines };
 
-function size(bytes: number): string {
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${bytes} B`;
-}
+const size = fileSize;
 
 /** Short status bar info for the open file: language and line count, or size. */
 export function fileInfo(path: string, content: FileContent | null): string | null {

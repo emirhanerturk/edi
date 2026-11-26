@@ -735,6 +735,7 @@ export class AppCore {
     ipcMain.handle('git:confirmRevert', (_event, subject: unknown) => this.ask(revertCommitQuestion(typeof subject === 'string' ? subject : 'this commit')));
     ipcMain.handle('edits:confirmDiscard', (_event, name: unknown) => this.ask(discardQuestion(typeof name === 'string' ? name : 'this file')));
     ipcMain.handle('view:read', (_event, repoPath: unknown, filePath: unknown) => this.viewOps.readFile(repoPath, filePath));
+    ipcMain.handle('view:mediaSize', (_event, repoPath: unknown, filePath: unknown, rev: unknown) => this.viewOps.mediaSize(repoPath, filePath, rev));
     ipcMain.handle('files:create', (_event, repoPath: unknown, path: unknown, kind: unknown) => this.fileOps.create(repoPath, path, kind));
     ipcMain.handle('files:rename', (_event, repoPath: unknown, path: unknown, name: unknown, unsaved: unknown) =>
       this.fileOps.rename(repoPath, path, name, unsaved),

@@ -71,7 +71,9 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   see where its upstream stands. 50 commits per repository at a time, with "Load 50 more".
 - **Commit view.** Clicking a commit opens it in the center panel: message, author,
   repository, branch, time, totals, a copy button for the hash, a GitHub link once the commit
-  is pushed, and every changed file's diff one under another. Files with more than 400 changed
+  is pushed, and every changed file's diff one under another. A changed image or video shows the
+  version before and after side by side, with sizes; an added or deleted one shows alone. The Git
+  tab's diff and the stash view do the same. Files with more than 400 changed
   lines start collapsed, and so do the rest once the open ones reach 3,000 lines together; one
   button expands or collapses them all.
 - **Running servers.** A dev server started in a terminal (`npm run dev` and the like) shows

@@ -38,7 +38,7 @@ const REDIRECTING_VARS = [
   'GIT_NAMESPACE',
 ];
 
-function gitEnv(cwd: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+export function gitEnv(cwd: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   // Fixed locale: picking the error line and the UI text rely on git's English output.
   const base = childEnv();
   const env: NodeJS.ProcessEnv = { ...base, ...extra, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANG: 'C' };

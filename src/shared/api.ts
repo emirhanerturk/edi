@@ -366,6 +366,8 @@ export interface EdiApi {
   diff(repoPath: string, filePath: string): Promise<DiffView>;
   /** `filePath` is relative to the repo and must stay inside it; the main process validates it. */
   readFile(repoPath: string, filePath: string): Promise<FileContent>;
+  /** An image or video's size in bytes, in the working tree or (`rev`: a commit id, `id^`, `id^N`) as it was in a commit. */
+  mediaSize(repoPath: string, filePath: string, rev: string | null): Promise<number | null>;
   /** Saves editor text over an existing file; `expected` is the disk text the edit started from (`null`: overwrite). */
   writeFile(repoPath: string, filePath: string, text: string, expected: string | null): Promise<WriteResult>;
   /** Files tab: an empty file or a folder at `path` (relative to the repo); never overwrites. */

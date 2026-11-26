@@ -1,9 +1,10 @@
 import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { blobSize, readBlob } from '../src/git/blob.js';
 import { serveMedia } from '../src/main/media.js';
 import { mediaOf, mediaUrl } from '../src/shared/media.js';
-import { initRepo, makeTmpDir } from './helpers/tmpRepo.js';
+import { git, initRepo, makeTmpDir } from './helpers/tmpRepo.js';
 
 describe('mediaOf', () => {
   it('maps the extension to image or video and a MIME type, ignoring case', () => {
@@ -70,5 +71,51 @@ describe('serveMedia', () => {
     expect((await serve('notes.txt')).status).toBe(404);
     expect((await serve('assets/missing.png')).status).toBe(404);
     expect((await serveMedia(() => null, 'edi-media://file/', null)).status).toBe(404);
+  });
+});
+
+describe('serveMedia at a commit', () => {
+  it("serves the file as it was in a commit or its parent, with ranges; refuses refs, ranges of commits and paths outside", async () => {
+    const dir = await makeTmpDir();
+    const repo = await initRepo(dir, 'a', { commit: true });
+    await mkdir(join(repo, 'assets'));
+    await writeFile(join(repo, 'assets', 'logo.png'), Buffer.from('first'));
+    await git(repo, 'add', '-A');
+    await git(repo, 'commit', '-q', '-m', 'logo');
+    await writeFile(join(repo, 'assets', 'logo.png'), Buffer.from('second!'));
+    await git(repo, 'commit', '-q', '-am', 'logo again');
+    const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
+    const known = (path: string) => (path === repo ? repo : null);
+    const at = (rev: string, path = 'assets/logo.png', range: string | null = null) => serveMedia(known, mediaUrl(repo, path, 0, rev), range);
+
+    const now = await at(oid);
+    expect(now.status).toBe(200);
+    expect(now.headers.get('content-type')).toBe('image/png');
+    expect(await now.text()).toBe('second!');
+    expect(await (await at(`${oid}^`)).text()).toBe('first');
+    const part = await at(oid, 'assets/logo.png', 'bytes=1-3');
+    expect(part.status).toBe(206);
+    expect(await part.text()).toBe('eco');
+
+    for (const rev of ['HEAD', 'main', `${oid}..${oid}`, '--output=x', `${oid}~1`]) expect((await at(rev)).status, rev).toBe(404);
+    expect((await at(oid, '../a/assets/logo.png')).status).toBe(404);
+    expect((await at(oid, 'README.md')).status).toBe(404);
+    expect((await at(`${oid}^`, 'assets/missing.png')).status).toBe(404);
+  });
+});
+
+describe('blobSize and readBlob', () => {
+  it('give the size and bytes of a file at a commit, and nothing over the limit', async () => {
+    const dir = await makeTmpDir();
+    const repo = await initRepo(dir, 'a', { commit: true });
+    await writeFile(join(repo, 'a.png'), Buffer.from([0, 1, 2, 3, 255]));
+    await git(repo, 'add', '-A');
+    await git(repo, 'commit', '-q', '-m', 'image');
+    const oid = (await git(repo, 'rev-parse', 'HEAD')).trim();
+    expect(await blobSize(repo, oid, 'a.png')).toBe(5);
+    expect(await blobSize(repo, `${oid}^`, 'a.png')).toBeNull();
+    expect([...((await readBlob(repo, oid, 'a.png')) ?? [])]).toEqual([0, 1, 2, 3, 255]);
+    expect(await readBlob(repo, oid, 'a.png', 4)).toBeNull();
+    expect(await blobSize(repo, 'HEAD', 'a.png')).toBeNull();
   });
 });

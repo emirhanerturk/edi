@@ -6,6 +6,8 @@ import type { DiffTokens } from '../highlight/highlight';
 import { longAgo, splitSubject } from '../history/time';
 import { Code } from './DiffPane';
 import { MAX_DIFF_LINES, diffRows } from './diffRows';
+import type { MediaPair } from './media';
+import { MediaCompare } from './MediaCompare';
 import { ViewNote } from './ViewHeader';
 
 /** A file with a diff longer than this starts collapsed. */
@@ -54,10 +56,12 @@ export interface CommitPaneProps {
   onOpenFile?(path: string): void;
   /** The ⋯ button: the commit's menu (Revert). No button without it. */
   onMore?(): void;
+  /** A changed image or video's versions, shown in place of "Binary file". Must be stable. */
+  media?(file: CommitFile): MediaPair | null;
 }
 
 /** A commit: subject, body, details and the diff of every changed file, one below the other. */
-export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore }: CommitPaneProps) {
+export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOpenUrl, onOpenFile, onMore, media }: CommitPaneProps) {
   const commitOrNull = result?.ok ? result.commit : null;
   // Collapsed files are kept here: the "expand/collapse all" button in the header changes them too.
   // Switching to another commit starts over, with those over 400 lines collapsed.
@@ -158,7 +162,7 @@ export function CommitPane({ repoName, branch, result, now, tokens, onCopy, onOp
         </div>
       </header>
       {commit.tooLarge && <ViewNote>This commit is too large to show line by line. Each file's counts are below.</ViewNote>}
-      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onOpenFile={onOpenFile} onToggle={(path) =>
+      <CommitFiles files={commit.files} tokens={tokens} countsOnly={commit.tooLarge} collapsed={collapsed} onOpenFile={onOpenFile} media={media} onToggle={(path) =>
           setCollapsed((prev) => {
             const next = new Set(prev);
             if (next.has(path)) next.delete(path);
@@ -243,10 +247,12 @@ interface CommitFilesProps {
   collapsed: Set<string>;
   onToggle(path: string): void;
   onOpenFile?(path: string): void;
+  /** A changed image or video's versions (see `CommitPaneProps.media`). */
+  media?(file: CommitFile): MediaPair | null;
 }
 
 /** Every changed file's diff, one below the other (the commit and stash views). */
-export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile }: CommitFilesProps) {
+export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, onOpenFile, media }: CommitFilesProps) {
   if (files.length === 0) return <ViewNote>No file changes</ViewNote>;
   return (
     <div className="commit-files mono">
@@ -258,6 +264,7 @@ export function CommitFiles({ files, tokens, countsOnly, collapsed, onToggle, on
           tokens={tokens.get(file.path) ?? null}
           onToggle={onToggle}
           onOpenFile={onOpenFile}
+          media={media}
         />
       ))}
     </div>
@@ -272,12 +279,14 @@ const CommitFileSection = memo(function CommitFileSection({
   tokens,
   onToggle,
   onOpenFile,
+  media,
 }: {
   file: CommitFile;
   open: boolean | null;
   tokens: DiffTokens | null;
   onToggle(path: string): void;
   onOpenFile?(path: string): void;
+  media?(file: CommitFile): MediaPair | null;
 }) {
   const slash = file.path.lastIndexOf('/');
   const showsLines = !file.diff.binary && (file.diff.hunks.length > 0 || open === null);
@@ -317,14 +326,17 @@ const CommitFileSection = memo(function CommitFileSection({
           </button>
         )}
       </div>
-      {open === true && <CommitFileBody file={file} tokens={tokens} />}
+      {open === true && <CommitFileBody file={file} tokens={tokens} media={media} />}
     </section>
   );
 });
 
-function CommitFileBody({ file, tokens }: { file: CommitFile; tokens: DiffTokens | null }) {
+function CommitFileBody({ file, tokens, media }: { file: CommitFile; tokens: DiffTokens | null; media?(file: CommitFile): MediaPair | null }) {
   const rows = useMemo(() => diffRows(file.diff, 'inline'), [file.diff]);
-  if (file.diff.binary) return <p className="commit-file-note">Binary file</p>;
+  if (file.diff.binary) {
+    const pair = media?.(file) ?? null;
+    return pair ? <MediaCompare pair={pair} /> : <p className="commit-file-note">Binary file</p>;
+  }
   if (file.diff.hunks.length === 0) {
     return (
       <p className="commit-file-note">

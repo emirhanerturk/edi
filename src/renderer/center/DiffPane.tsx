@@ -6,6 +6,8 @@ import type { DiffTokens, Token } from '../highlight/highlight';
 import { FileIcon } from '../components/icons';
 import { ViewHeader, ViewNote } from './ViewHeader';
 import { type Cell, MAX_DIFF_LINES, type Row, diffRows } from './diffRows';
+import type { MediaPair } from './media';
+import { MediaCompare } from './MediaCompare';
 
 export interface DiffPaneProps {
   repoName: string;
@@ -19,13 +21,15 @@ export interface DiffPaneProps {
   onOpenIn(editor: EditorId): void;
   /** Opens the whole file (its working tree version) in the file view. */
   onOpenFile(): void;
+  /** A changed image or video: its version in HEAD and on disk, shown in place of "Binary file". */
+  media?: MediaPair | null;
 }
 
 const NOT_CHANGED = 'File is not in the list of changes';
 const TOO_LARGE = 'This diff is too large to show';
 
 /** A file's changes against HEAD: side by side or in a single column. */
-export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn, onOpenFile }: DiffPaneProps) {
+export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn, onOpenFile, media = null }: DiffPaneProps) {
   const diff = view?.ok ? view.diff : null;
   // A file deleted from the working tree has no version to open.
   const onDisk = view?.ok === true && view.file.y !== 'D' && !(view.file.y === '.' && view.file.x === 'D');
@@ -68,7 +72,13 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn,
           <ViewNote alert>{view.error}</ViewNote>
         )
       ) : view.diff.binary ? (
-        <ViewNote>Binary file — no diff to show</ViewNote>
+        media ? (
+          <div className="media-diff">
+            <MediaCompare pair={media} large />
+          </div>
+        ) : (
+          <ViewNote>Binary file — no diff to show</ViewNote>
+        )
       ) : view.diff.hunks.length === 0 ? (
         <ViewNote>
           No content changes
