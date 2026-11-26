@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { addRemote, git, launch, makeRepo, tmpDir } from './helpers.js';
@@ -203,6 +203,43 @@ test('unpushed commits are listed under the repo; one opens in the commit view, 
     await expect(rows.first()).toContainText('feat: one');
     expect((await git(alpha, 'log', '-1', '--format=%s')).trim()).toBe('feat: one');
     await expect(page.locator('[data-testid="file-row"][data-group="staged"][data-path="two.txt"]')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
+test('a change is discarded from its row; Discard all resets the rest and trashes new files', async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  await writeFile(join(alpha, 'b.txt'), 'b\n');
+  await git(alpha, 'add', '-A');
+  await git(alpha, 'commit', '-q', '-m', 'feat: b');
+  await writeFile(join(alpha, 'README.md'), 'edited\n');
+  await writeFile(join(alpha, 'b.txt'), 'b edited\n');
+  await writeFile(join(alpha, 'new.txt'), 'new\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    // Every question is answered "Discard"; the Trash records the path and removes the file.
+    await app.evaluate(({ dialog, shell }) => {
+      dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as typeof dialog.showMessageBox;
+      const trashed: string[] = [];
+      (globalThis as { trashed?: string[] }).trashed = trashed;
+      shell.trashItem = async (path: string) => {
+        trashed.push(path);
+        process.getBuiltinModule('node:fs').rmSync(path);
+      };
+    });
+    const changes = page.locator('[data-testid="file-row"][data-group="changes"]');
+    await expect(changes).toHaveCount(3);
+
+    await changes.filter({ hasText: 'README.md' }).getByTestId('discard-file').click();
+    await expect(changes).toHaveCount(2);
+    expect(await readFile(join(alpha, 'README.md'), 'utf8')).toBe('readme\n');
+
+    await page.getByTestId('discard-all').click();
+    await expect(changes).toHaveCount(0);
+    expect(await readFile(join(alpha, 'b.txt'), 'utf8')).toBe('b\n');
+    expect(await app.evaluate(() => (globalThis as { trashed?: string[] }).trashed)).toEqual([join(alpha, 'new.txt')]);
   } finally {
     await app.close();
   }

@@ -47,7 +47,8 @@ write our own app.
 - AI-generated commit messages.
 - Merge, rebase, conflict resolution, cherry-pick, commit graph. (Stash was here too; it was
   added on 2026-11-25, requested by the user: `2026-11-25-edi-stash-design.md`.)
-- Line/hunk-level staging. Discard (reverting a change).
+- Line/hunk-level staging. (Discard was here too; it was added on 2026-11-26, requested by the
+  user: `2026-11-26-edi-discard-changes-design.md`.)
 - Settings screen and settings file; accent color, font and shortcuts are fixed.
   (The gear button in the design is not in the first version.)
 - Multiple windows, multiple working folders.
