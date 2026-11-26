@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../src/shared/api.js';
-import { MAX_PROJECTS, byOpened, cleanInput, defaultProject, fromRecent, markOpened, normalizeProjects } from '../src/main/projects.js';
-import { LOGO_COLORS, colorFor, letterOf, linkHost, linkName, linkText, normalizeLink } from '../src/shared/projects.js';
+import { MAX_PROJECTS, byOpened, cleanInput, defaultProject, fromRecent, markOpened, normalizeProjects, repoSettingsOf } from '../src/main/projects.js';
+import {
+  LOGO_COLORS,
+  MAX_REPO_NAMES,
+  NO_REPO_SETTINGS,
+  arrangeRepos,
+  colorFor,
+  letterOf,
+  linkHost,
+  linkName,
+  linkText,
+  normalizeLink,
+  orderRepos,
+} from '../src/shared/projects.js';
 
 const project = (over: Partial<Project> = {}): Project => ({
   id: 'p1',
@@ -11,6 +23,7 @@ const project = (over: Partial<Project> = {}): Project => ({
   links: [],
   openedAt: 0,
   repoCount: 1,
+  repos: { order: [], ignored: [] },
   ...over,
 });
 
@@ -81,8 +94,9 @@ describe('the projects in the state file', () => {
         ],
         openedAt: 5,
         repoCount: 8,
+        repos: { order: ['quizei-frontend', 'next-quiz'], ignored: ['next-quiz'] },
       },
-      { id: 'p2', dir: '/s/edi', name: '', logo: { kind: 'image', file: '../state.json' }, links: [], openedAt: -1, repoCount: 1.5 },
+      { id: 'p2', dir: '/s/edi', name: '', logo: { kind: 'image', file: '../state.json' }, links: [], openedAt: -1, repoCount: 1.5, repos: 'all' },
       { id: 'BAD ID', dir: '/s/x' },
       { id: 'p3' },
     ]);
@@ -95,8 +109,18 @@ describe('the projects in the state file', () => {
         links: [{ url: 'https://quizei.com/', label: 'Site' }],
         openedAt: 5,
         repoCount: 8,
+        repos: { order: ['quizei-frontend', 'next-quiz'], ignored: ['next-quiz'] },
       },
-      { id: 'p2', dir: '/s/edi', name: 'edi', logo: { kind: 'letter', color: colorFor('/s/edi') }, links: [], openedAt: 0, repoCount: 0 },
+      {
+        id: 'p2',
+        dir: '/s/edi',
+        name: 'edi',
+        logo: { kind: 'letter', color: colorFor('/s/edi') },
+        links: [],
+        openedAt: 0,
+        repoCount: 0,
+        repos: { order: [], ignored: [] },
+      },
     ]);
   });
 
@@ -132,9 +156,15 @@ describe('the projects in the state file', () => {
 
     const added = markOpened(list, '/s/edi', 1, 60);
     expect(added).toHaveLength(2);
-    expect(added[1]).toMatchObject({ dir: '/s/edi', name: 'edi', openedAt: 60, repoCount: 1, links: [], logo: { kind: 'letter' } });
+    expect(added[1]).toMatchObject({ dir: '/s/edi', name: 'edi', openedAt: 60, repoCount: 1, links: [], logo: { kind: 'letter' }, repos: NO_REPO_SETTINGS });
 
-    const template = { id: 'new', name: 'edi app', logo: { kind: 'image' as const, file: 'new-00000000.png' }, links: [{ url: 'https://github.com/a/b', label: 'GitHub' }] };
+    const template = {
+      id: 'new',
+      name: 'edi app',
+      logo: { kind: 'image' as const, file: 'new-00000000.png' },
+      links: [{ url: 'https://github.com/a/b', label: 'GitHub' }],
+      repos: { order: ['b', 'a'], ignored: ['c'] },
+    };
     expect(markOpened(list, '/s/edi', 1, 60, template)[1]).toEqual({ ...template, dir: '/s/edi', openedAt: 60, repoCount: 1 });
     // A template doesn't replace a project the folder already has.
     expect(markOpened(list, '/s/quizei', 9, 70, template)).toEqual([project({ openedAt: 70, repoCount: 9 })]);
@@ -155,8 +185,16 @@ describe('the sheet input', () => {
   it('trims the name and normalizes the links, the first one staying first', () => {
     expect(cleanInput(valid)).toEqual({
       ok: true,
-      input: { dir: '/s/edi', name: 'edi', logo: { kind: 'letter', color: 'blue' }, links: [{ url: 'https://github.com/a/b', label: 'GitHub' }] },
+      input: {
+        dir: '/s/edi',
+        name: 'edi',
+        logo: { kind: 'letter', color: 'blue' },
+        links: [{ url: 'https://github.com/a/b', label: 'GitHub' }],
+        repos: { order: [], ignored: [] },
+      },
     });
+    const repos = cleanInput({ ...valid, repos: { order: ['b', 'a', 'a'], ignored: ['a', '../x'] } });
+    expect(repos.ok && repos.input.repos).toEqual({ order: ['b', 'a'], ignored: ['a'] });
     const twice = cleanInput({ ...valid, links: [{ url: 'https://x.com', label: 'a' }, { url: 'x.com', label: 'b' }] });
     expect(twice.ok && twice.input.links).toEqual([{ url: 'https://x.com/', label: 'a' }]);
   });
@@ -171,5 +209,27 @@ describe('the sheet input', () => {
     expect(cleanInput(null).ok).toBe(false);
     expect(cleanInput({ ...valid, logo: { kind: 'candidate', id: 'abc' } })).toMatchObject({ ok: true, input: { logo: { kind: 'candidate', id: 'abc' } } });
     expect(cleanInput({ ...valid, logo: { kind: 'keep' } })).toMatchObject({ ok: true, input: { logo: { kind: 'keep' } } });
+  });
+});
+
+describe('repository settings', () => {
+  const found = ['next-quiz', 'quizei-admin', 'quizei-api', 'quizei-frontend'].map((name) => ({ name }));
+  const names = (list: { name: string }[]) => list.map((repo) => repo.name);
+
+  it('puts the ordered names first, then the others alphabetically, skipping names that are gone', () => {
+    expect(names(orderRepos(found, ['quizei-frontend', 'gone', 'quizei-api']))).toEqual(['quizei-frontend', 'quizei-api', 'next-quiz', 'quizei-admin']);
+  });
+
+  it('drops the ignored ones; with nothing set the order is alphabetical', () => {
+    expect(names(arrangeRepos(found, { order: ['quizei-frontend'], ignored: ['next-quiz', 'gone'] }))).toEqual(['quizei-frontend', 'quizei-admin', 'quizei-api']);
+    expect(names(arrangeRepos(found, NO_REPO_SETTINGS))).toEqual(names(found));
+    expect(arrangeRepos(found, { order: [], ignored: names(found) })).toEqual([]);
+  });
+
+  it('reads settings from the state file: names only, each once, nothing else', () => {
+    expect(repoSettingsOf(undefined)).toEqual({ order: [], ignored: [] });
+    expect(repoSettingsOf('x')).toEqual({ order: [], ignored: [] });
+    expect(repoSettingsOf({ order: ['a', 'a', 3, '', ' b ', 'c/d', 'e\\f', '.', '..'], ignored: 'a' })).toEqual({ order: ['a', 'b'], ignored: [] });
+    expect(repoSettingsOf({ order: Array.from({ length: 600 }, (_, i) => `r${i}`), ignored: [] }).order).toHaveLength(MAX_REPO_NAMES);
   });
 });

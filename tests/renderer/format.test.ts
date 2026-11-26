@@ -49,6 +49,7 @@ describe('summary', () => {
     const file = { path: 'a', origPath: null, x: '.', y: 'M', kind: 'changed' as const };
     const view: WorkspaceView = {
       dir: '/w',
+      ignored: 0,
       rootSessions: 0,
       refreshedAt: 0,
       repos: [

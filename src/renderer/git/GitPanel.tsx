@@ -1,5 +1,6 @@
 import { edi } from '../bridge';
 import { useApp } from '../store';
+import { useEditOpenProject } from '../components/NoRepos';
 import { GitPanelView, opensIn } from './GitPanelView';
 import { stashTitle } from './model';
 
@@ -13,6 +14,8 @@ const stashMenu = (canApply: boolean) => edi.stashMenu(canApply);
 /** The Git tab bound to app state. */
 export function GitPanel() {
   const repos = useApp((s) => s.workspace.repos);
+  const ignored = useApp((s) => s.workspace.ignored);
+  const editProject = useEditOpenProject();
   const dir = useApp((s) => s.workspace.dir);
   const retries = useApp((s) => s.retries);
   const stashAction = useApp((s) => s.stashAction);
@@ -31,6 +34,8 @@ export function GitPanel() {
   return (
     <GitPanelView
       repos={repos}
+      ignored={ignored}
+      onEditProject={editProject}
       expanded={expanded}
       onToggle={toggleRepo}
       onOpenTerminal={(repoPath) => void newTab({ repoPath })}

@@ -5,7 +5,8 @@ import { operationIn } from '../git/operation.js';
 import { type GitDirs, gitDirs, refsStamp } from '../git/refsStamp.js';
 import { getStatus } from '../git/status.js';
 import { assignSessions } from '../sessions.js';
-import type { RepoOperation, RepoView, WorkspaceView } from '../shared/api.js';
+import type { RepoOperation, RepoSettings, RepoView, WorkspaceView } from '../shared/api.js';
+import { NO_REPO_SETTINGS, arrangeRepos } from '../shared/projects.js';
 
 /** How many status polls between rereads of the remote list. */
 const REMOTES_EVERY = 15;
@@ -21,6 +22,10 @@ export type OpenWorkspaceResult = { ok: true; repoCount: number } | { ok: false;
 export class Workspace {
   private dir: string | null = null;
   private repos: RepoView[] = [];
+  /** The open project's repo order and ignored repos. */
+  private repoSettings: RepoSettings = NO_REPO_SETTINGS;
+  /** Repos found in the folder but left out by the settings. */
+  private ignored = 0;
   private rootSessions = 0;
   private sessionCwds: string[] = [];
   private refreshedAt = 0;
@@ -41,7 +46,8 @@ export class Workspace {
     this.statusMs = opts.statusMs ?? 2000;
   }
 
-  async open(dir: string): Promise<OpenWorkspaceResult> {
+  /** Opens a folder; its repos are listed as `repos` says (the project's order, without its ignored repos). */
+  async open(dir: string, repos: RepoSettings = NO_REPO_SETTINGS): Promise<OpenWorkspaceResult> {
     let real: string;
     try {
       real = await realpath(dir);
@@ -53,10 +59,12 @@ export class Workspace {
     this.stop();
     const generation = ++this.generation;
     this.dir = real;
-    const found = await discoverRepos(real);
+    this.repoSettings = repos;
+    const { repos: found, ignored } = await this.find(real);
     // Another folder was opened, or the workspace closed, meanwhile: this one is no longer wanted.
     if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
     this.repos = found.map(emptyView);
+    this.ignored = ignored;
     this.applySessions();
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
     if (generation !== this.generation) return { ok: false, error: 'Another folder was opened' };
@@ -68,16 +76,38 @@ export class Workspace {
   async rescan(): Promise<void> {
     if (this.dir === null) return;
     const generation = this.generation;
-    const found = await discoverRepos(this.dir);
+    const { repos: found, ignored } = await this.find(this.dir);
     if (generation !== this.generation) return;
     const known = new Map(this.repos.map((repo) => [repo.path, repo]));
     this.repos = found.map((repo) => known.get(repo.path) ?? emptyView(repo));
+    this.ignored = ignored;
     this.applySessions();
     await Promise.all([this.refreshRemotes(), this.refreshAll()]);
   }
 
+  /**
+   * New settings for the open project: its repos are listed again with them, keeping the state of those
+   * that stay. Gives how many it shows, or null if another folder opened (or it closed) meanwhile.
+   */
+  async setRepoSettings(repos: RepoSettings): Promise<number | null> {
+    const generation = this.generation;
+    this.repoSettings = repos;
+    await this.rescan();
+    if (generation !== this.generation) return null;
+    this.emit();
+    return this.repos.length;
+  }
+
+  /** The repos in `dir` as the settings list them. A folder that is itself a repo is shown as is: there is nothing to order. */
+  private async find(dir: string): Promise<{ repos: Repo[]; ignored: number }> {
+    const found = await discoverRepos(dir);
+    if (found.length === 1 && found[0]!.path === dir) return { repos: found, ignored: 0 };
+    const repos = arrangeRepos(found, this.repoSettings);
+    return { repos, ignored: found.length - repos.length };
+  }
+
   view(): WorkspaceView {
-    return { dir: this.dir, repos: this.repos, rootSessions: this.rootSessions, refreshedAt: this.refreshedAt };
+    return { dir: this.dir, repos: this.repos, ignored: this.ignored, rootSessions: this.rootSessions, refreshedAt: this.refreshedAt };
   }
 
   /** Only the exact path of a discovered repo matches: paths from the page are validated with this. */
@@ -111,6 +141,7 @@ export class Workspace {
     this.generation++;
     this.dir = null;
     this.repos = [];
+    this.ignored = 0;
     this.rootSessions = 0;
   }
 

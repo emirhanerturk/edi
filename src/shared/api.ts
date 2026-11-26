@@ -35,6 +35,8 @@ export interface WorkspaceView {
   /** The open folder; null if none. */
   dir: string | null;
   repos: RepoView[];
+  /** Repos found in the folder but ignored by the project (left out of `repos`). */
+  ignored: number;
   /** Claude Code sessions inside the folder but in no repo. */
   rootSessions: number;
   /** When the statuses were last read (epoch ms). */
@@ -45,6 +47,15 @@ export interface ProjectLink {
   url: string;
   /** "Admin", "App Store"; empty: the address stands in for it. */
   label: string;
+}
+
+/**
+ * Which of the repos one level below a project's folder show, and in what order, by folder name:
+ * `order` first, in that order, then any others alphabetically; `ignored` ones are left out of edi.
+ */
+export interface RepoSettings {
+  order: string[];
+  ignored: string[];
 }
 
 /** An image is a copy edi keeps in its own folder; a letter is the name's first letter on a color. */
@@ -61,8 +72,9 @@ export interface Project {
   links: ProjectLink[];
   /** When it was last opened (epoch ms); 0 if unknown (a folder opened before projects existed). */
   openedAt: number;
-  /** The git repositories found when it was last opened. */
+  /** The git repositories shown when it was last opened (the ignored ones aren't counted). */
   repoCount: number;
+  repos: RepoSettings;
 }
 
 /** A project as the page shows it. */
@@ -91,6 +103,8 @@ export interface ProjectDraft {
   /** The folder's name: the suggested project name. */
   name: string;
   repoCount: number;
+  /** Every repo found one level down, alphabetically; empty when the folder itself is a repo (nothing to order). */
+  repoNames: string[];
   /** Images in the folder that look like its logo, the likeliest first. */
   logos: LogoCandidate[];
   /** The repository's web page, for a folder holding a single repository with a remote on a known host. */
@@ -107,6 +121,7 @@ export interface ProjectInput {
   logo: { kind: 'candidate'; id: string } | { kind: 'keep' } | { kind: 'letter'; color: LogoColor };
   /** The first one is the main link. */
   links: ProjectLink[];
+  repos: RepoSettings;
 }
 
 /** The right-click menu of a project card (and of its … button). `link:N`: open the project's Nth link. */

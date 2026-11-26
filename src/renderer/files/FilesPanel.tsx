@@ -11,12 +11,16 @@ import { letterColor } from '../git/model';
 import { useApp } from '../store';
 import { type TreeRow, cachedTree, flattenTree, insideIgnored } from './tree';
 import './files.css';
+import { NoRepos, useEditOpenProject } from '../components/NoRepos';
 
 /** Key for open folders: the repo path and the folder's path relative to the repo (empty for the repo root). */
 export const dirKey = (repoPath: string, path: string) => `${repoPath}\n${path}`;
 
 export interface FilesPanelViewProps {
   repos: RepoView[];
+  /** Repos the project ignores: with none shown, the empty tab says so and offers Edit project…. */
+  ignored?: number;
+  onEditProject?(): void;
   /** The open folder is a single repo: the tree starts directly with its contents. */
   single: boolean;
   /** Loaded file lists (repo path → list); absent if not loaded. */
@@ -60,7 +64,7 @@ export function FilesPanelView(props: FilesPanelViewProps) {
   if (repos.length === 0) {
     return (
       <div className="git-list">
-        <p className="git-empty">No git repositories in this folder</p>
+        <NoRepos ignored={props.ignored} onEditProject={props.onEditProject} />
       </div>
     );
   }
@@ -435,6 +439,7 @@ const changeSignature = (repo: RepoView) =>
  */
 export function FilesPanel() {
   const workspace = useApp((s) => s.workspace);
+  const editProject = useEditOpenProject();
   const open = useApp((s) => s.filesOpen);
   const center = useApp((s) => s.center);
   const [lists, setLists] = useState<Record<string, FileList>>({});
@@ -573,6 +578,8 @@ export function FilesPanel() {
   return (
     <FilesPanelView
       repos={repos}
+      ignored={workspace.ignored}
+      onEditProject={editProject}
       single={single}
       lists={lists}
       dirs={dirs}

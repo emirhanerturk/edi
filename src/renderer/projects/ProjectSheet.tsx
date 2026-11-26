@@ -1,11 +1,12 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import type { LogoCandidate, ProjectInput } from '../../shared/api';
-import { LOGO_COLORS, type LogoColor, MAX_LABEL, MAX_LINKS, MAX_NAME, colorFor, normalizeLink } from '../../shared/projects';
+import { LOGO_COLORS, type LogoColor, MAX_LABEL, MAX_LINKS, MAX_NAME, NO_REPO_SETTINGS, colorFor, normalizeLink } from '../../shared/projects';
 import { edi } from '../bridge';
 import { CloseIcon, FolderIcon, PlusIcon, StarIcon } from '../components/icons';
 import { plural, tildify } from '../format';
 import { type SheetState, useApp } from '../store';
 import { LetterLogo } from './ProjectLogo';
+import { type RepoRow, RepoList, rowsFor, settingsOf } from './RepoList';
 
 /** The logo picked in the sheet: the project's current image, an image offered (found or chosen), or the letter. */
 type LogoPick = { kind: 'keep' } | { kind: 'candidate'; id: string } | { kind: 'letter' };
@@ -69,6 +70,11 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
   const [links, setLinks] = useState<LinkRow[]>(() => rowsOf(start?.links ?? sheet.draft.links));
   const [main, setMain] = useState(0);
   const [linksTouched, setLinksTouched] = useState(false);
+  const [repoRows, setRepoRows] = useState<RepoRow[]>(() => rowsFor(sheet.draft.repoNames, start?.repos ?? NO_REPO_SETTINGS));
+  // A folder holding one repo, or being one, has nothing to order; an ignored repo is listed anyway, to be ticked back.
+  const showRepos =
+    draft.repoNames.length > 1 || (start !== null && draft.dir === start.dir && draft.repoNames.some((name) => start.repos.ignored.includes(name)));
+  const ignoredCount = showRepos ? repoRows.filter((row) => !row.kept).length : 0;
   /** The row just added: its address field takes the focus. */
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +124,7 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
     const next = await edi.chooseProjectFolder(sheet.projectId);
     if (next === null) return;
     setDraft(next);
+    setRepoRows(rowsFor(next.repoNames, NO_REPO_SETTINGS));
     setError(null);
     if (!editing && !nameTouched) setName(next.name);
     if (!editing && !linksTouched) {
@@ -161,6 +168,17 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
     setMain((current) => (current === index ? 0 : current > index ? current - 1 : current));
   };
 
+  /** Repos newly ignored in the open project close their tabs: unsaved edits in them are given up only after asking. */
+  const confirmIgnoring = async (repos: ProjectInput['repos']): Promise<boolean> => {
+    if (!editing || !start?.open) return true;
+    const newly = new Set(repos.ignored.filter((name) => !start.repos.ignored.includes(name)));
+    const { workspace, center, unsaved } = useApp.getState();
+    const paths = new Set(workspace.repos.filter((repo) => newly.has(repo.name)).map((repo) => repo.path));
+    const lost = center.tabs.filter((tab) => unsaved[tab.id] && paths.has(tab.repoPath));
+    if (lost.length === 0) return true;
+    return edi.confirmDiscard(lost.length === 1 ? fileName(lost[0]!.path) : `${lost.length} files`);
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy || draft.taken !== null) return;
@@ -184,7 +202,10 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
       name: trimmed,
       logo: chosenPick.kind === 'letter' ? { kind: 'letter', color } : chosenPick,
       links: ordered.map(({ row }) => ({ url: normalizeLink(row.url)!, label: row.label.trim() })),
+      // Without the section (a folder that is a repo, or one not found), an edited project keeps what it had.
+      repos: showRepos ? settingsOf(repoRows) : start && draft.dir === start.dir ? start.repos : NO_REPO_SETTINGS,
     };
+    if (!(await confirmIgnoring(input.repos))) return;
     setBusy(true);
     setError(null);
     const result = editing && sheet.projectId !== null ? await edi.updateProject(sheet.projectId, input) : await edi.createProject(input);
@@ -225,6 +246,7 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
             ) : (
               <span className="sheet-note">
                 {draft.repoCount === 0 ? 'No git repositories in it' : `${plural(draft.repoCount, 'git repository', 'git repositories')} found`}
+                {ignoredCount > 0 && ` · ${ignoredCount} ignored`}
               </span>
             )}
           </div>
@@ -305,6 +327,8 @@ export function ProjectSheet({ sheet }: { sheet: SheetState }) {
               )}
             </span>
           </div>
+
+          {showRepos && <RepoList rows={repoRows} onChange={setRepoRows} />}
 
           <div className="sheet-field">
             <span className="sheet-label" id="sheet-links">

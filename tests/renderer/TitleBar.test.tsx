@@ -26,6 +26,7 @@ const view = (id: string, over: Partial<ProjectView> = {}): ProjectView => ({
   links: [],
   openedAt: 1,
   repoCount: 1,
+  repos: { order: [], ignored: [] },
   logoUrl: null,
   exists: true,
   open: false,
@@ -36,6 +37,7 @@ const quizei = view('quizei', {
   name: 'Quizei',
   open: true,
   repoCount: 8,
+  repos: { order: [], ignored: [] },
   links: [
     { url: 'https://quizei.com/', label: 'Site' },
     { url: 'https://admin.quizei.com/', label: 'Admin' },
@@ -48,7 +50,7 @@ beforeEach(() => {
   useApp.setState(initial, true);
   useApp.setState({
     home: '/Users/me',
-    workspace: { dir: quizei.dir, repos: [], rootSessions: 0, refreshedAt: 0 },
+    workspace: { dir: quizei.dir, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 },
     projects: [quizei, view('edi'), view('gone', { exists: false })],
   });
   for (const fn of Object.values(bridge.edi)) if (vi.isMockFunction(fn)) fn.mockClear();
@@ -57,7 +59,7 @@ afterEach(cleanup);
 
 describe('TitleBar', () => {
   it('shows the app name while no project is open', () => {
-    useApp.setState({ workspace: { dir: null, repos: [], rootSessions: 0, refreshedAt: 0 } });
+    useApp.setState({ workspace: { dir: null, repos: [], ignored: 0, rootSessions: 0, refreshedAt: 0 } });
     render(<TitleBar />);
     expect(screen.getByTestId('titlebar').textContent).toContain('edi');
     expect(screen.queryByTestId('project-button')).toBeNull();
@@ -97,7 +99,7 @@ describe('TitleBar', () => {
     expect(bridge.edi.openUrl).toHaveBeenCalledWith('https://admin.quizei.com/');
     expect(screen.queryByTestId('links-menu')).toBeNull();
 
-    bridge.edi.projectDraft.mockResolvedValueOnce({ dir: quizei.dir, name: 'quizei', repoCount: 8, logos: [], links: [], taken: null });
+    bridge.edi.projectDraft.mockResolvedValueOnce({ dir: quizei.dir, name: 'quizei', repoCount: 8, repoNames: [], logos: [], links: [], taken: null });
     fireEvent.click(screen.getByTestId('links-more'));
     await act(async () => fireEvent.click(within(screen.getByTestId('links-menu')).getByRole('menuitem', { name: 'Edit links…' })));
     expect(useApp.getState().sheet).toMatchObject({ mode: 'edit', projectId: 'quizei' });

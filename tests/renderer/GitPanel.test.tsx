@@ -57,6 +57,30 @@ function renderPanel(expanded: Record<string, boolean> = {}) {
 }
 const row = (name: string) => screen.getAllByTestId('repo-row').find((el) => el.getAttribute('data-repo') === name)!;
 
+describe('GitPanelView with no repos', () => {
+  afterEach(cleanup);
+  const empty = (ignored: number, onEditProject = vi.fn()) => {
+    render(<GitPanelView repos={[]} expanded={{}} onToggle={() => undefined} onOp={() => undefined} ignored={ignored} onEditProject={onEditProject} />);
+    return onEditProject;
+  };
+
+  it('says the folder has none, with nothing to do about it', () => {
+    empty(0);
+    expect(screen.getByText('No git repositories in this folder')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Edit project…' })).toBeNull();
+  });
+
+  it('says they are all ignored, and Edit project… opens the sheet to tick them back', () => {
+    const onEditProject = empty(3);
+    expect(screen.getByText('All 3 repositories are ignored')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project…' }));
+    expect(onEditProject).toHaveBeenCalledTimes(1);
+    cleanup();
+    empty(1);
+    expect(screen.getByText('The only repository is ignored')).toBeTruthy();
+  });
+});
+
 describe('GitPanelView', () => {
   it("shows each repo's name, branch and sync button", () => {
     renderPanel();
@@ -540,7 +564,7 @@ describe('Stash button', () => {
   afterEach(cleanup);
   function renderButton(files: FileChange[], over: Partial<RepoStatus> = {}, draft?: string) {
     const onOp = vi.fn();
-    const drafts = draft === undefined ? {} : { '/w/app': draft };
+    const drafts: Record<string, string> = draft === undefined ? {} : { '/w/app': draft };
     render(<GitPanelView repos={[repo('app', { status: status({ files, ...over }) })]} expanded={{}} onToggle={() => undefined} onOp={onOp} drafts={drafts} />);
     return { onOp };
   }

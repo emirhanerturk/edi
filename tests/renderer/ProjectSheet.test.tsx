@@ -11,6 +11,8 @@ const bridge = vi.hoisted(() => ({
     removeProject: vi.fn(async (): Promise<OpenResult> => ({ ok: true })),
     chooseProjectFolder: vi.fn(async (): Promise<ProjectDraft | null> => null),
     chooseLogo: vi.fn(async (): Promise<ChosenLogo> => null),
+    confirmDiscard: vi.fn(async (): Promise<boolean> => true),
+    setUnsaved: vi.fn(),
   },
 }));
 vi.mock('../../src/renderer/bridge', () => ({ edi: bridge.edi }));
@@ -22,6 +24,7 @@ const draft: ProjectDraft = {
   dir: '/Users/me/studios/edi',
   name: 'edi',
   repoCount: 1,
+  repoNames: [],
   logos: [
     { id: 'w', path: 'docs/design/icon/wordmark.svg', url: 'edi-logo://found/w' },
     { id: 'i', path: 'build/icon-1024.png', url: 'edi-logo://found/i' },
@@ -41,6 +44,7 @@ const project: ProjectView = {
   ],
   openedAt: 1,
   repoCount: 8,
+  repos: { order: [], ignored: [] },
   logoUrl: 'edi-logo://logo/quizei-00000000.png',
   exists: true,
   open: false,
@@ -59,9 +63,9 @@ const openNew = (over: Partial<ProjectDraft> = {}) => {
   useApp.setState({ sheet });
   return render(<ProjectSheet sheet={sheet} />);
 };
-const openEdit = (over: Partial<ProjectView> = {}) => {
+const openEdit = (over: Partial<ProjectView> = {}, draftOver: Partial<ProjectDraft> = {}) => {
   useApp.setState({ projects: [{ ...project, ...over }] });
-  const sheet = { mode: 'edit' as const, projectId: 'quizei', draft: { ...draft, dir: project.dir, logos: [], links: [] }, serial: 2 };
+  const sheet = { mode: 'edit' as const, projectId: 'quizei', draft: { ...draft, dir: project.dir, logos: [], links: [], ...draftOver }, serial: 2 };
   useApp.setState({ sheet });
   return render(<ProjectSheet sheet={sheet} />);
 };
@@ -100,6 +104,7 @@ describe('ProjectSheet, new', () => {
         { url: 'https://github.com/emirhanerturk/edi/pulls', label: 'Pull requests' },
         { url: 'https://github.com/emirhanerturk/edi', label: 'GitHub' },
       ],
+      repos: { order: [], ignored: [] },
     });
     expect(useApp.getState().sheet).toBeNull();
   });
@@ -187,6 +192,7 @@ describe('ProjectSheet, edit', () => {
       name: 'Quizei Web',
       logo: { kind: 'keep' },
       links: project.links,
+      repos: project.repos,
     });
     expect(useApp.getState().sheet).toBeNull();
   });
@@ -201,5 +207,111 @@ describe('ProjectSheet, edit', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Remove from list' })));
     expect(bridge.edi.removeProject).toHaveBeenCalledWith('quizei');
     expect(useApp.getState().sheet).toBeNull();
+  });
+});
+
+describe('ProjectSheet, repositories', () => {
+  const four = ['next-quiz', 'quizei-admin', 'quizei-api', 'quizei-frontend'];
+  const rows = () => screen.getAllByTestId('sheet-repo-row').map((row) => row.textContent);
+  const keep = (name: string) => screen.getByRole('checkbox', { name: `Keep ${name}` }) as HTMLInputElement;
+  const folderNote = () => screen.getByTestId('sheet-folder').closest('.sheet-field')!.querySelector('.sheet-note')!.textContent;
+
+  it('lists the repos before the links, in the project order with the ignored ones unticked', () => {
+    openEdit({ repos: { order: ['quizei-frontend'], ignored: ['next-quiz'] } }, { repoCount: 4, repoNames: four });
+    const labels = [...document.querySelectorAll('.sheet-label')].map((el) => el.textContent ?? '');
+    expect(labels.indexOf('REPOSITORIES')).toBeGreaterThan(-1);
+    expect(labels.indexOf('REPOSITORIES')).toBeLessThan(labels.findIndex((text) => text.startsWith('LINKS')));
+    expect(rows()).toEqual(['quizei-frontend', 'next-quizignored', 'quizei-admin', 'quizei-api']);
+    expect(keep('next-quiz').checked).toBe(false);
+    expect(keep('quizei-frontend').checked).toBe(true);
+    expect(folderNote()).toBe('4 git repositories found · 1 ignored');
+  });
+
+  it('⌥↑ and ⌥↓ move a repo; unticking ignores it; Save sends the order and the ignored ones', async () => {
+    openEdit({}, { repoCount: 4, repoNames: four });
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(keep('quizei-frontend'), { key: 'ArrowUp', altKey: true });
+    expect(document.activeElement).toBe(keep('quizei-frontend'));
+    fireEvent.keyDown(keep('quizei-admin'), { key: 'ArrowDown', altKey: true });
+    // Without ⌥ the arrows do nothing here.
+    fireEvent.keyDown(keep('next-quiz'), { key: 'ArrowUp' });
+    expect(rows()).toEqual(['quizei-frontend', 'next-quiz', 'quizei-api', 'quizei-admin']);
+    fireEvent.click(keep('next-quiz'));
+    expect(rows()[1]).toBe('next-quizignored');
+    await submit();
+    expect(bridge.edi.updateProject).toHaveBeenCalledWith(
+      'quizei',
+      expect.objectContaining({ repos: { order: ['quizei-frontend', 'next-quiz', 'quizei-api', 'quizei-admin'], ignored: ['next-quiz'] } }),
+    );
+  });
+
+  it('dragging a repo by its handle drops it where it is let go', () => {
+    openEdit({}, { repoCount: 4, repoNames: four });
+    const [first] = screen.getAllByTestId('sheet-repo-row');
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Move quizei-frontend' }));
+    fireEvent.dragOver(first!);
+    fireEvent.drop(first!);
+    expect(rows()).toEqual(['quizei-frontend', 'next-quiz', 'quizei-admin', 'quizei-api']);
+  });
+
+  it('every repo can be ignored, and ticked back', () => {
+    openEdit({}, { repoCount: 4, repoNames: four });
+    for (const name of four) fireEvent.click(keep(name));
+    expect(rows()).toHaveLength(4);
+    expect(folderNote()).toBe('4 git repositories found · 4 ignored');
+    fireEvent.click(keep('quizei-api'));
+    expect(folderNote()).toBe('4 git repositories found · 3 ignored');
+  });
+
+  it('no section for a folder that is itself a repo; another folder starts with all of its repos kept', async () => {
+    openNew({ repoNames: [] });
+    expect(screen.queryByText('REPOSITORIES')).toBeNull();
+    cleanup();
+
+    bridge.edi.chooseProjectFolder.mockResolvedValueOnce({ ...draft, dir: '/Users/me/studios/beremo', name: 'beremo', repoCount: 2, repoNames: ['web', 'api'] });
+    openNew({ repoCount: 4, repoNames: four });
+    fireEvent.click(keep('next-quiz'));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Change…' })));
+    expect(rows()).toEqual(['api', 'web']);
+    expect(keep('web').checked).toBe(true);
+    await submit();
+    expect(bridge.edi.createProject).toHaveBeenCalledWith(expect.objectContaining({ repos: { order: ['api', 'web'], ignored: [] } }));
+  });
+
+  it('a repo that is ignored stays listed even when it is the only one left, so it can be ticked back', () => {
+    openEdit({ repos: { order: [], ignored: ['web'] } }, { repoCount: 1, repoNames: ['web'] });
+    expect(rows()).toEqual(['webignored']);
+    fireEvent.click(keep('web'));
+    expect(keep('web').checked).toBe(true);
+  });
+
+  describe('unsaved edits in a repo about to be ignored', () => {
+    const quizPath = `${project.dir}/next-quiz`;
+    function withUnsavedTab() {
+      useApp.setState({
+        workspace: { ...useApp.getState().workspace, dir: project.dir, repos: four.map((name) => ({ name, path: `${project.dir}/${name}` }) as never) },
+        center: { tabs: [{ id: 't1', kind: 'file', repoPath: quizPath, path: 'src/login.ts', pinned: true }], active: 't1' } as never,
+        unsaved: { t1: true },
+      });
+    }
+
+    it('asks before Save, and Cancel keeps the sheet open', async () => {
+      openEdit({ open: true }, { repoCount: 4, repoNames: four });
+      withUnsavedTab();
+      bridge.edi.confirmDiscard.mockResolvedValueOnce(false);
+      fireEvent.click(keep('next-quiz'));
+      await submit();
+      expect(bridge.edi.confirmDiscard).toHaveBeenCalledWith('login.ts');
+      expect(bridge.edi.updateProject).not.toHaveBeenCalled();
+      expect(useApp.getState().sheet).not.toBeNull();
+    });
+
+    it('saves once the edits are given up; nothing is asked for a repo that stays', async () => {
+      openEdit({ open: true }, { repoCount: 4, repoNames: four });
+      withUnsavedTab();
+      fireEvent.click(keep('quizei-admin'));
+      await submit();
+      expect(bridge.edi.confirmDiscard).not.toHaveBeenCalled();
+      expect(bridge.edi.updateProject).toHaveBeenCalledTimes(1);
+    });
   });
 });

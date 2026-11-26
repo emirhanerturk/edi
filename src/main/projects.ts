@@ -3,8 +3,8 @@
 // Doesn't depend on Electron.
 import { randomUUID } from 'node:crypto';
 import { basename, isAbsolute } from 'node:path';
-import type { Project, ProjectInput, ProjectLink, ProjectLogo } from '../shared/api.js';
-import { MAX_LABEL, MAX_LINKS, MAX_NAME, colorFor, isLogoColor, normalizeLink } from '../shared/projects.js';
+import type { Project, ProjectInput, ProjectLink, ProjectLogo, RepoSettings } from '../shared/api.js';
+import { MAX_LABEL, MAX_LINKS, MAX_NAME, MAX_REPO_NAMES, colorFor, isLogoColor, normalizeLink } from '../shared/projects.js';
 
 /** At most this many projects are kept; past it, the one opened longest ago goes. */
 export const MAX_PROJECTS = 200;
@@ -14,7 +14,7 @@ const ID = /^[a-z0-9-]{1,64}$/;
 export const LOGO_FILE = /^[a-z0-9-]{1,100}\.(png|jpg|gif|webp|avif|svg|ico)$/;
 
 /** What a project is made from: everything the sheet decides. */
-export type ProjectTemplate = Pick<Project, 'id' | 'name' | 'logo' | 'links'>;
+export type ProjectTemplate = Pick<Project, 'id' | 'name' | 'logo' | 'links' | 'repos'>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -44,6 +44,25 @@ function linksOf(raw: unknown): ProjectLink[] {
   return links;
 }
 
+/** A list of repo folder names: trimmed, each once, never a path or `.`/`..`, at most `MAX_REPO_NAMES`. */
+function repoNamesOf(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const names: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const name = item.trim();
+    if (name === '' || name === '.' || name === '..' || /[/\\]/.test(name) || names.includes(name)) continue;
+    names.push(name);
+    if (names.length === MAX_REPO_NAMES) break;
+  }
+  return names;
+}
+
+/** A project's repo order and ignored repos, from the state file or the sheet; anything else is left out. */
+export function repoSettingsOf(raw: unknown): RepoSettings {
+  return isRecord(raw) ? { order: repoNamesOf(raw.order), ignored: repoNamesOf(raw.ignored) } : { order: [], ignored: [] };
+}
+
 /** The projects from the state file. An entry without an id or an absolute folder is dropped, as is a second one for the same folder. */
 export function normalizeProjects(raw: unknown[]): Project[] {
   const projects: Project[] = [];
@@ -59,6 +78,7 @@ export function normalizeProjects(raw: unknown[]): Project[] {
       links: linksOf(item.links),
       openedAt: time(item.openedAt),
       repoCount: count(item.repoCount),
+      repos: repoSettingsOf(item.repos),
     });
     if (projects.length === MAX_PROJECTS) break;
   }
@@ -67,7 +87,7 @@ export function normalizeProjects(raw: unknown[]): Project[] {
 
 /** A project for a folder with what the folder alone says: its name, and its first letter on a color. */
 export function defaultProject(dir: string, repoCount: number, openedAt: number, id: string = randomUUID()): Project {
-  return { id, dir, name: basename(dir) || dir, logo: { kind: 'letter', color: colorFor(dir) }, links: [], openedAt, repoCount };
+  return { id, dir, name: basename(dir) || dir, logo: { kind: 'letter', color: colorFor(dir) }, links: [], openedAt, repoCount, repos: { order: [], ignored: [] } };
 }
 
 /**
@@ -111,7 +131,7 @@ export function markOpened(projects: Project[], dir: string, repoCount: number, 
   return next.filter((project) => project !== oldest);
 }
 
-export type CleanInput = Pick<ProjectInput, 'dir' | 'name' | 'links' | 'logo'>;
+export type CleanInput = Pick<ProjectInput, 'dir' | 'name' | 'links' | 'logo' | 'repos'>;
 
 /**
  * The sheet's input, checked: a name, an absolute folder, links that are web addresses (the first one
@@ -139,5 +159,5 @@ export function cleanInput(input: unknown): { ok: true; input: CleanInput } | { 
   else if (logo.kind === 'keep') choice = { kind: 'keep' };
   else if (logo.kind === 'letter' && isLogoColor(logo.color)) choice = { kind: 'letter', color: logo.color };
   else return invalid;
-  return { ok: true, input: { dir: input.dir, name, links, logo: choice } };
+  return { ok: true, input: { dir: input.dir, name, links, logo: choice, repos: repoSettingsOf(input.repos) } };
 }

@@ -338,7 +338,9 @@ export class AppCore {
     if (previous !== null && resolve(dir) !== previous && (await isDir(dir))) {
       if (!(await this.confirmBusy('switch'))) return CANCELLED;
     }
-    const result = await this.workspace.open(dir);
+    // The project's repo order and ignored repos: the sheet's for a new project, else the folder's project's.
+    const repos = template?.repos ?? this.projectFor((await realDir(dir)) ?? dir)?.repos;
+    const result = await this.workspace.open(dir, repos);
     if (!result.ok) return result;
     const opened = this.workspace.view().dir ?? dir;
     // Terminals belong to the open folder: they close when it changes, and the page opens new ones.
@@ -452,12 +454,15 @@ export class AppCore {
   /** What the sheet starts with for a folder: its name and repos, the images that look like its logo, its repository's page. */
   private async draftFor(dir: string, selfId: string | null): Promise<ProjectDraft> {
     const repos = await discoverRepos(dir);
+    // A folder that is itself a repo has nothing to order.
+    const self = repos.length === 1 && repos[0]!.path === dir;
     const [found, web] = await Promise.all([findLogos(dir, repos), repos.length === 1 ? remoteWebUrl(repos[0]!.path) : Promise.resolve(null)]);
     const taken = this.state.projects.find((project) => project.dir === dir && project.id !== selfId);
     return {
       dir,
       name: basename(dir) || dir,
       repoCount: repos.length,
+      repoNames: self ? [] : repos.map((repo) => repo.name),
       logos: found.map((path) => this.logos.add(join(dir, path), path)),
       links: web ? [web] : [],
       taken: taken ? { id: taken.id, name: taken.name } : null,
@@ -487,7 +492,7 @@ export class AppCore {
   async projectDraft(projectId: unknown): Promise<ProjectDraft | null> {
     const project = this.project(projectId);
     if (!project) return null;
-    if (!(await isDir(project.dir))) return { dir: project.dir, name: project.name, repoCount: project.repoCount, logos: [], links: [], taken: null };
+    if (!(await isDir(project.dir))) return { dir: project.dir, name: project.name, repoCount: project.repoCount, repoNames: [], logos: [], links: [], taken: null };
     return this.draftFor(project.dir, project.id);
   }
 
@@ -536,7 +541,7 @@ export class AppCore {
     const id = randomUUID();
     const logo = await this.logoFrom(clean.input.logo, id, null);
     if (!logo.ok) return logo;
-    const result = await this.openFolder(dir, { id, name: clean.input.name, logo: logo.logo, links: clean.input.links });
+    const result = await this.openFolder(dir, { id, name: clean.input.name, logo: logo.logo, links: clean.input.links, repos: clean.input.repos });
     // Not opened (cancelled, or another request for the folder came first): the copy isn't anyone's.
     if (logo.copied !== null && !this.project(id)) void dropLogo(this.logoFolder, logo.copied);
     return result;
@@ -564,8 +569,19 @@ export class AppCore {
       if (logo.copied !== null) void dropLogo(this.logoFolder, logo.copied);
       return NO_PROJECT;
     }
-    const { name, links } = clean.input;
-    this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links } : other)));
+    const { name, links, repos } = clean.input;
+    this.changeProjects((projects) => projects.map((other) => (other.id === project.id ? { ...other, dir, name, logo: logo.logo, links, repos } : other)));
+    // The open project lists its repos again at once; its card and menu count the ones kept. In turn with
+    // opening folders: an open in flight finishes first, and the settings are read afresh once it has.
+    if (JSON.stringify(repos) !== JSON.stringify(project.repos)) {
+      await this.opening.run(`\0repos:${project.id}`, async () => {
+        const current = this.project(project.id);
+        if (!current || !this.isOpen(current)) return { ok: true };
+        const repoCount = await this.workspace.setRepoSettings(current.repos);
+        if (repoCount !== null) this.changeProjects((projects) => projects.map((other) => (other.id === current.id ? { ...other, repoCount } : other)));
+        return { ok: true };
+      });
+    }
     const old = project.logo;
     if (old.kind === 'image' && (logo.logo.kind !== 'image' || logo.logo.file !== old.file)) void dropLogo(this.logoFolder, old.file);
     return { ok: true };
