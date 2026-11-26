@@ -1,5 +1,5 @@
 import { menuKeys } from '../components/keys';
-import type { ReactNode } from 'react';
+import { type ReactNode, useLayoutEffect, useRef } from 'react';
 import { CloudUpload } from 'lucide-react';
 import { ArrowDown, ArrowUp, ChevronDown } from '../components/icons';
 import { usePopover } from '../components/usePopover';
@@ -21,11 +21,47 @@ export interface CommitBoxProps {
   onNext?(): void;
 }
 
+/** The message box grows with its text up to this many lines, then scrolls. */
+export const MAX_MESSAGE_LINES = 10;
+
+/**
+ * Fits the box to its text: one line when empty, taller as lines are added or wrap, up to `maxLines`; past
+ * that it scrolls. Measured again when the text changes and when the panel's width does.
+ */
+export function fitHeight(field: HTMLTextAreaElement, maxLines: number): void {
+  const style = getComputedStyle(field);
+  const line = parseFloat(style.lineHeight) || 18;
+  const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+  const border = (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+  field.style.height = 'auto';
+  const content = field.scrollHeight + border;
+  const max = line * maxLines + padding + border;
+  field.style.height = `${Math.min(content, max)}px`;
+  field.style.overflowY = content > max ? 'auto' : 'hidden';
+}
+
 /** Commit message and button. The first line is the subject, the rest the body; Cmd+Enter commits. */
 export function CommitBox({ target, message, busy, canPush, onChange, onCommit, aside, next, onNext }: CommitBoxProps) {
   const menu = usePopover<HTMLDivElement>();
   const ready = target.enabled && !busy && message.trim() !== '';
-  const lines = message.split('\n').length;
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    if (field.current) fitHeight(field.current, MAX_MESSAGE_LINES);
+  }, [message]);
+  // A narrower or wider panel wraps the text differently.
+  useLayoutEffect(() => {
+    const element = field.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    let width = element.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (element.clientWidth === width) return;
+      width = element.clientWidth;
+      fitHeight(element, MAX_MESSAGE_LINES);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const commit = (push: boolean) => {
     if (ready) onCommit({ all: target.all, push });
@@ -39,7 +75,8 @@ export function CommitBox({ target, message, busy, canPush, onChange, onCommit, 
         aria-label="Commit message"
         placeholder="Commit message"
         spellCheck={false}
-        rows={Math.min(10, Math.max(2, lines))}
+        ref={field}
+        rows={1}
         value={message}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {

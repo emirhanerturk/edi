@@ -44,7 +44,8 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   state file, not in a repository.
 - **Git tab.** Every repository directly under the open folder, refreshed every two seconds.
   A collapsed row shows the branch, the state and one sync button; an open repository lists
-  conflicted, staged and changed files with a commit box; each group folds. With nothing to commit,
+  conflicted, staged and changed files with a commit box, one line to start that grows with the
+  message up to ten; each group folds. With nothing to commit,
   its main button does what comes next: Pull · 4 commits, Push · 2 commits or Publish branch (a pull
   first when both), and stays greyed out when the repository is up to date. Stage, unstage,
   commit, commit and push, pull, push, fetch all, switch and create branches. Commits not
