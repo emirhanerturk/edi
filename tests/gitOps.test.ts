@@ -55,7 +55,7 @@ describe('busyLabel', () => {
     expect(busyLabel({ op: 'undoCommit', oid: 'a'.repeat(40) })).toBe('Undoing commit…');
     expect(busyLabel({ op: 'revertCommit', oid: 'a'.repeat(40) })).toBe('Reverting…');
     expect(busyLabel({ op: 'discard', file: { path: 'a', origPath: null, x: '.', y: 'M', kind: 'changed' } })).toBe('Discarding…');
-    expect(busyLabel({ op: 'discardAll' })).toBe('Discarding…');
+    expect(busyLabel({ op: 'discardAll', files: [] })).toBe('Discarding…');
     expect(busyLabel({ op: 'stash', message: '', staged: false })).toBe('Stashing…');
     expect(busyLabel({ op: 'stashPop', oid: 'a'.repeat(40) })).toBe('Popping stash…');
     expect(busyLabel({ op: 'stashApply', oid: 'a'.repeat(40) })).toBe('Applying stash…');
@@ -245,11 +245,17 @@ describe('GitOps', () => {
     expect(await ops.run(repo, { op: 'discard', file })).toEqual({ ok: true, message: 'Discarded' });
     expect(ws.repo(repo)?.status?.files).toEqual([]);
     await writeFile(join(repo, 'new.txt'), 'x\n');
-    expect(await ops.run(repo, { op: 'discardAll' })).toEqual({ ok: true, message: 'Discarded all changes' });
+    await ws.refresh(repo);
+    const shown = ws.repo(repo)?.status?.files ?? [];
+    expect(await ops.run(repo, { op: 'discardAll', files: shown })).toEqual({ ok: true, message: 'Discarded all changes' });
     expect(trashed).toEqual([join(repo, 'new.txt')]);
     expect(await ops.run(repo, { op: 'discard' } as unknown as GitOp)).toEqual({ ok: false, error: 'Invalid operation' });
+    expect(await ops.run(repo, { op: 'discardAll' } as unknown as GitOp)).toEqual({ ok: false, error: 'Invalid operation' });
+    expect(await ops.run(repo, { op: 'discardAll', files: [{ path: 'a' }] } as unknown as GitOp)).toEqual({ ok: false, error: 'Invalid operation' });
     await writeFile(join(repo, 'other.txt'), 'y\n');
-    expect(await new GitOps(ws).run(repo, { op: 'discardAll' })).toEqual({ ok: false, error: 'Moving to the Trash is not available' });
+    await ws.refresh(repo);
+    const other = ws.repo(repo)?.status?.files ?? [];
+    expect(await new GitOps(ws).run(repo, { op: 'discardAll', files: other })).toEqual({ ok: false, error: 'Moving to the Trash is not available' });
   });
 
   it('reverts a commit; an op without an oid is refused', async () => {

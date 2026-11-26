@@ -285,6 +285,15 @@ describe('Discard', () => {
     expect(within(staged).queryByTestId('discard-file')).toBeNull();
   });
 
+  it('a row that cannot be discarded has its button disabled with the reason', () => {
+    const withNested = repo('nest', { status: status({ files: [file('nested/', '?', '?', 'untracked'), file('a.ts', '.', 'M')] }) });
+    render(<GitPanelView repos={[withNested]} expanded={{ '/w/nest': true }} onToggle={() => undefined} onDiscard={() => undefined} />);
+    const [nestedButton, plain] = screen.getAllByTestId('discard-file') as HTMLButtonElement[];
+    expect(nestedButton!.disabled).toBe(true);
+    expect(nestedButton!.title).toBe('A repository inside this one is left alone');
+    expect(plain!.disabled).toBe(false);
+  });
+
   it('without onDiscard there are no discard buttons', () => {
     render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} />);
     expect(screen.queryByTestId('discard-file')).toBeNull();

@@ -37,6 +37,7 @@ import {
   tabId,
 } from './center/tabs';
 import { clampWidths } from './components/Splitter';
+import { discardHow, goesToTrash } from '../git/discardKind';
 import { groupFiles, isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
 import { disposeAllTerminals, disposeTerminal, onTerminalLink, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
@@ -559,15 +560,20 @@ export const useApp = create<AppStore>((set, get) => ({
   async discardChanges(repoPath, file) {
     const repo = get().workspace.repos.find((candidate) => candidate.path === repoPath);
     if (!repo?.status) return;
+    const { changes } = groupFiles(repo.status);
     let target: DiscardTarget;
-    if (file) target = { kind: 'file', name: file.path.slice(file.path.lastIndexOf('/') + 1), untracked: file.kind === 'untracked' };
-    else {
-      const { changes } = groupFiles(repo.status);
-      const untracked = changes.filter((f) => f.kind === 'untracked').length;
-      target = { kind: 'all', repo: repo.name, changed: changes.length - untracked, untracked };
+    if (file) {
+      if (discardHow(file).how === 'refuse') return;
+      target = { kind: 'file', name: file.path.slice(file.path.lastIndexOf('/') + 1), untracked: goesToTrash(file) };
+    } else {
+      const doable = changes.filter((f) => discardHow(f).how !== 'refuse');
+      if (doable.length === 0) return;
+      const untracked = doable.filter(goesToTrash).length;
+      target = { kind: 'all', repo: repo.name, changed: doable.length - untracked, untracked };
     }
     if (!(await edi.confirmDiscardChanges(target))) return;
-    await get().gitOp(repoPath, file ? { op: 'discard', file } : { op: 'discardAll' });
+    // What the user was asked about goes along: the main process refuses if the changes moved on since.
+    await get().gitOp(repoPath, file ? { op: 'discard', file } : { op: 'discardAll', files: changes });
   },
   async commitAction(repoPath, commit, choice) {
     if (choice.action === 'copy') await navigator.clipboard.writeText(commit.oid).catch(() => undefined);

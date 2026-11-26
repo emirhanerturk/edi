@@ -169,8 +169,8 @@ export type GitOp =
   | { op: 'revertCommit'; oid: string }
   /** The file's unstaged changes are thrown away; a new file goes to the Trash. The index isn't touched. */
   | { op: 'discard'; file: FileChange }
-  /** Every unstaged change in the repo, as `discard` does for one file. */
-  | { op: 'discardAll' }
+  /** Every unstaged change in the repo, as `discard` does for one file. `files`: the CHANGES the user was asked about. */
+  | { op: 'discardAll'; files: FileChange[] }
   /**
    * Every change, new files included, or only the staged ones; `message` may be empty. `then`: a switch
    * or pull that git refused because of the local changes, run again once they are stashed.

@@ -4,7 +4,7 @@ import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash }
 import { type Trash, discardAll, discardFile } from '../git/discard.js';
 import { revertCommit } from '../git/revert.js';
 import { getStatus } from '../git/status.js';
-import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
+import type { BranchList, FileChange, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
 import type { Workspace } from './workspace.js';
 
 export function busyLabel(op: GitOp): string {
@@ -55,6 +55,19 @@ function isRetry(then: unknown): then is StashRetry {
   return t.op === 'pull' || (t.op === 'switch' && typeof t.branch === 'string');
 }
 
+/** A file entry as the page shows it; discarding compares it with a fresh status, so every field matters. */
+function isFileChange(f: unknown): f is FileChange {
+  if (typeof f !== 'object' || f === null) return false;
+  const v = f as Record<string, unknown>;
+  return (
+    typeof v.path === 'string' &&
+    (v.origPath === null || typeof v.origPath === 'string') &&
+    typeof v.x === 'string' &&
+    typeof v.y === 'string' &&
+    (v.kind === 'changed' || v.kind === 'untracked' || v.kind === 'conflicted')
+  );
+}
+
 /** Whether an operation from the page is well formed. The page isn't trusted: every field is checked. */
 function isValidOp(op: unknown): op is GitOp {
   if (typeof op !== 'object' || op === null) return false;
@@ -62,14 +75,16 @@ function isValidOp(op: unknown): op is GitOp {
   switch (o.op) {
     case 'stageAll':
     case 'unstageAll':
-    case 'discardAll':
     case 'push':
     case 'pull':
     case 'fetch':
       return true;
+    case 'discard':
+      return isFileChange(o.file);
+    case 'discardAll':
+      return Array.isArray(o.files) && o.files.every(isFileChange);
     case 'stage':
     case 'unstage':
-    case 'discard':
       return typeof o.file === 'object' && o.file !== null && typeof (o.file as Record<string, unknown>).path === 'string';
     case 'commit':
       return typeof o.message === 'string' && typeof o.all === 'boolean' && typeof o.push === 'boolean';
@@ -239,9 +254,9 @@ export class GitOps {
       case 'revertCommit':
         return revertCommit(repo, op.oid);
       case 'discard':
-        return discardFile(repo, op.file.path, this.trash);
+        return discardFile(repo, op.file, this.trash);
       case 'discardAll':
-        return discardAll(repo, this.trash);
+        return discardAll(repo, op.files, this.trash);
       case 'stash': {
         const stashed = await pushStash(repo, { message: op.message, staged: op.staged });
         if (!stashed.ok || !op.then) return stashed;

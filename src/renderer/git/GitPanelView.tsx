@@ -5,6 +5,7 @@ import { Archive, ArchiveArrowUp, RotateCcw, Undo2 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CommitSummary, FileChange, StashEntry } from '../../git/types';
 import type { BranchList, GitOp, IncomingResult, RepoOperation, RepoView, StashList, StashMenuAction, StashRetry, UnpushedResult } from '../../shared/api';
+import { discardHow } from '../../git/discardKind';
 import { shortAgo } from '../history/time';
 import {
   ArrowDown,
@@ -739,6 +740,12 @@ interface FileRowProps {
 function FileRow({ file, group, busy, blocked, discard, selected, run, open, openIn }: FileRowProps) {
   const { name, dir } = splitPath(file.path);
   const mark = letter(file, group);
+  const discardButton = () => {
+    const plan = discardHow(file);
+    const refused = plan.how === 'refuse' ? plan.reason : null;
+    const title = blocked ? 'Resolve the conflicts first' : (refused ?? 'Discard changes');
+    return button('discard-file', `Discard changes to ${name}`, title, () => discard?.(file), <RotateCcw size={12} />, busy || blocked || refused !== null);
+  };
   const button = (testId: string, label: string, title: string, action: GitOp | (() => void), icon: ReactNode, disabled = busy) => (
     <button
       className="icon-button tiny"
@@ -799,8 +806,7 @@ function FileRow({ file, group, busy, blocked, discard, selected, run, open, ope
           )}
         />
       )}
-      {discard &&
-        button('discard-file', `Discard changes to ${name}`, blocked ? 'Resolve the conflicts first' : 'Discard changes', () => discard(file), <RotateCcw size={12} />, busy || blocked)}
+      {discard && discardButton()}
       {group === 'changes' && button('stage-file', `Stage ${name}`, 'Stage', { op: 'stage', file }, <StageIcon size={12} />)}
     </div>
   );
