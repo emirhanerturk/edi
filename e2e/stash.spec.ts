@@ -50,9 +50,11 @@ test('several repos: stash with a message, see it in the stash view, pop it back
     await expect(betaRow).toHaveAttribute('aria-expanded', 'false');
     await expect(betaRow.getByTestId('repo-stashes')).toHaveText('1');
 
+    // The stash takes the commit box's text as its message; Enter on the menu stashes everything.
+    await alphaRow.getByTestId('commit-message').fill('wip: login form');
     await alphaRow.getByTestId('stash-button').click();
-    await page.getByLabel('Stash message').fill('wip: login form');
-    await page.getByLabel('Stash message').press('Enter');
+    await expect(page.getByTestId('stash-menu-message')).toHaveText('wip: login form');
+    await page.keyboard.press('Enter');
     // Clean now: with several repos it collapses, and its row counts the stash.
     await expect(alphaRow).toHaveAttribute('aria-expanded', 'false');
     await expect(alphaRow.getByTestId('repo-stashes')).toHaveText('1');

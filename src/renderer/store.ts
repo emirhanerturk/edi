@@ -524,10 +524,12 @@ export const useApp = create<AppStore>((set, get) => ({
     set((state) => ({
       errors: result.ok ? without(state.errors, repoPath) : { ...state.errors, [repoPath]: result.error },
       retries: retry ? { ...state.retries, [repoPath]: retry } : without(state.retries, repoPath),
-      // If the commit went through, the message is cleared (the commit stays even if its push failed).
-      // Only if the box still holds what was committed: text typed while a hook ran is kept.
+      // If the commit went through, the message is cleared (the commit stays even if its push failed);
+      // so is a stash's, which takes the commit box's text. Only if the box still holds what was used:
+      // text typed while a hook ran is kept.
       drafts:
-        op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but')) && state.drafts[repoPath] === op.message
+        ((op.op === 'commit' && (result.ok || result.error.startsWith('Committed, but'))) || (op.op === 'stash' && result.ok)) &&
+        state.drafts[repoPath] === op.message
           ? without(state.drafts, repoPath)
           : state.drafts,
       center: gone ? closeCenterTab(state.center, gone) : state.center,

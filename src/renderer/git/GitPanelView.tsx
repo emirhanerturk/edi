@@ -237,7 +237,8 @@ function Repo(props: GitPanelProps & { repo: RepoView }) {
                     partlyStaged={groups.staged.some(isPartlyStaged)}
                     busy={busy}
                     blocked={groups.conflicts.length > 0}
-                    onStash={({ message, staged }) => run({ op: 'stash', message, staged })}
+                    message={props.drafts?.[repo.path] ?? ''}
+                    onStash={({ staged }) => run({ op: 'stash', message: props.drafts?.[repo.path] ?? '', staged })}
                   />
                 )
               }
