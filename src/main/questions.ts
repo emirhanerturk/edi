@@ -1,4 +1,5 @@
 // The native questions asked before something would throw away work.
+import type { DiscardTarget } from '../shared/api.js';
 
 const QUESTIONS = {
   quit: { message: 'Quit edi?', suffix: '', git: ['Quitting may cut it off halfway.', 'Quitting may cut them off halfway.'], confirm: 'Quit' },
@@ -126,4 +127,31 @@ export function revertCommitQuestion(subject: string): Question {
     defaultId: 0,
     cancelId: 1,
   };
+}
+
+/** Before discarding changes in the Git tab: a tracked file's are lost for good, a new file goes to the Trash. */
+export function discardChangesQuestion(target: DiscardTarget): Question {
+  const ask = (message: string, detail: string): Question => ({ type: 'warning', message, detail, buttons: ['Discard', 'Cancel'], defaultId: 0, cancelId: 1 });
+  if (target.kind === 'file') {
+    return target.untracked
+      ? ask(`Move ${target.name} to the Trash?`, 'It is new, so git has no copy of it.')
+      : ask(`Discard changes to ${target.name}?`, "This can't be undone.");
+  }
+  const parts = [
+    target.changed > 0 ? plural(target.changed, 'changed file is reset', 'changed files are reset') : null,
+    target.untracked > 0 ? plural(target.untracked, 'new file goes to the Trash', 'new files go to the Trash') : null,
+  ].filter((part) => part !== null);
+  return ask(`Discard all changes in ${target.repo}?`, `${parts.join(' and ')}. Staged changes stay. This can't be undone.`);
+}
+
+/** A discard question's target as the page sent it; null if it isn't well formed. */
+export function discardTarget(value: unknown): DiscardTarget | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const count = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+  if (v.kind === 'file' && typeof v.name === 'string' && typeof v.untracked === 'boolean') return { kind: 'file', name: v.name, untracked: v.untracked };
+  if (v.kind === 'all' && typeof v.repo === 'string' && count(v.changed) && count(v.untracked)) {
+    return { kind: 'all', repo: v.repo, changed: v.changed as number, untracked: v.untracked as number };
+  }
+  return null;
 }

@@ -358,6 +358,20 @@ button.branch-chip:hover {
   background: var(--selected);
 }
 
+/* A row's buttons: spaced as in the section header above, shown only while the row is pointed at. */
+.file-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0;
+}
+
+.file-row:hover .file-actions,
+.file-actions:focus-within {
+  opacity: 1;
+}
+
 /* The file open in the center panel. */
 .file-row[aria-current='true'] {
   background: var(--selected);

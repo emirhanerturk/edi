@@ -3,6 +3,8 @@ import { create } from 'zustand';
 import type {
   ClaudeUsage,
   CommitMenuChoice,
+  DiscardTarget,
+  FileChange,
   GitOp,
   Layout,
   LogResult,
@@ -35,7 +37,8 @@ import {
   tabId,
 } from './center/tabs';
 import { clampWidths } from './components/Splitter';
-import { isBlockedByLocalChanges, stashTitle } from './git/model';
+import { discardHow, goesToTrash } from '../git/discardKind';
+import { groupFiles, isBlockedByLocalChanges, stashTitle } from './git/model';
 import { HISTORY_MAX, HISTORY_PAGE, historyKey } from './history/model';
 import { disposeAllTerminals, disposeTerminal, onTerminalLink, onTerminalTitle, openTerminal, showTerminal, writeTerminal } from './terminals/terminals';
 
@@ -266,6 +269,8 @@ interface AppStore {
   stashAction(repoPath: string, stash: StashEntry, action: StashMenuAction): Promise<void>;
   /** Asks, then reverts the commit; if it fails, the Git tab shows with the repo expanded, so the error is seen. */
   revertCommit(repoPath: string, commit: { oid: string; subject: string }): Promise<void>;
+  /** Asks, then discards the file's unstaged changes, or every change in CHANGES when `file` is null. */
+  discardChanges(repoPath: string, file: FileChange | null): Promise<void>;
   /** What was picked in a commit's menu: copy its hash, open its GitHub page, or revert it. */
   commitAction(repoPath: string, commit: { oid: string; subject: string }, choice: CommitMenuChoice): Promise<void>;
   /** Gives a stash a new message; its tab takes the new name. */
@@ -519,6 +524,10 @@ export const useApp = create<AppStore>((set, get) => ({
   setDraft: (repoPath, message) => set((state) => ({ drafts: { ...state.drafts, [repoPath]: message } })),
   dismissError: (repoPath) => set((state) => ({ errors: without(state.errors, repoPath), retries: without(state.retries, repoPath) })),
   async gitOp(repoPath, op) {
+    // These can leave the repo without changes, which would close a repo that opened by itself because it
+    // had some: it stays open. A repo opened or closed by hand keeps that.
+    const keepsOpen = op.op === 'discard' || op.op === 'discardAll' || op.op === 'commit' || op.op === 'stash';
+    if (keepsOpen && get().expanded[repoPath] === undefined) get().toggleRepo(repoPath, true);
     set((state) => ({ errors: without(state.errors, repoPath), retries: without(state.retries, repoPath) }));
     const result = await edi.git(repoPath, op);
     // A switch or pull refused because of local changes can be run again once they are stashed.
@@ -551,6 +560,24 @@ export const useApp = create<AppStore>((set, get) => ({
     if (get().errors[repoPath] === undefined) return;
     get().setRightTab('git');
     get().toggleRepo(repoPath, true);
+  },
+  async discardChanges(repoPath, file) {
+    const repo = get().workspace.repos.find((candidate) => candidate.path === repoPath);
+    if (!repo?.status) return;
+    const { changes } = groupFiles(repo.status);
+    let target: DiscardTarget;
+    if (file) {
+      if (discardHow(file).how === 'refuse') return;
+      target = { kind: 'file', name: file.path.slice(file.path.lastIndexOf('/') + 1), untracked: goesToTrash(file) };
+    } else {
+      const doable = changes.filter((f) => discardHow(f).how !== 'refuse');
+      if (doable.length === 0) return;
+      const untracked = doable.filter(goesToTrash).length;
+      target = { kind: 'all', repo: repo.name, changed: doable.length - untracked, untracked };
+    }
+    if (!(await edi.confirmDiscardChanges(target))) return;
+    // What the user was asked about goes along: the main process refuses if the changes moved on since.
+    await get().gitOp(repoPath, file ? { op: 'discard', file } : { op: 'discardAll', files: changes });
   },
   async commitAction(repoPath, commit, choice) {
     if (choice.action === 'copy') await navigator.clipboard.writeText(commit.oid).catch(() => undefined);

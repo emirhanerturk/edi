@@ -55,8 +55,10 @@ test('several repos: stash with a message, see it in the stash view, pop it back
     await alphaRow.getByTestId('stash-button').click();
     await expect(page.getByTestId('stash-menu-message')).toHaveText('wip: login form');
     await page.keyboard.press('Enter');
-    // Clean now: with several repos it collapses, and its row counts the stash.
-    await expect(alphaRow).toHaveAttribute('aria-expanded', 'false');
+    // Clean now, and it stays open; closed, its row counts the stash.
+    await expect(alphaRow.getByTestId('file-row')).toHaveCount(0);
+    await expect(alphaRow).toHaveAttribute('aria-expanded', 'true');
+    await alphaRow.getByTestId('repo-toggle').click();
     await expect(alphaRow.getByTestId('repo-stashes')).toHaveText('1');
     expect(await status(alpha)).toEqual([]);
     expect(await stashes(alpha)).toEqual(['On main: wip: login form']);

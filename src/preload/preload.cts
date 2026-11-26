@@ -37,6 +37,7 @@ const api: EdiApi = {
   incoming: (repoPath) => ipcRenderer.invoke('git:incoming', repoPath),
   confirmUndo: (subject) => ipcRenderer.invoke('git:confirmUndo', subject),
   confirmRevert: (subject) => ipcRenderer.invoke('git:confirmRevert', subject),
+  confirmDiscardChanges: (target) => ipcRenderer.invoke('git:confirmDiscardChanges', target),
   commitMenu: (repoPath, oid, opts) => ipcRenderer.invoke('history:commitMenu', repoPath, oid, opts),
   stashes: (repoPath) => ipcRenderer.invoke('git:stashes', repoPath),
   stash: (repoPath, oid) => ipcRenderer.invoke('git:stash', repoPath, oid),

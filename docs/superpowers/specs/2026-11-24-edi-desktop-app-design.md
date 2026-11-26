@@ -47,7 +47,8 @@ write our own app.
 - AI-generated commit messages.
 - Merge, rebase, conflict resolution, cherry-pick, commit graph. (Stash was here too; it was
   added on 2026-11-25, requested by the user: `2026-11-25-edi-stash-design.md`.)
-- Line/hunk-level staging. Discard (reverting a change).
+- Line/hunk-level staging. (Discard was here too; it was added on 2026-11-26, requested by the
+  user: `2026-11-26-edi-discard-changes-design.md`.)
 - Settings screen and settings file; accent color, font and shortcuts are fixed.
   (The gear button in the design is not in the first version.)
 - Multiple windows, multiple working folders.
@@ -238,6 +239,8 @@ Three tabs: **Git** (with a badge for the number of changed files), **History**,
 
 All repos one under another. Repos with changes start expanded, clean ones collapsed;
 if the user expanded or collapsed one by hand, that preference holds for the session.
+A repo that opened by itself stays open after a commit, stash or discard empties it
+(2026-11-26, requested by the user).
 
 **Collapsed repo row** (left to right): the name (truncated when space runs short);
 the Claude mark if a Claude Code session is inside it; a gap; the branch; the status

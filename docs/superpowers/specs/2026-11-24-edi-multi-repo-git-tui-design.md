@@ -32,7 +32,8 @@ Zed's left panel. It doesn't replace Zed; it only fills this gap.
 - AI-generated commit messages.
 - Stash, merge, rebase, conflict resolution, commit history/graph.
 - Line/hunk-level staging.
-- Discard (reverting a change). Deliberately absent: so no work is lost to a wrong key.
+- Discard (reverting a change). Deliberately absent: so no work is lost to a wrong key. (The desktop
+  app added it on 2026-11-26, asking first: `2026-11-26-edi-discard-changes-design.md`.)
 - Multi-line commit body; in the first version a single-line subject is written.
 - Settings file.
 
@@ -40,7 +41,8 @@ Zed's left panel. It doesn't replace Zed; it only fills this gap.
 
 - Nothing goes to the remote that the user didn't ask for, and no change is deleted.
   No destructive or hard-to-undo git command (reset --hard, checkout --,
-  clean, force push, rebase) is run.
+  clean, force push, rebase) is run. (Since 2026-11-26 the desktop app discards changes on request,
+  after asking, with `git restore --worktree`; new files go to the Trash.)
 - No automatic fetch/pull/push; all of them happen on a keypress.
 - An error in one repo must not break the listing of the other repos.
 

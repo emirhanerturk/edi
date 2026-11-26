@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { busyQuestion, discardQuestion, dropStashQuestion, removeProjectQuestion, renameQuestion, trashQuestion, revertCommitQuestion, undoCommitQuestion } from '../src/main/questions.js';
+import { busyQuestion, discardChangesQuestion, discardQuestion, discardTarget, dropStashQuestion, removeProjectQuestion, renameQuestion, trashQuestion, revertCommitQuestion, undoCommitQuestion } from '../src/main/questions.js';
 
 describe('busyQuestion', () => {
   it('asks nothing when no terminal is busy and no file has unsaved changes', () => {
@@ -144,5 +144,45 @@ describe('revertCommitQuestion', () => {
       cancelId: 1,
     });
     expect(revertCommitQuestion('x'.repeat(100)).message).toBe(`Revert the commit "${'x'.repeat(59)}…"?`);
+  });
+});
+
+describe('discardChangesQuestion', () => {
+  const base = { type: 'warning', buttons: ['Discard', 'Cancel'], defaultId: 0, cancelId: 1 };
+
+  it('a tracked file: its changes are lost for good', () => {
+    expect(discardChangesQuestion({ kind: 'file', name: 'app.ts', untracked: false })).toEqual({
+      ...base,
+      message: 'Discard changes to app.ts?',
+      detail: "This can't be undone.",
+    });
+  });
+
+  it('a new file goes to the Trash', () => {
+    expect(discardChangesQuestion({ kind: 'file', name: 'new.ts', untracked: true })).toEqual({
+      ...base,
+      message: 'Move new.ts to the Trash?',
+      detail: 'It is new, so git has no copy of it.',
+    });
+  });
+
+  it('all: names the repo and counts what happens, leaving out a zero part', () => {
+    expect(discardChangesQuestion({ kind: 'all', repo: 'app', changed: 3, untracked: 2 })).toEqual({
+      ...base,
+      message: 'Discard all changes in app?',
+      detail: "3 changed files are reset and 2 new files go to the Trash. Staged changes stay. This can't be undone.",
+    });
+    expect(discardChangesQuestion({ kind: 'all', repo: 'app', changed: 1, untracked: 0 }).detail).toBe("1 changed file is reset. Staged changes stay. This can't be undone.");
+    expect(discardChangesQuestion({ kind: 'all', repo: 'app', changed: 0, untracked: 1 }).detail).toBe("1 new file goes to the Trash. Staged changes stay. This can't be undone.");
+  });
+});
+
+describe('discardTarget', () => {
+  it('keeps a well-formed target and refuses anything else', () => {
+    expect(discardTarget({ kind: 'file', name: 'a.ts', untracked: false })).toEqual({ kind: 'file', name: 'a.ts', untracked: false });
+    expect(discardTarget({ kind: 'all', repo: 'app', changed: 2, untracked: 0, extra: 1 })).toEqual({ kind: 'all', repo: 'app', changed: 2, untracked: 0 });
+    for (const bad of [null, 'all', { kind: 'file', name: 1, untracked: false }, { kind: 'file', name: 'a' }, { kind: 'all', repo: 'app', changed: -1, untracked: 0 }, { kind: 'all', repo: 'app', changed: 1.5, untracked: 0 }, { kind: 'x' }]) {
+      expect(discardTarget(bad), JSON.stringify(bad)).toBeNull();
+    }
   });
 });

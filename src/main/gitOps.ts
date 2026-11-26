@@ -1,9 +1,10 @@
 import { commit, createBranch, fetchInBackground, fetchRepo, listBranches, pull, push, stageAll, stageFile, switchBranch, unstageAll, unstageFile } from '../git/actions.js';
 import { type IncomingResult, type UnpushedResult, readIncoming, readUnpushed, undoLastCommit } from '../git/unpushed.js';
 import { applyStash, dropStash, listStashes, pushStash, readStash, renameStash } from '../git/stash.js';
+import { type Trash, discardAll, discardFile } from '../git/discard.js';
 import { revertCommit } from '../git/revert.js';
 import { getStatus } from '../git/status.js';
-import type { BranchList, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
+import type { BranchList, FileChange, GitOp, OpResult, StashList, StashResult, StashRetry } from '../shared/api.js';
 import type { Workspace } from './workspace.js';
 
 export function busyLabel(op: GitOp): string {
@@ -23,6 +24,9 @@ export function busyLabel(op: GitOp): string {
       return 'Undoing commit…';
     case 'revertCommit':
       return 'Reverting…';
+    case 'discard':
+    case 'discardAll':
+      return 'Discarding…';
     case 'stash':
       return 'Stashing…';
     case 'stashPop':
@@ -51,6 +55,19 @@ function isRetry(then: unknown): then is StashRetry {
   return t.op === 'pull' || (t.op === 'switch' && typeof t.branch === 'string');
 }
 
+/** A file entry as the page shows it; discarding compares it with a fresh status, so every field matters. */
+function isFileChange(f: unknown): f is FileChange {
+  if (typeof f !== 'object' || f === null) return false;
+  const v = f as Record<string, unknown>;
+  return (
+    typeof v.path === 'string' &&
+    (v.origPath === null || typeof v.origPath === 'string') &&
+    typeof v.x === 'string' &&
+    typeof v.y === 'string' &&
+    (v.kind === 'changed' || v.kind === 'untracked' || v.kind === 'conflicted')
+  );
+}
+
 /** Whether an operation from the page is well formed. The page isn't trusted: every field is checked. */
 function isValidOp(op: unknown): op is GitOp {
   if (typeof op !== 'object' || op === null) return false;
@@ -62,6 +79,10 @@ function isValidOp(op: unknown): op is GitOp {
     case 'pull':
     case 'fetch':
       return true;
+    case 'discard':
+      return isFileChange(o.file);
+    case 'discardAll':
+      return Array.isArray(o.files) && o.files.every(isFileChange);
     case 'stage':
     case 'unstage':
       return typeof o.file === 'object' && o.file !== null && typeof (o.file as Record<string, unknown>).path === 'string';
@@ -97,7 +118,13 @@ export class GitOps {
   /** Automatic fetches that failed in a row, by repo. */
   private readonly failures = new Map<string, number>();
 
-  constructor(private readonly ws: Workspace) {}
+  constructor(
+    private readonly ws: Workspace,
+    private readonly deps?: { trash: Trash },
+  ) {}
+
+  /** Discarding a new file moves it to the Trash; without one (tests) that fails instead. */
+  private readonly trash: Trash = (path) => (this.deps ? this.deps.trash(path) : Promise.reject(new Error('Moving to the Trash is not available')));
 
   async run(repoPath: string, op: GitOp): Promise<OpResult> {
     const repo = typeof repoPath === 'string' ? this.ws.repo(repoPath) : null;
@@ -226,6 +253,10 @@ export class GitOps {
         return undoLastCommit(repo, op.oid);
       case 'revertCommit':
         return revertCommit(repo, op.oid);
+      case 'discard':
+        return discardFile(repo, op.file, this.trash);
+      case 'discardAll':
+        return discardAll(repo, op.files, this.trash);
       case 'stash': {
         const stashed = await pushStash(repo, { message: op.message, staged: op.staged });
         if (!stashed.ok || !op.then) return stashed;

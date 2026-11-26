@@ -253,6 +253,69 @@ describe('GitPanelView, opening files', () => {
   });
 });
 
+describe('Discard', () => {
+  const changesRows = () => screen.getAllByTestId('file-row').filter((el) => el.getAttribute('data-group') === 'changes');
+  const head = (title: string) => screen.getAllByTestId('file-group-head').find((el) => el.textContent?.startsWith(title))!;
+
+  it('each CHANGES row has a discard button before stage; clicking it discards that file without opening it', () => {
+    const onDiscard = vi.fn();
+    const onOpenFile = vi.fn();
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onDiscard={onDiscard} onOpenFile={onOpenFile} />);
+    for (const el of changesRows()) {
+      const buttons = within(el).getAllByRole('button').map((b) => b.getAttribute('data-testid'));
+      expect(buttons.indexOf('discard-file')).toBeGreaterThanOrEqual(0);
+      expect(buttons.indexOf('discard-file')).toBeLessThan(buttons.indexOf('stage-file'));
+    }
+    fireEvent.click(within(changesRows()[1]!).getByRole('button', { name: 'Discard changes to old.ts' }));
+    expect(onDiscard).toHaveBeenCalledWith('/w/quizei-app', file('lib/old.ts', '.', 'D'));
+    expect(onOpenFile).not.toHaveBeenCalled();
+  });
+
+  it('the CHANGES header discards all, before Stage all, without collapsing; STAGED has no discard', () => {
+    const onDiscard = vi.fn();
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} onDiscard={onDiscard} />);
+    const changes = head('CHANGES');
+    const buttons = within(changes).getAllByRole('button').map((b) => b.getAttribute('data-testid'));
+    expect(buttons).toEqual(['discard-all', 'stage-all']);
+    fireEvent.click(within(changes).getByRole('button', { name: 'Discard all changes' }));
+    expect(onDiscard).toHaveBeenCalledWith('/w/quizei-app', null);
+    expect(changes.getAttribute('aria-expanded')).toBe('true');
+    expect(within(head('STAGED')).queryByTestId('discard-all')).toBeNull();
+    const staged = screen.getAllByTestId('file-row').find((el) => el.getAttribute('data-group') === 'staged')!;
+    expect(within(staged).queryByTestId('discard-file')).toBeNull();
+  });
+
+  it('a row that cannot be discarded has its button disabled with the reason', () => {
+    const withNested = repo('nest', { status: status({ files: [file('nested/', '?', '?', 'untracked'), file('a.ts', '.', 'M')] }) });
+    render(<GitPanelView repos={[withNested]} expanded={{ '/w/nest': true }} onToggle={() => undefined} onDiscard={() => undefined} />);
+    const [nestedButton, plain] = screen.getAllByTestId('discard-file') as HTMLButtonElement[];
+    expect(nestedButton!.disabled).toBe(true);
+    expect(nestedButton!.title).toBe('A repository inside this one is left alone');
+    expect(plain!.disabled).toBe(false);
+  });
+
+  it('without onDiscard there are no discard buttons', () => {
+    render(<GitPanelView repos={repos} expanded={{}} onToggle={() => undefined} />);
+    expect(screen.queryByTestId('discard-file')).toBeNull();
+    expect(screen.queryByTestId('discard-all')).toBeNull();
+  });
+
+  it('disabled while there are conflicts, and while the repo is busy', () => {
+    const merging = repo('merging', { status: status({ files: [file('README.md', 'U', 'U', 'conflicted'), file('a.ts', '.', 'M')] }) });
+    render(<GitPanelView repos={[merging]} expanded={{}} onToggle={() => undefined} onDiscard={() => undefined} />);
+    for (const id of ['discard-file', 'discard-all']) {
+      const button = screen.getByTestId(id) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      expect(button.title).toBe('Resolve the conflicts first');
+    }
+    cleanup();
+    const busy = repo('busy', { busy: 'Pushing…', status: status({ files: [file('a.ts', '.', 'M')] }) });
+    render(<GitPanelView repos={[busy]} expanded={{ '/w/busy': true }} onToggle={() => undefined} onDiscard={() => undefined} />);
+    expect((screen.getByTestId('discard-file') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('discard-all') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
 describe('GitPanelView, conflicted files', () => {
   it('a conflicted file can be opened in an editor; the button does not open it in the center panel', () => {
     const merging = repo('merging', { status: status({ files: [file('README.md', 'U', 'U', 'conflicted')] }) });

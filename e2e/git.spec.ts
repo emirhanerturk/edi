@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { addRemote, git, launch, makeRepo, tmpDir } from './helpers.js';
@@ -52,10 +52,12 @@ test('staging and committing brings the repo back to clean', async () => {
     expect(await git(alpha, 'log', '-1', '--format=%B')).toBe('docs: update the readme\n\nSecond paragraph.\n\n');
     expect(await git(alpha, 'status', '--porcelain')).toBe('?? new.txt\n');
 
-    // Cmd+Enter commits the remaining file as "Commit all"; the repo turns clean and collapses.
+    // Cmd+Enter commits the remaining file as "Commit all"; the repo turns clean and stays open.
     await page.getByTestId('commit-message').fill('feat: add the new file');
     await page.getByTestId('commit-message').press('Meta+Enter');
-    await expect(row).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('file-row')).toHaveCount(0);
+    await expect(row).toHaveAttribute('aria-expanded', 'true');
+    await page.getByTestId('repo-toggle').click();
     await expect(row.getByLabel('Clean')).toBeVisible();
     expect(await git(alpha, 'log', '-1', '--format=%s')).toBe('feat: add the new file\n');
   } finally {
@@ -73,8 +75,11 @@ test('Commit and push sends to the local remote; the button on the collapsed row
     await page.getByTestId('commit-message').fill('feat: first');
     await page.getByLabel('Commit options').click();
     await page.getByRole('menuitem', { name: 'Commit and push' }).click();
-    await expect(page.getByTestId('repo-row')).toHaveAttribute('aria-expanded', 'false');
     await expect.poll(() => git(bare, 'log', '-1', '--format=%s', 'main').catch(() => '')).toBe('feat: first\n');
+    // The repo stays open after the commit; closed by hand, its row has the sync button.
+    await expect(page.getByTestId('repo-row')).toHaveAttribute('aria-expanded', 'true');
+    await page.getByTestId('repo-toggle').click();
+    await expect(page.getByTestId('repo-row')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('sync-button')).toHaveCount(0);
 
     // A new commit, as if made from the terminal: the row shows "Push 1", and pressing it pushes.
@@ -203,6 +208,53 @@ test('unpushed commits are listed under the repo; one opens in the commit view, 
     await expect(rows.first()).toContainText('feat: one');
     expect((await git(alpha, 'log', '-1', '--format=%s')).trim()).toBe('feat: one');
     await expect(page.locator('[data-testid="file-row"][data-group="staged"][data-path="two.txt"]')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
+test('a change is discarded from its row; Discard all resets the rest and trashes new files', async () => {
+  const dir = await tmpDir();
+  const alpha = await makeRepo(dir, 'alpha');
+  await writeFile(join(alpha, 'b.txt'), 'b\n');
+  await git(alpha, 'add', '-A');
+  await git(alpha, 'commit', '-q', '-m', 'feat: b');
+  await writeFile(join(alpha, 'README.md'), 'edited\n');
+  await writeFile(join(alpha, 'b.txt'), 'b edited\n');
+  await writeFile(join(alpha, 'new.txt'), 'new\n');
+  const { app, page } = await launch({ openDir: dir });
+  try {
+    // Every question is answered "Discard"; the Trash records the path and removes the file.
+    await app.evaluate(({ dialog, shell }) => {
+      dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as typeof dialog.showMessageBox;
+      const trashed: string[] = [];
+      (globalThis as { trashed?: string[] }).trashed = trashed;
+      shell.trashItem = async (path: string) => {
+        trashed.push(path);
+        process.getBuiltinModule('node:fs').rmSync(path);
+      };
+    });
+    const changes = page.locator('[data-testid="file-row"][data-group="changes"]');
+    await expect(changes).toHaveCount(3);
+
+    // A row's buttons show only while the pointer is over it, lined up under the header's.
+    const firstActions = changes.first().locator('.file-actions');
+    await page.mouse.move(0, 0);
+    await expect(firstActions).toHaveCSS('opacity', '0');
+    await changes.first().hover();
+    await expect(firstActions).toHaveCSS('opacity', '1');
+    const left = async (testId: string, scope = page.locator('body')) => (await scope.getByTestId(testId).first().boundingBox())!.x;
+    expect(await left('discard-file', changes.first())).toBe(await left('discard-all'));
+    expect(await left('stage-file', changes.first())).toBe(await left('stage-all'));
+
+    await changes.filter({ hasText: 'README.md' }).getByTestId('discard-file').click();
+    await expect(changes).toHaveCount(2);
+    expect(await readFile(join(alpha, 'README.md'), 'utf8')).toBe('readme\n');
+
+    await page.getByTestId('discard-all').click();
+    await expect(changes).toHaveCount(0);
+    expect(await readFile(join(alpha, 'b.txt'), 'utf8')).toBe('b\n');
+    expect(await app.evaluate(() => (globalThis as { trashed?: string[] }).trashed)).toEqual([join(alpha, 'new.txt')]);
   } finally {
     await app.close();
   }
