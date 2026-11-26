@@ -4,6 +4,7 @@ import { linkText } from '../../shared/projects';
 import { edi } from '../bridge';
 import { GlobeIcon, MoreIcon, PlusIcon, WarningIcon } from '../components/icons';
 import { useNow } from '../components/useNow';
+import { Wordmark } from '../components/Wordmark';
 import { plural, tildify } from '../format';
 import { useApp } from '../store';
 import { ProjectLogo } from './ProjectLogo';
@@ -64,11 +65,15 @@ export function ProjectsScreen({ overlay }: { overlay: boolean }) {
   return (
     <main className={overlay ? 'projects overlay' : 'projects'} data-testid="projects" aria-label="Projects">
       <div className="projects-box">
+        <div className="projects-brand">
+          <Wordmark />
+          <span className="projects-tagline">Almost an editor. The rest is git.</span>
+        </div>
         <div className="projects-head">
           <h1>Projects</h1>
           <div className="spacer" />
-          <button className="button-primary button-large" onClick={() => void startNewProject()}>
-            <PlusIcon size={14} strokeWidth={1.9} />
+          <button className="button-primary" onClick={() => void startNewProject()}>
+            <PlusIcon size={12} strokeWidth={1.9} />
             <span>New project</span>
           </button>
           <span className="keycap mono">⌘O</span>
