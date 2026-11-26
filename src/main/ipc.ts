@@ -20,6 +20,7 @@ import {
   discardQuestion,
   discardTarget,
   dropStashQuestion,
+  replaceAllQuestion,
   removeProjectQuestion,
   revertCommitQuestion,
   undoCommitQuestion,
@@ -55,6 +56,7 @@ import { PtyManager } from './pty.js';
 import { type Persisted, loadState, mergeLayout, saveState, saveStateSync } from './store.js';
 import { tabStates } from './tabs.js';
 import { HistoryOps } from './historyOps.js';
+import { SearchOps } from './searchOps.js';
 import { openUrl } from './openUrl.js';
 import { Serial } from './serial.js';
 import { ViewOps } from './viewOps.js';
@@ -104,6 +106,7 @@ export class AppCore {
   readonly viewOps: ViewOps;
   private readonly fileOps: FileOps;
   readonly historyOps: HistoryOps;
+  readonly searchOps: SearchOps;
   private state: Persisted;
   /** Open files with unsaved edits, as the page last reported. */
   private unsavedFiles = 0;
@@ -173,6 +176,7 @@ export class AppCore {
       },
     });
     this.historyOps = new HistoryOps(this.workspace, { menu: (items) => this.popup(items) });
+    this.searchOps = new SearchOps(this.workspace);
     this.ptys = new PtyManager({
       // A shell set through EDI_SHELL is the tests': it doesn't read the profile of whoever runs them.
       shell: process.env.EDI_SHELL,
@@ -753,6 +757,15 @@ export class AppCore {
       this.viewOps.writeFile(repoPath, filePath, text, expected),
     );
     ipcMain.handle('view:list', (_event, repoPath: unknown) => this.viewOps.listFiles(repoPath));
+    ipcMain.handle('search:run', (_event, repoPath: unknown, query: unknown, id: unknown) => this.searchOps.search(repoPath, query, id));
+    ipcMain.on('search:stop', (_event, id: unknown) => this.searchOps.stop(id));
+    ipcMain.handle('search:replace', (_event, repoPath: unknown, path: unknown, query: unknown, replacement: unknown, stamp: unknown, lines: unknown) =>
+      this.searchOps.replace(repoPath, path, query, replacement, stamp, lines),
+    );
+    ipcMain.handle('search:confirmReplaceAll', (_event, summary: unknown) => {
+      const question = replaceAllQuestion(summary);
+      return question ? this.ask(question) : false;
+    });
     ipcMain.handle('view:listDir', (_event, repoPath: unknown, dirPath: unknown) => this.viewOps.listDir(repoPath, dirPath));
     ipcMain.handle('view:openIn', (_event, editor: unknown, repoPath: unknown, filePath: unknown) => this.viewOps.openIn(editor, repoPath, filePath));
     ipcMain.handle('shell:openUrl', (_event, url: unknown) => openUrl(url));

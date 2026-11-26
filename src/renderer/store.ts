@@ -138,6 +138,19 @@ export interface SheetState {
   serial: number;
 }
 
+/** Where in a file to scroll to: 1-based line and column, and how much to select. */
+export interface RevealTarget {
+  repoPath: string;
+  path: string;
+  line: number;
+  column: number;
+  length: number;
+  /** A new number for every request: the same place can be asked for twice. */
+  serial: number;
+}
+
+let revealSerial = 0;
+
 /** A file opened in the center panel, for Quick open's recent list. */
 export interface RecentFile {
   repoPath: string;
@@ -218,8 +231,11 @@ interface AppStore {
   setCenterInfo(info: string | null): void;
 
   /** Selected tab in the right panel. */
-  rightTab: 'git' | 'history' | 'files';
-  setRightTab(tab: 'git' | 'history' | 'files'): void;
+  rightTab: 'git' | 'history' | 'files' | 'search';
+  setRightTab(tab: 'git' | 'history' | 'files' | 'search'): void;
+  /** A place in a file the editor scrolls to and selects when it shows the file (a search result). */
+  reveal: RevealTarget | null;
+  revealInFile(target: Omit<RevealTarget, 'serial'>): void;
 
   /** Quick open (⌘P) is showing. */
   quickOpen: boolean;
@@ -413,6 +429,9 @@ export const useApp = create<AppStore>((set, get) => ({
 
   rightTab: 'git',
   setRightTab: (tab) => set({ rightTab: tab }),
+
+  reveal: null,
+  revealInFile: (target) => set({ reveal: { ...target, serial: ++revealSerial } }),
 
   quickOpen: false,
   showQuickOpen: (open) => set({ quickOpen: open && get().workspace.dir !== null }),
@@ -653,10 +672,13 @@ useApp.subscribe((state, prev) => {
   if (count !== Object.keys(prev.unsaved).length) edi.setUnsaved(count);
 });
 
-// A file or diff tab that comes to the front goes first in Quick open's recent list.
+// A file or diff tab that comes to the front goes first in Quick open's recent list. A place to reveal in
+// another file is dropped: it would jump when that file is opened some other way.
 useApp.subscribe((state, prev) => {
   if (state.center.active === prev.center.active || state.center.active === null) return;
   const tab = state.center.tabs.find((other) => other.id === state.center.active);
+  const { reveal } = state;
+  if (reveal && (tab?.kind !== 'file' || tab.repoPath !== reveal.repoPath || tab.path !== reveal.path)) useApp.setState({ reveal: null });
   if (!tab || (tab.kind !== 'file' && tab.kind !== 'diff')) return;
   const recent = addRecent(state.recent, { repoPath: tab.repoPath, path: tab.path });
   if (recent !== state.recent) useApp.setState({ recent });

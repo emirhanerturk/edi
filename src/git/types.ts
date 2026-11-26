@@ -204,3 +204,40 @@ export interface FileHistoryEntry {
 
 export type FileHistoryResult = { ok: true; entries: FileHistoryEntry[]; hasMore: boolean } | { ok: false; error: string };
 export type FileChangeResult = { ok: true; diff: ParsedDiff } | { ok: false; error: string };
+
+/** A text search, as typed in the Search tab. */
+export interface TextQuery {
+  pattern: string;
+  /** `pattern` is a JavaScript regular expression; otherwise it is found as typed. */
+  regex: boolean;
+  matchCase: boolean;
+  wholeWord: boolean;
+  /** "src/**, !*.test.ts": comma-separated, `!` leaves files out; empty for every file. */
+  include: string;
+}
+
+/** A line with matches. `text` may be cut out of a long line: it starts `from` characters in, and `cut` says the line goes on. */
+export interface TextLine {
+  /** 1-based. */
+  line: number;
+  text: string;
+  from: number;
+  cut: boolean;
+  /** Where the matches are in `text`: [start, end) in UTF-16 units. */
+  ranges: [number, number][];
+  /** The matches on the whole line; more than `ranges` on a long or crowded line. */
+  count: number;
+}
+
+export interface TextFile {
+  path: string;
+  /** The file's text as it was searched (a hash): a replacement is written only if the file still holds it. */
+  stamp: string;
+  lines: TextLine[];
+}
+
+/** `truncated`: the search stopped at the limit; there are more matches than listed. */
+export type TextSearchResult = { ok: true; files: TextFile[]; count: number; truncated: boolean } | { ok: false; error: string };
+
+/** `changed`: the file no longer holds the text that was searched; `stamp` is the new text's after a replacement. */
+export type ReplaceResult = { ok: true; count: number; stamp: string } | { ok: false; error: string; changed?: true };

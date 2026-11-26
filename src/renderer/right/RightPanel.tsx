@@ -1,14 +1,18 @@
 import { FilePlus, FolderPlus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { edi } from '../bridge';
-import { BranchIcon, CollapseIcon, CommitIcon, FetchIcon, FolderIcon, RefreshIcon, RescanIcon } from '../components/icons';
+import { BranchIcon, CollapseIcon, CommitIcon, FetchIcon, FolderIcon, RefreshIcon, RescanIcon, SearchIcon } from '../components/icons';
 import { HistoryPanel } from '../history/HistoryPanel';
 import { FilesPanel } from '../files/FilesPanel';
 import { GitPanel } from '../git/GitPanel';
+import { SearchPanel } from '../search/SearchPanel';
+import { useSearch } from '../search/searchStore';
 import { changeTotal } from '../git/model';
 import { useApp } from '../store';
 
-export type RightTab = 'git' | 'history' | 'files';
+export type RightTab = 'git' | 'history' | 'files' | 'search';
+
+const TAB_NAMES: Record<RightTab, string> = { git: 'Git', history: 'History', files: 'Files', search: 'Search' };
 
 export interface RightPanelViewProps {
   tab: RightTab;
@@ -21,34 +25,48 @@ export interface RightPanelViewProps {
   onRescan(): void;
   onCollapseAll(): void;
   onRefreshHistory(): void;
+  /** The Search tab's buttons. */
+  onSearchAgain?(): void;
+  onCollapseResults?(): void;
   /** Files tab, when the open folder is a single repo: a new file or folder at its root. */
   onNewEntry?(kind: 'file' | 'dir'): void;
   children: ReactNode;
 }
 
-/** Right panel: Git and Files tabs; the header buttons change with the selected tab. */
-export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onRescan, onCollapseAll, onRefreshHistory, onNewEntry, children }: RightPanelViewProps) {
+/** Right panel: Git, History, Files and Search tabs; the header buttons change with the selected tab. */
+export function RightPanelView(props: RightPanelViewProps) {
+  const { tab, badge, canFetch, onTab, onFetchAll, onRescan, onCollapseAll, onRefreshHistory, onSearchAgain, onCollapseResults, onNewEntry, children } = props;
+  // In a narrow panel the tabs not open show only their icon: the name is in the tooltip.
+  const tabButton = (id: RightTab, icon: ReactNode, extra?: ReactNode) => (
+    <button
+      className={`git-tab${tab === id ? ' active' : ''}`}
+      role="tab"
+      aria-selected={tab === id}
+      aria-label={id === 'git' && badge > 0 ? `Git, ${badge} changed ${badge === 1 ? 'file' : 'files'}` : TAB_NAMES[id]}
+      title={TAB_NAMES[id]}
+      onClick={() => onTab(id)}
+    >
+      {icon}
+      <span className="git-tab-label">{TAB_NAMES[id]}</span>
+      {extra}
+    </button>
+  );
   return (
-    <section className="git" aria-label={tab === 'git' ? 'Git' : tab === 'history' ? 'History' : 'Files'}>
+    <section className="git" aria-label={TAB_NAMES[tab]}>
       <div className="git-tabs">
         <div className="git-tablist" role="tablist" aria-label="Right panel">
-          <button className={`git-tab${tab === 'git' ? ' active' : ''}`} role="tab" aria-selected={tab === 'git'} onClick={() => onTab('git')}>
-            <BranchIcon size={14} strokeWidth={1.5} />
-            <span>Git</span>
-            {badge > 0 && (
+          {tabButton(
+            'git',
+            <BranchIcon size={14} strokeWidth={1.5} />,
+            badge > 0 && (
               <span className="badge" data-testid="git-badge">
                 {badge}
               </span>
-            )}
-          </button>
-          <button className={`git-tab${tab === 'history' ? ' active' : ''}`} role="tab" aria-selected={tab === 'history'} onClick={() => onTab('history')}>
-            <CommitIcon size={14} />
-            <span>History</span>
-          </button>
-          <button className={`git-tab${tab === 'files' ? ' active' : ''}`} role="tab" aria-selected={tab === 'files'} onClick={() => onTab('files')}>
-            <FolderIcon size={14} />
-            <span>Files</span>
-          </button>
+            ),
+          )}
+          {tabButton('history', <CommitIcon size={14} />)}
+          {tabButton('files', <FolderIcon size={14} />)}
+          {tabButton('search', <SearchIcon size={14} />)}
         </div>
         <div className="spacer" />
         {tab === 'git' ? (
@@ -64,6 +82,15 @@ export function RightPanelView({ tab, badge, canFetch, onTab, onFetchAll, onResc
           <button className="icon-button" aria-label="Refresh history" title="Refresh history" onClick={onRefreshHistory}>
             <RefreshIcon size={14} />
           </button>
+        ) : tab === 'search' ? (
+          <>
+            <button className="icon-button" aria-label="Search again" title="Search again" onClick={onSearchAgain}>
+              <RefreshIcon size={14} />
+            </button>
+            <button className="icon-button" aria-label="Collapse all" title="Collapse all" onClick={onCollapseResults}>
+              <CollapseIcon size={14} />
+            </button>
+          </>
         ) : (
           <>
             {onNewEntry && (
@@ -105,9 +132,11 @@ export function RightPanel() {
       onRescan={() => void edi.rescan()}
       onCollapseAll={collapseFiles}
       onRefreshHistory={refreshHistory}
+      onSearchAgain={() => useSearch.getState().run()}
+      onCollapseResults={() => useSearch.getState().collapseAll()}
       onNewEntry={root === null ? undefined : (kind) => startFilesEdit({ mode: 'new', kind, repoPath: root, parent: '' })}
     >
-      {tab === 'git' ? <GitPanel /> : tab === 'history' ? <HistoryPanel /> : <FilesPanel />}
+      {tab === 'git' ? <GitPanel /> : tab === 'history' ? <HistoryPanel /> : tab === 'files' ? <FilesPanel /> : <SearchPanel />}
     </RightPanelView>
   );
 }

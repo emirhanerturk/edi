@@ -68,6 +68,13 @@ macOS only for now. Electron, React, xterm.js and node-pty.
 - **Quick open.** ⌘P finds a file by its name or path in every repository of the project, grouped by
   repository with the best match first; files ignored by git are left out. The arrow keys move, Enter
   opens the file (⌘Enter keeps it in a tab); with nothing typed it lists the files opened last.
+- **Search tab.** Finds text in every repository's files (those git lists; ignored ones are left out),
+  as typed, as a whole word or as a regular expression, with or without matching case, in one
+  repository or all, and only in the files to include (`src/**, !*.test.ts`). Results are grouped by
+  repository and file; clicking one opens the file at that line. Replace shows each change before it
+  is made; a line, a file or every result can be replaced, and Replace All asks first. ⇧⌘F opens it,
+  and Find in Folder… in the Files tab searches a folder. Files over 1 MB and binary files are not
+  searched.
 - **History tab.** The recent commits of every repository's current branch in one timeline,
   under day headers, newest first; or grouped by repository. Commits not pushed yet carry an
   arrow, a version commit shows as a tag line, merges are dimmed. Filter to one repository to
@@ -123,7 +130,7 @@ npm start        # run the built app
 The development copy keeps its settings in a folder of its own (`edi-dev`), apart from the
 installed app.
 
-`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘P` opens a file by name, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab
+`⌘O` starts a new project, `⇧⌘O` shows all projects, `⌘P` opens a file by name, `⇧⌘F` searches the files, `⌘T` a terminal, `⇧⌘T` a Claude Code session, `⌘W` closes the tab
 of the panel in use (the terminal, or the file or diff in the center panel), `⌘1`–`⌘9` switch tabs.
 
 ## Install
@@ -185,7 +192,10 @@ preferences:
   its commit id, never by its position, which shifts.
 - **Files change only on purpose.** Saving writes only if the disk still holds the text the
   edit started from. New files and folders, copies, and renames never replace an existing one.
-  Deleting moves to the macOS Trash, after asking.
+  Deleting moves to the macOS Trash, after asking. A search's replacement is written only if the
+  file still holds the text that was searched; files with unsaved edits in a tab are left alone, and
+  Replace All asks first. A search pattern runs in the main process under a time limit, so one that
+  would run for ever is stopped.
 - **Nothing automatic.** No background fetch, pull or push. The network is touched only when
   you press Fetch, Pull, Push or Publish.
 - **The page cannot run commands.** The window is sandboxed and talks to the main process

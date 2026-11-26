@@ -9,6 +9,7 @@ import { ProjectSheet } from './projects/ProjectSheet';
 import { ProjectsScreen } from './projects/ProjectsScreen';
 import { QuickOpen } from './quickOpen/QuickOpen';
 import { RightPanel } from './right/RightPanel';
+import { useSearch } from './search/searchStore';
 import { connect, useApp } from './store';
 import { TerminalPanel } from './terminals/TerminalPanel';
 
@@ -55,6 +56,11 @@ export function App() {
       if (key === 'p' && !event.shiftKey) {
         if (covered) handled = false;
         else state.showQuickOpen(true);
+      } else if (key === 'f' && event.shiftKey) {
+        // A folder or repository row in the Files tab takes it as Find in Folder…; anywhere else, the Search tab.
+        const inTree = document.activeElement instanceof HTMLElement && document.activeElement.closest('.tree-row.repo, .tree-row.dir:not(.nested)') !== null;
+        if (covered || inTree) handled = false;
+        else useSearch.getState().focusSearch();
       } else if (key === 'o' && !event.shiftKey) {
         if (state.sheet === null) void state.startNewProject();
       } else if (key === 'o') {

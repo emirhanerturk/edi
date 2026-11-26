@@ -103,6 +103,14 @@ function EditorHost({ entry, monaco, repoPath, path, headOid, onSave, onOpenComm
     };
   }, [entry, monaco]);
 
+  // A place asked for in this file (a search result): scrolled to once, then forgotten.
+  const reveal = useApp((s) => s.reveal);
+  useEffect(() => {
+    if (!handle || !reveal || reveal.repoPath !== repoPath || reveal.path !== path) return;
+    handle.reveal(reveal.line, reveal.column, reveal.length);
+    useApp.setState({ reveal: null });
+  }, [handle, reveal, repoPath, path]);
+
   // Changed lines: the HEAD version, read again when HEAD moves; compared after each pause in typing.
   const [head, setHead] = useState<{ text: string | null } | null>(null);
   useEffect(() => {

@@ -187,3 +187,20 @@ describe('discardTarget', () => {
     }
   });
 });
+
+describe('replaceAllQuestion', () => {
+  it('says how many, of what, with what and where; refuses anything else', async () => {
+    const { replaceAllQuestion } = await import('../src/main/questions.js');
+    expect(replaceAllQuestion({ count: 19, pattern: 'weeklyRank', replacement: 'weekRank', files: 7, repos: 3 })).toEqual({
+      type: 'warning',
+      message: 'Replace 19 occurrences of “weeklyRank” with “weekRank”?',
+      detail:
+        'In 7 files across 3 repositories. A file is written only if it still holds the text this search found. Tabs with unsaved edits are left alone.',
+      buttons: ['Replace All', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    expect(replaceAllQuestion({ count: 0, pattern: 'a', replacement: 'b', files: 1, repos: 1 })).toBeNull();
+    expect(replaceAllQuestion('Replace everything')).toBeNull();
+  });
+});

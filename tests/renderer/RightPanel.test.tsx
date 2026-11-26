@@ -5,8 +5,16 @@ import { RightPanelView } from '../../src/renderer/right/RightPanel';
 
 afterEach(cleanup);
 
-function renderPanel(tab: 'git' | 'history' | 'files', badge = 3) {
-  const handlers = { onTab: vi.fn(), onFetchAll: vi.fn(), onRescan: vi.fn(), onCollapseAll: vi.fn(), onRefreshHistory: vi.fn() };
+function renderPanel(tab: 'git' | 'history' | 'files' | 'search', badge = 3) {
+  const handlers = {
+    onTab: vi.fn(),
+    onFetchAll: vi.fn(),
+    onRescan: vi.fn(),
+    onCollapseAll: vi.fn(),
+    onRefreshHistory: vi.fn(),
+    onSearchAgain: vi.fn(),
+    onCollapseResults: vi.fn(),
+  };
   render(
     <RightPanelView tab={tab} badge={badge} canFetch {...handlers}>
       <p>content</p>
@@ -16,13 +24,21 @@ function renderPanel(tab: 'git' | 'history' | 'files', badge = 3) {
 }
 
 describe('RightPanelView', () => {
-  it('Git, History and Files tabs; the selected one is marked', () => {
+  it('Git, History, Files and Search tabs; the selected one is marked', () => {
     renderPanel('git');
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([
       ['Git3', 'true'],
       ['History', 'false'],
       ['Files', 'false'],
+      ['Search', 'false'],
+    ]);
+    // A narrow panel shows only the icons of the tabs not open: the name stays for the tooltip and screen readers.
+    expect(tabs.map((tab) => [tab.getAttribute('aria-label'), tab.getAttribute('title')])).toEqual([
+      ['Git, 3 changed files', 'Git'],
+      ['History', 'History'],
+      ['Files', 'Files'],
+      ['Search', 'Search'],
     ]);
     expect(screen.getByText('content')).toBeTruthy();
   });
@@ -79,5 +95,14 @@ describe('RightPanelView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New File' }));
     fireEvent.click(screen.getByRole('button', { name: 'New Folder' }));
     expect(onNewEntry.mock.calls).toEqual([['file'], ['dir']]);
+  });
+
+  it('Search again and Collapse all on the Search tab', () => {
+    const { onSearchAgain, onCollapseResults, onCollapseAll } = renderPanel('search');
+    fireEvent.click(screen.getByRole('button', { name: 'Search again' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(onSearchAgain).toHaveBeenCalledTimes(1);
+    expect(onCollapseResults).toHaveBeenCalledTimes(1);
+    expect(onCollapseAll).not.toHaveBeenCalled();
   });
 });

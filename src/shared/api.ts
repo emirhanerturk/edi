@@ -6,12 +6,38 @@ import type { EditorId } from './editors.js';
 import type { LogoColor } from './projects.js';
 import type { ParsedDiff } from '../git/diffParse.js';
 import type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult } from '../git/types.js';
-import type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, RepoStatus, WriteResult } from '../git/types.js';
+import type {
+  CommitDetail,
+  CommitFile,
+  CommitResult,
+  CommitSummary,
+  DirList,
+  FileChange,
+  FileContent,
+  FileList,
+  LogResult,
+  ReplaceResult,
+  RepoStatus,
+  TextFile,
+  TextLine,
+  TextQuery,
+  TextSearchResult,
+  WriteResult,
+} from '../git/types.js';
 import type { StashDetail, StashEntry, StashList, StashResult } from '../git/types.js';
 import type { FileChangeResult, FileHistoryEntry, FileHistoryResult } from '../git/types.js';
 
 export type { BlameCommit, BlameResult, BranchInfo, BranchList, HeadText, IncomingResult, RepoOperation, UnpushedResult };
-export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, WriteResult };
+export type { CommitDetail, CommitFile, CommitResult, CommitSummary, DirList, FileChange, FileContent, FileList, LogResult, ReplaceResult, TextFile, TextLine, TextQuery, TextSearchResult, WriteResult };
+
+/** What Replace All is about to do, for its question. */
+export interface ReplaceAllSummary {
+  count: number;
+  pattern: string;
+  replacement: string;
+  files: number;
+  repos: number;
+}
 export type { StashDetail, StashEntry, StashList, StashResult };
 export type { FileChangeResult, FileHistoryEntry, FileHistoryResult };
 
@@ -221,6 +247,7 @@ export type FilesMenuAction =
   | 'copyRelativePath'
   | 'newTerminal'
   | 'history'
+  | 'find'
   | `openIn:${EditorId}`;
 
 /** A Git tab file row, for its right-click menu: what applies to it. */
@@ -411,6 +438,14 @@ export interface EdiApi {
   confirmDiscard(name: string): Promise<boolean>;
   /** Files in the working tree; those caught by `.gitignore` are in a separate list (without folder contents). */
   listFiles(repoPath: string): Promise<FileList>;
+  /** Searches the repo's files (those git lists, not ignored ones). A newer `id` stops an older search. */
+  searchText(repoPath: string, query: TextQuery, id: number): Promise<TextSearchResult>;
+  /** Stops the searches older than `id`. */
+  stopSearch(id: number): void;
+  /** Replaces the matches on `lines` of one file, only if it still holds the text that was searched (`stamp`). */
+  replaceText(repoPath: string, path: string, query: TextQuery, replacement: string, stamp: string, lines: number[]): Promise<ReplaceResult>;
+  /** Asks before Replace All; true to go ahead. */
+  confirmReplaceAll(summary: ReplaceAllSummary): Promise<boolean>;
   /** One level of a folder inside the repo; used to show the contents of an ignored folder. */
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
   /** The last known Claude usage limits; null if the bridge isn't set up. */

@@ -176,11 +176,12 @@ describe('menuItems', () => {
     expect(menuItems('file').find((item) => item.id === 'trash')).toMatchObject({ label: 'Delete', accelerator: 'Command+Backspace' });
   });
 
-  it('a folder and a repo: new entries, a terminal there, paste only once something was copied', () => {
+  it('a folder and a repo: new entries, find and a terminal there, paste only once something was copied', () => {
     expect(labels('dir')).toEqual([
       'New File…',
       'New Folder…',
       '-',
+      'Find in Folder…',
       'New Terminal Here',
       '-',
       'Copy',
@@ -193,7 +194,8 @@ describe('menuItems', () => {
       '-',
       'Reveal in Finder',
     ]);
-    expect(labels('repo')).toEqual(['New File…', 'New Folder…', '-', 'New Terminal Here', '-', 'Paste', 'Copy Path', '-', 'Reveal in Finder']);
+    expect(labels('repo')).toEqual(['New File…', 'New Folder…', '-', 'Find in Repository…', 'New Terminal Here', '-', 'Paste', 'Copy Path', '-', 'Reveal in Finder']);
+    expect(menuItems('dir').find((item) => item.id === 'find')?.accelerator).toBe('Shift+Command+F');
     const paste = (kind: 'repo' | 'dir', canPaste: boolean) => menuItems(kind, canPaste).find((item) => item.id === 'paste')?.enabled;
     expect(paste('dir', false)).toBe(false);
     expect(paste('repo', true)).toBe(true);

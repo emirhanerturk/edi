@@ -161,3 +161,23 @@ export function discardTarget(value: unknown): DiscardTarget | null {
   }
   return null;
 }
+
+const quoted = (text: string) => `“${text.length > 40 ? `${text.slice(0, 39)}…` : text}”`;
+
+/** Before Replace All. Null if `value` isn't a summary of one. */
+export function replaceAllQuestion(value: unknown): Question | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const counts = [v.count, v.files, v.repos];
+  if (!counts.every((n) => typeof n === 'number' && Number.isInteger(n) && n > 0)) return null;
+  if (typeof v.pattern !== 'string' || typeof v.replacement !== 'string') return null;
+  const [count, files, repos] = counts as number[];
+  return {
+    type: 'warning',
+    message: `Replace ${plural(count!, 'occurrence', 'occurrences')} of ${quoted(v.pattern)} with ${quoted(v.replacement)}?`,
+    detail: `In ${plural(files!, 'file', 'files')} across ${plural(repos!, 'repository', 'repositories')}. A file is written only if it still holds the text this search found. Tabs with unsaved edits are left alone.`,
+    buttons: ['Replace All', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+}

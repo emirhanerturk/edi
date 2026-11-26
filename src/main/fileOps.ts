@@ -52,6 +52,7 @@ export function menuItems(kind: FilesMenuKind, canPaste = false): MenuItem[] {
   const reveal: MenuItem = { id: 'reveal', label: 'Reveal in Finder', accelerator: 'Alt+Command+R' };
   const newItems: MenuItem[] = [{ id: 'newFile', label: 'New File…' }, { id: 'newFolder', label: 'New Folder…' }, SEPARATOR];
   const terminal: MenuItem = { id: 'newTerminal', label: 'New Terminal Here' };
+  const find: MenuItem = { id: 'find', label: kind === 'repo' ? 'Find in Repository…' : 'Find in Folder…', accelerator: 'Shift+Command+F' };
   if (kind === 'file') {
     const openIn: MenuItem = { id: null, label: 'Open in', submenu: EDITORS.map((editor) => ({ id: `openIn:${editor.id}` as const, label: editor.name })) };
     return [
@@ -69,8 +70,8 @@ export function menuItems(kind: FilesMenuKind, canPaste = false): MenuItem[] {
       reveal,
     ];
   }
-  if (kind === 'dir') return [...newItems, terminal, SEPARATOR, copy, paste, copyPath, copyRelative, SEPARATOR, rename, remove, SEPARATOR, reveal];
-  return [...newItems, terminal, SEPARATOR, paste, copyPath, SEPARATOR, reveal];
+  if (kind === 'dir') return [...newItems, find, terminal, SEPARATOR, copy, paste, copyPath, copyRelative, SEPARATOR, rename, remove, SEPARATOR, reveal];
+  return [...newItems, find, terminal, SEPARATOR, paste, copyPath, SEPARATOR, reveal];
 }
 
 /**

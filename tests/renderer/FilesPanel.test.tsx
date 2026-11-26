@@ -313,6 +313,10 @@ describe('FilesPanelView: new, rename, delete', () => {
     expect(keyAction(key('KeyD'), 'dir')).toBeNull();
     expect(keyAction(key('KeyV', { metaKey: false }), 'dir')).toBeNull();
     expect(keyAction(key('KeyV', { ctrlKey: true }), 'dir')).toBeNull();
+    // ⇧⌘F: Find in Folder… on a folder or the repository, not on a file.
+    expect(keyAction(key('KeyF', { shiftKey: true }), 'dir')).toBe('find');
+    expect(keyAction(key('KeyF', { shiftKey: true }), 'repo')).toBe('find');
+    expect(keyAction(key('KeyF', { shiftKey: true }), 'file')).toBeNull();
   });
 
   it('⌘⌫ on a row moves it to the Trash; F2 renames', () => {

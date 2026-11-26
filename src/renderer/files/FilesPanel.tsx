@@ -9,6 +9,7 @@ import { ChevronDown, ChevronRight } from '../components/icons';
 import { FileTypeIcon } from './fileIcons';
 import { type FilesEdit, unsavedUnder } from './filesEdit';
 import { letterColor } from '../git/model';
+import { useSearch } from '../search/searchStore';
 import { useApp } from '../store';
 import { type TreeRow, cachedTree, changeSignature, flattenTree, insideIgnored } from './tree';
 import './files.css';
@@ -278,6 +279,7 @@ export function keyAction(event: KeyEventLike, kind: FilesMenuKind): FilesMenuAc
   const { altKey: alt, shiftKey: shift, code } = event;
   if (code === 'KeyC' && alt) return shift ? (kind === 'repo' ? null : 'copyRelativePath') : 'copyPath';
   if (code === 'KeyR' && alt && !shift) return 'reveal';
+  if (code === 'KeyF' && shift && !alt) return kind === 'file' ? null : 'find';
   if (alt || shift) return null;
   if (code === 'KeyC') return kind === 'repo' ? null : 'copy';
   if (code === 'KeyV') return 'paste';
@@ -612,6 +614,8 @@ export function FilesPanel() {
     else if (action === 'copyRelativePath') void navigator.clipboard.writeText(path).catch(() => undefined);
     else if (action === 'newTerminal') void useApp.getState().newTab({ repoPath, dir: path });
     else if (action === 'history') openInCenter({ kind: 'history', repoPath, path }, false);
+    // Find in Folder… / Find in Repository…: the Search tab, limited to that place.
+    else if (action === 'find') useSearch.getState().focusSearch({ repo: repoPath, include: path === '' ? '' : `${path}/**` });
     else if (action.startsWith('openIn:')) void useApp.getState().openIn(action.slice('openIn:'.length) as EditorId, repoPath, path);
   };
 
