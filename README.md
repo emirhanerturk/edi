@@ -227,8 +227,8 @@ preferences:
   time, never while the Mac is offline or the repository is busy, and without asking for a
   password. It brings in the remote's new commits, branches and tags; your branches and working tree
   stay as they are. A repository whose automatic fetch fails three times in a row is left alone
-  until a fetch, pull or push of yours works. Otherwise the network is touched only when you press Fetch, Pull, Push or Publish, or a
-  Claude summary's button.
+  until a fetch, pull or push of yours works. Otherwise the network is touched only when you press
+  Fetch, Pull, Push or Publish, or a Claude summary's button.
 - **Claude summaries run only when asked, and can't change anything.** Each button runs
   `claude -p` once, in the repository (the project folder for a History day), with your account and
   your usage; the commit messages and diffs go in on its input. Claude Code gets no tools
