@@ -62,9 +62,7 @@ export function FilePane(props: FilePaneProps) {
   const readOnly = content?.ok === true && content.kind !== 'text';
   return (
     <div className="center-view" data-testid="center-view" data-kind="file">
-      <ViewHeader repoName={repoName} path={path} onOpenIn={onOpenIn}>
-        {isNew && <span className="chip chip-new">new file</span>}
-        <div className="spacer" />
+      <ViewHeader repoName={repoName} path={path} onOpenIn={onOpenIn} info={isNew && <span className="chip chip-new">new file</span>}>
         {editing && edit.dirty && (
           <>
             <span className="unsaved-mark">Unsaved</span>

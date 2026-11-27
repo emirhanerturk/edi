@@ -39,13 +39,18 @@ export function DiffPane({ repoName, path, view, mode, tokens, onMode, onOpenIn,
 
   return (
     <div className="center-view" data-testid="center-view" data-kind="diff">
-      <ViewHeader repoName={repoName} path={path} onOpenIn={onOpenIn}>
-        {showsLines && (
-          <span className="mono view-counts">
-            <span className="add">+{diff.added}</span> <span className="del">−{diff.removed}</span>
-          </span>
-        )}
-        <div className="spacer" />
+      <ViewHeader
+        repoName={repoName}
+        path={path}
+        onOpenIn={onOpenIn}
+        info={
+          showsLines && (
+            <span className="mono view-counts">
+              <span className="add">+{diff.added}</span> <span className="del">−{diff.removed}</span>
+            </span>
+          )
+        }
+      >
         {showsLines && (
           <div className="segmented" role="group" aria-label="Diff view">
             <button aria-pressed={mode === 'split'} onClick={() => onMode('split')}>

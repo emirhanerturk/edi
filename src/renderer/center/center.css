@@ -66,20 +66,43 @@
   font-size: 12px;
 }
 
-/* View header: repo / path, counts, buttons. */
+/*
+ * View header: repo / path and its counts on the left, the buttons on the right. Short of room, the buttons
+ * move to a second line, still on the right; a line too narrow even for them lets them wrap again.
+ */
 .view-header {
-  height: 40px;
+  min-height: 40px;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px 0 14px;
+  gap: 6px 10px;
+  padding: 6px 12px 6px 14px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 
-.view-header .spacer {
+.view-title,
+.view-actions {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Narrower than this beside the buttons, the path would shrink to nothing: the buttons go to the next line. */
+.view-title {
+  flex: 1 1 300px;
   min-width: 0;
+}
+
+.view-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+  margin-left: auto;
 }
 
 .view-repo {

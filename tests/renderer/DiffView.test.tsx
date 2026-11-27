@@ -31,6 +31,18 @@ describe('DiffPane', () => {
     expect(within(header).getByText('−1')).toBeTruthy();
   });
 
+  it('the header holds two groups: the path with its totals, and the buttons, which can take a line of their own', () => {
+    renderPane(loaded);
+    const title = screen.getByTestId('view-title');
+    const actions = screen.getByTestId('view-actions');
+    expect(title.textContent).toContain('app/game/play.tsx');
+    expect(within(title).getByText('+2')).toBeTruthy();
+    expect(within(title).queryAllByRole('button')).toHaveLength(0);
+    expect(within(actions).getByRole('button', { name: 'Split' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Open file' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: /Open in/ })).toBeTruthy();
+  });
+
   it('"Open file" opens the whole file; no button for a deleted file or before loading', () => {
     const { onOpenFile } = renderPane(loaded);
     fireEvent.click(within(screen.getByTestId('view-header')).getByRole('button', { name: 'Open file' }));
