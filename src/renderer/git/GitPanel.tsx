@@ -42,6 +42,12 @@ async function fileMenu(repoPath: string, file: FileChange, group: Group): Promi
   if (action !== null) fileAction(repoPath, file, action);
 }
 
+/** "Push and open on GitHub" on a drafted pull request: the page opens once the push went through. */
+async function openPullRequest(repoPath: string, url: string): Promise<void> {
+  await useApp.getState().gitOp(repoPath, { op: 'push' });
+  if (useApp.getState().errors[repoPath] === undefined) await useApp.getState().openUrl(url);
+}
+
 /** The Git tab bound to app state. */
 export function GitPanel() {
   const repos = useApp((s) => s.workspace.repos);
@@ -99,6 +105,9 @@ export function GitPanel() {
       onStashAction={(repoPath, stash, action) => void stashAction(repoPath, stash, action)}
       stashMenu={stashMenu}
       retries={retries}
+      summaries
+      onOpenPullRequest={(repoPath, url) => void openPullRequest(repoPath, url)}
+      onRenameStash={(repoPath, stash, name) => void useApp.getState().renameStash(repoPath, stash, name)}
     />
   );
 }

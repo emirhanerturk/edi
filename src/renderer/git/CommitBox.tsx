@@ -19,6 +19,10 @@ export interface CommitBoxProps {
   /** With nothing to commit, what the button does instead (pull, push or publish); null when up to date. */
   next?: NextAction | null;
   onNext?(): void;
+  /** In the box's top right corner: Claude Code writes the message. */
+  messageButton?: ReactNode;
+  /** Claude Code is writing the message: the box waits for it. */
+  writing?: boolean;
 }
 
 /** The message box grows with its text up to this many lines, then scrolls. */
@@ -41,7 +45,7 @@ export function fitHeight(field: HTMLTextAreaElement, maxLines: number): void {
 }
 
 /** Commit message and button. The first line is the subject, the rest the body; Cmd+Enter commits. */
-export function CommitBox({ target, message, busy, canPush, onChange, onCommit, aside, next, onNext }: CommitBoxProps) {
+export function CommitBox({ target, message, busy, canPush, onChange, onCommit, aside, next, onNext, messageButton, writing = false }: CommitBoxProps) {
   const menu = usePopover<HTMLDivElement>();
   const ready = target.enabled && !busy && message.trim() !== '';
   const field = useRef<HTMLTextAreaElement>(null);
@@ -69,23 +73,27 @@ export function CommitBox({ target, message, busy, canPush, onChange, onCommit, 
 
   return (
     <div className="commit">
-      <textarea
-        className="commit-message mono"
-        data-testid="commit-message"
-        aria-label="Commit message"
-        placeholder="Commit message"
-        spellCheck={false}
-        ref={field}
-        rows={1}
-        value={message}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && event.metaKey) {
-            event.preventDefault();
-            commit(false);
-          }
-        }}
-      />
+      <div className={`commit-field${messageButton ? ' has-button' : ''}`}>
+        <textarea
+          className="commit-message mono"
+          data-testid="commit-message"
+          aria-label="Commit message"
+          placeholder={writing ? 'Claude Code is writing a message…' : 'Commit message'}
+          spellCheck={false}
+          ref={field}
+          rows={1}
+          value={message}
+          readOnly={writing}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && event.metaKey) {
+              event.preventDefault();
+              commit(false);
+            }
+          }}
+        />
+        {messageButton && <span className="commit-field-button">{messageButton}</span>}
+      </div>
       <div className="commit-actions">
         {next && target.count === 0 ? (
           // Nothing to commit: the button does what comes next. ⌘↵ in the message still only commits.

@@ -352,6 +352,53 @@ export interface ClaudeUsage {
   updatedAt: number;
 }
 
+/**
+ * What a Claude summary is about. The page names a discovered repository and commit ids; the main process
+ * reads the commits and diffs itself and runs Claude Code on them.
+ */
+export type SummaryRequest =
+  /** What a pull would bring: the upstream's commits not pulled yet. */
+  | { kind: 'incoming'; repoPath: string }
+  /** What the uncommitted changes do. */
+  | { kind: 'changes'; repoPath: string }
+  /** A commit message for the staged changes, or for all of them when nothing is staged. */
+  | { kind: 'message'; repoPath: string }
+  /** One line about a stash (named by its commit id), which can become its name. */
+  | { kind: 'stash'; repoPath: string; oid: string }
+  /** A pull request's title and description for the branch. */
+  | { kind: 'pullRequest'; repoPath: string }
+  /** What a commit does, and what to watch for. */
+  | { kind: 'commit'; repoPath: string; oid: string }
+  /** A day in History: the commits listed under its header, by repository; `unpushed`: those not pushed yet. */
+  | { kind: 'day'; label: string; commits: { repoPath: string; oids: string[]; unpushed?: string[] }[] };
+
+export type SummaryKind = SummaryRequest['kind'];
+
+/** Why a run gave no text. `missing`: `claude` couldn't be started; `limit`: a usage limit was reached. */
+export type SummaryFailure = 'missing' | 'limit' | 'failed' | 'cancelled';
+
+export type SummaryResult =
+  | {
+      ok: true;
+      /** Markdown for a summary; the message for `message`; the line for `stash`; the description for `pullRequest`. */
+      text: string;
+      /** A pull request's title. */
+      title?: string;
+      /** What was read, for the footer: "4 commits", "3 files, 84 lines". */
+      about: string;
+      /** When it finished (epoch ms). */
+      at: number;
+      /** A pull request on GitHub: the page that opens one from this branch, before the title and description are added. */
+      compareUrl?: string | null;
+    }
+  | {
+      ok: false;
+      reason: SummaryFailure;
+      error: string;
+      /** When a limit resets (epoch ms), if known. */
+      resetsAt?: number | null;
+    };
+
 /** Events the main process sends to the page on its own. */
 export interface EdiEvents {
   workspace: [view: WorkspaceView];
@@ -489,6 +536,13 @@ export interface EdiApi {
   listDir(repoPath: string, dirPath: string): Promise<DirList>;
   /** The last known Claude usage limits; null if the bridge isn't set up. */
   claudeUsage(): Promise<ClaudeUsage | null>;
+  /**
+   * Runs Claude Code (`claude -p`, with no tools) in the repository on what the request names. Only when
+   * the page asks; `id` (a positive integer) names the run for `cancelSummary`.
+   */
+  summarize(id: number, request: SummaryRequest): Promise<SummaryResult>;
+  /** Stops a run: it resolves as cancelled. */
+  cancelSummary(id: number): void;
   /** Opens the file in an editor, or the repo folder if `filePath` is null. */
   openIn(editor: EditorId, repoPath: string, filePath: string | null): Promise<OpResult>;
   /** Opens a web link from the terminal in the default browser (http/https only). */

@@ -140,6 +140,25 @@
   border-top-color: transparent;
 }
 
+/* The day's Claude summary: its sparkle on hover, and while it runs or its card is open. */
+.history-day {
+  gap: 6px;
+  padding-right: 8px;
+}
+
+.history-day .day-spark[data-state='idle'] {
+  opacity: 0;
+}
+
+.history-day:hover .day-spark,
+.history-day .day-spark:focus-visible {
+  opacity: 1;
+}
+
+.history-list .summary-card {
+  margin-top: 0;
+}
+
 .history-commit {
   height: 46px;
   flex: none;

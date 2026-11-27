@@ -121,6 +121,32 @@ export function timeline(logs: RepoLog[], now: number, opts: { single: boolean }
   return rows;
 }
 
+/** A day's commits sum up at most this many (the newest). */
+export const DAY_SUMMARY_MAX = 200;
+
+/**
+ * The commits under the day header at `index`, by repository in the order they first show, with those not
+ * pushed yet: what the day's Claude summary reads. At most DAY_SUMMARY_MAX.
+ */
+export function dayCommits(rows: HistoryRow[], index: number): { repoPath: string; oids: string[]; unpushed: string[] }[] {
+  const byRepo = new Map<string, { repoPath: string; oids: string[]; unpushed: string[] }>();
+  let total = 0;
+  for (let i = index + 1; i < rows.length && total < DAY_SUMMARY_MAX; i++) {
+    const row = rows[i]!;
+    if (row.type === 'day') break;
+    if (row.type === 'remote') continue;
+    let group = byRepo.get(row.repoPath);
+    if (!group) {
+      group = { repoPath: row.repoPath, oids: [], unpushed: [] };
+      byRepo.set(row.repoPath, group);
+    }
+    group.oids.push(row.commit.oid);
+    if (row.type === 'commit' && row.unpushed) group.unpushed.push(row.commit.oid);
+    total++;
+  }
+  return [...byRepo.values()];
+}
+
 export interface RepoGroup {
   repoName: string;
   repoPath: string;

@@ -4,6 +4,8 @@
   --panel: #21252b;
   --panel-open: #252930;
   --input: #1b1d23;
+  /* A Claude summary's card, between the input and the panel. */
+  --card: #1f2329;
   --selected: #2f343e;
   /* Row hover: noticeable both on the panel and on an open repo's background. */
   --hover: rgba(255, 255, 255, 0.035);

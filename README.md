@@ -105,6 +105,15 @@ macOS only for now. Electron, React, xterm.js and node-pty.
   tab's diff and the stash view do the same. Files with more than 400 changed
   lines start collapsed, and so do the rest once the open ones reach 3,000 lines together; one
   button expands or collapses them all.
+- **Claude summaries.** A sparkle button asks Claude Code about what it sits on: on Incoming, what a
+  pull would bring; on Changes, what the uncommitted changes do; in the commit box's corner, a commit
+  message from the staged changes (or all of them when nothing is staged); on Unpushed, a pull
+  request's title and description, with Copy and Push and open on GitHub (the page opens once the
+  push went through, with the text filled in); on a stash, one line that Use as its name makes its
+  name; Explain in the commit view; on a History day's header, what was done that day. Summaries
+  are in Turkish; a commit message or pull request follows the repository's own language and style.
+  The result opens in a card in place; refresh asks again, the sparkle or × closes it, and a run can
+  be stopped. A card goes once it no longer holds (the commits were pulled, the changes committed).
 - **Running servers.** A dev server started in a terminal (`npm run dev` and the like) shows
   in the status bar with its localhost port, repository and terminal, found from the
   terminal's processes rather than its output; clicking it opens the address in the browser.
@@ -212,8 +221,21 @@ preferences:
   file still holds the text that was searched; files with unsaved edits in a tab are left alone, and
   Replace All asks first. A search pattern runs in the main process under a time limit, so one that
   would run for ever is stopped.
-- **Nothing automatic.** No background fetch, pull or push. The network is touched only when
-  you press Fetch, Pull, Push or Publish.
+- **Only fetching runs on its own.** A pull, push or publish runs only when you press it. Fetching
+  is the one thing done in the background: every repository with a remote is fetched every three
+  minutes and when you come back to the window (View > Fetch Automatically turns it off), one at a
+  time, never while the Mac is offline or the repository is busy, and without asking for a
+  password. It brings in the remote's new commits, branches and tags; your branches and working tree
+  stay as they are. A repository whose automatic fetch fails three times in a row is left alone
+  until a fetch, pull or push of yours works. Otherwise the network is touched only when you press
+  Fetch, Pull, Push or Publish, or a Claude summary's button.
+- **Claude summaries run only when asked, and can't change anything.** Each button runs
+  `claude -p` once, in the repository (the project folder for a History day), with your account and
+  your usage; the commit messages and diffs go in on its input. Claude Code gets no tools
+  (`--tools ""`), no MCP servers, hooks or skills, and the run isn't saved for `--resume`. The page
+  names what to sum up, a discovered repository and commit ids, and the main process reads the Git
+  data itself. A written message only fills the commit box; renaming a stash and pushing for a pull
+  request are clicks of their own.
 - **The page cannot run commands.** The window is sandboxed and talks to the main process
   through a small typed bridge. A Git operation names a repository by path, and the main
   process accepts only the exact paths it discovered itself; an operation is one of a fixed
@@ -239,8 +261,9 @@ preferences:
   try to resolve them.
 - **Your Claude Code is left alone.** edi never edits `~/.claude`, injects hooks, wraps the
   `claude` command or pretends to be another terminal. It reads the process list and the
-  terminal title, nothing more.
-- **No telemetry, no network.** Fonts are bundled. The app makes no requests of its own.
+  terminal title; the only time it runs `claude` itself is a summary you asked for.
+- **No telemetry, no network.** Fonts are bundled. The app makes no requests of its own; a Claude
+  summary is Claude Code's request, made when you press its button.
 - **Asks before closing running work.** Quitting, closing a tab, switching projects or removing
   the open one asks first when a terminal still has a running process.
 
