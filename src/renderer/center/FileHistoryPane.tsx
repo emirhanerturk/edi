@@ -96,14 +96,19 @@ export function FileHistoryPane(props: FileHistoryPaneProps) {
 
   return (
     <div className="center-view file-history" data-testid="center-view" data-kind="history">
-      <ViewHeader repoName={props.repoName} path={props.path} onOpenIn={props.onOpenIn}>
-        {history?.ok && (
-          <span className="chip" data-testid="file-history-count">
-            {count}
-            {history.hasMore ? '+' : ''} {count === 1 && !history.hasMore ? 'commit' : 'commits'}
-          </span>
-        )}
-        <div className="spacer" />
+      <ViewHeader
+        repoName={props.repoName}
+        path={props.path}
+        onOpenIn={props.onOpenIn}
+        info={
+          history?.ok && (
+            <span className="chip" data-testid="file-history-count">
+              {count}
+              {history.hasMore ? '+' : ''} {count === 1 && !history.hasMore ? 'commit' : 'commits'}
+            </span>
+          )
+        }
+      >
         <button className="view-button" title="Show the whole file" onClick={props.onOpenFile}>
           <FileIcon size={12} />
           <span>Open file</span>
