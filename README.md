@@ -221,8 +221,14 @@ preferences:
   file still holds the text that was searched; files with unsaved edits in a tab are left alone, and
   Replace All asks first. A search pattern runs in the main process under a time limit, so one that
   would run for ever is stopped.
-- **Nothing automatic.** No background fetch, pull or push. The network is touched only when
-  you press Fetch, Pull, Push or Publish, or a Claude summary's button.
+- **Only fetching runs on its own.** A pull, push or publish runs only when you press it. Fetching
+  is the one thing done in the background: every repository with a remote is fetched every three
+  minutes and when you come back to the window (View > Fetch Automatically turns it off), one at a
+  time, never while the Mac is offline or the repository is busy, and without asking for a
+  password. It brings in the remote's new commits, branches and tags; your branches and working tree
+  stay as they are. A repository whose automatic fetch fails three times in a row is left alone
+  until a fetch, pull or push of yours works. Otherwise the network is touched only when you press Fetch, Pull, Push or Publish, or a
+  Claude summary's button.
 - **Claude summaries run only when asked, and can't change anything.** Each button runs
   `claude -p` once, in the repository (the project folder for a History day), with your account and
   your usage; the commit messages and diffs go in on its input. Claude Code gets no tools
